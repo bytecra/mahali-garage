@@ -233,6 +233,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reorder:    (id: number, direction: 'up' | 'down')          => invoke('jobTypes:reorder', id, direction),
   },
 
+  // ── Custom Receipts ─────────────────────────────────────────────────────
+  customReceipts: {
+    list:     (filters?: unknown)           => invoke('customReceipts:list', filters),
+    getById:  (id: number)                 => invoke('customReceipts:getById', id),
+    create:   (data: unknown)              => invoke('customReceipts:create', data),
+    delete:   (id: number)                 => invoke('customReceipts:delete', id),
+  },
+
   // ── App (activation window) ───────────────────────────────────────────────
   app: {
     licenseActivated: () => ipcRenderer.send('app:licenseActivated'),

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Wrench,
   BarChart3, UserCog, Settings, Receipt, CheckSquare, CalendarDays, FileText, Lock,
-  Car, Cog,
+  Car, Cog, ReceiptText,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
@@ -20,6 +20,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard',     icon: LayoutDashboard, labelKey: 'nav.dashboard' },
   { to: '/quick-invoice', icon: ShoppingCart,    labelKey: 'nav.quickInvoice', permission: 'sales.view' },
+  { to: '/custom-receipts', icon: ReceiptText,  labelKey: 'nav.customReceipts', permission: 'sales.view' },
   { to: '/job-cards',     icon: Wrench,          labelKey: 'nav.jobCards',     permission: 'repairs.view',   feature: 'job_cards.view' },
   { to: '/vehicles',      icon: Car,             labelKey: 'nav.vehicles',     permission: 'repairs.view',   feature: 'vehicles.view' },
   { to: '/services',      icon: Cog,             labelKey: 'nav.services',                                   feature: 'services.view' },

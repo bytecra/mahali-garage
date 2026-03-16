@@ -185,7 +185,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
       setSaving(false)
       if (!res.success) { toast.error(res.error ?? t('common.error')); return }
     } else {
-      const res = await window.electronAPI.jobCards.create(payload)
+      const res = await window.electronAPI.jobCards.create({ ...payload, status: form.status })
       setSaving(false)
       if (!res.success) { toast.error(res.error ?? t('common.error')); return }
       const result = res.data as { id: number; job_number: string }
@@ -250,14 +250,12 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
               {PRIORITIES.map(v => <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>)}
             </select>
           </div>
-          {isEdit && (
-            <div>
-              <label className={labelCls}>Status</label>
-              <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
-                {STATUSES.map(v => <option key={v} value={v}>{v.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>)}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className={labelCls}>Status</label>
+            <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
+              {STATUSES.map(v => <option key={v} value={v}>{v.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>)}
+            </select>
+          </div>
         </div>
 
         {/* ── Section 2: Vehicle & Owner ── */}

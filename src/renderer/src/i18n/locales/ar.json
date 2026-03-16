@@ -66,7 +66,8 @@
     "expenses": "المصروفات",
     "tasks": "المهام",
     "calendar": "التقويم",
-    "invoices": "الفواتير"
+    "invoices": "الفواتير",
+    "customReceipts": "إيصالات مخصصة"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -576,5 +577,28 @@
       "voided": "ملغى",
       "pending": "معلق"
     }
+  },
+  "customReceipts": {
+    "title": "إيصالات مخصصة",
+    "newReceipt": "إيصال جديد",
+    "subtitle": "إيصال سريع للعملاء العابرين",
+    "receiptNumber": "رقم الإيصال",
+    "customerName": "اسم العميل",
+    "plateNumber": "رقم اللوحة",
+    "carType": "نوع السيارة",
+    "servicesDescription": "الخدمات المنفذة",
+    "servicesPlaceholder": "مثال: تغيير زيت، تبديل فحمات الفرامل",
+    "amount": "المبلغ",
+    "paymentMethod": "طريقة الدفع",
+    "notes": "ملاحظات",
+    "notesPlaceholder": "ملاحظات داخلية (اختياري)",
+    "cash": "نقداً",
+    "card": "بطاقة",
+    "transfer": "تحويل بنكي",
+    "printReceipt": "طباعة الإيصال",
+    "createAndPrint": "حفظ وطباعة",
+    "errorPlate": "رقم اللوحة مطلوب",
+    "errorCarType": "نوع السيارة مطلوب",
+    "errorAmount": "المبلغ يجب أن يكون أكبر من صفر"
   }
 }

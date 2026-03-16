@@ -24,6 +24,7 @@ const CalendarPage    = lazy(() => import('./pages/Calendar/CalendarPage'))
 const InvoicesPage    = lazy(() => import('./pages/Invoices/InvoicesPage'))
 const VehiclesPage    = lazy(() => import('./pages/Vehicles/VehiclesPage'))
 const ServicesPage    = lazy(() => import('./pages/Services/ServicesPage'))
+const CustomReceiptsPage = lazy(() => import('./pages/CustomReceipts/CustomReceiptsPage'))
 
 function LoadingFallback(): JSX.Element {
   return (
@@ -119,6 +120,9 @@ export default function App(): JSX.Element {
             } />
             <Route path="/invoices" element={
               <Suspense fallback={<LoadingFallback />}><InvoicesPage /></Suspense>
+            } />
+            <Route path="/custom-receipts" element={
+              <Suspense fallback={<LoadingFallback />}><CustomReceiptsPage /></Suspense>
             } />
           </Route>
         </Route>

@@ -16,6 +16,7 @@ export interface CreateJobCardInput {
   owner_id?: number | null
   job_type?: string
   priority?: string
+  status?: string
   complaint?: string
   diagnosis?: string
   technician_id?: number | null
@@ -160,16 +161,17 @@ export const jobCardRepo = {
     const taxRate = input.tax_rate ?? 0
 
     const result = db.prepare(`
-      INSERT INTO job_cards (job_number, vehicle_id, owner_id, job_type, priority, complaint, diagnosis,
+      INSERT INTO job_cards (job_number, vehicle_id, owner_id, job_type, priority, status, complaint, diagnosis,
         technician_id, bay_number, mileage_in, labor_rate, expected_completion, deposit, tax_rate,
         notes, customer_authorized, created_by, balance_due)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       job_number,
       input.vehicle_id ?? null,
       input.owner_id ?? null,
       input.job_type ?? 'General Service',
       input.priority ?? 'normal',
+      input.status ?? 'pending',
       input.complaint ?? null,
       input.diagnosis ?? null,
       input.technician_id ?? null,
