@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activate Mahali POS</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #e2e8f0;
+      padding: 24px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);
+    }
+    h1 { margin: 0 0 8px 0; font-size: 1.5rem; font-weight: 700; }
+    .sub { color: #94a3b8; font-size: 0.875rem; margin-bottom: 24px; }
+    .field { margin-bottom: 20px; }
+    label { display: block; font-size: 0.8125rem; font-weight: 500; color: #cbd5e1; margin-bottom: 6px; }
+    .device-id-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: ui-monospace, monospace;
+      font-size: 0.875rem;
+      word-break: break-all;
+    }
+    .device-id-box span { flex: 1; }
+    .btn-sm {
+      background: #334155;
+      color: #e2e8f0;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-sm:hover { background: #475569; }
+    input[type="text"] {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.875rem;
+      color: #e2e8f0;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+    }
+    .btn-activate {
+      width: 100%;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-activate:hover { background: #2563eb; }
+    .btn-activate:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error {
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.4);
+      color: #fca5a5;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      margin-top: 12px;
+      display: none;
+    }
+    .error.visible { display: block; }
+    .success {
+      background: rgba(34,197,94,0.15);
+      border: 1px solid rgba(34,197,94,0.4);
+      color: #86efac;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      margin-top: 12px;
+      display: none;
+    }
+    .success.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Activate Mahali POS</h1>
+    <p class="sub">Enter your license code to use this application on this device.</p>
+
+    <div class="field">
+      <label>Your Device ID (share this with your vendor to get a license code)</label>
+      <div class="device-id-box">
+        <span id="device-id">—</span>
+        <button type="button" class="btn-sm" id="copy-btn">Copy</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="license-code">License Code</label>
+      <input type="text" id="license-code" placeholder="XXXX-XXXX-XXXXXXXXXX-XXXXXXXXXXXXXXXX" autocomplete="off" />
+    </div>
+
+    <button type="button" class="btn-activate" id="activate-btn">Activate</button>
+
+    <div class="error" id="error"></div>
+    <div class="success" id="success">License activated. Opening application…</div>
+  </div>
+  <script type="module" src="./src/activation/main.ts"></script>
+</body>
+</html>

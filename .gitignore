@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+
+# Electron Forge / packaged apps
+.webpack/
+
+# Database (user data — do not commit)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Electron builder cache
+.electron-builder-cache/
+
+# Temporary npm cache
+/tmp/npm-cache-mahali/
+
+# TypeScript build info
+*.tsbuildinfo

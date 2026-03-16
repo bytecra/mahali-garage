@@ -1,0 +1,63 @@
+import Database from 'better-sqlite3'
+import log from '../../utils/logger'
+import { migration001 } from './001_initial'
+import { migration002 } from './002_seed'
+import { migration003 } from './003_add_counters'
+import { migration004 } from './004_partners'
+import { migration005 } from './005_expenses'
+import { migration006, preUp006 } from './006_role_permissions'
+import { migration007 } from './007_tasks'
+import { migration008 } from './008_branding'
+
+interface Migration {
+  version: number
+  name: string
+  up: (db: Database.Database) => void
+  /** Runs OUTSIDE the transaction — for DDL that requires FK constraints disabled */
+  preUp?: (db: Database.Database) => void
+}
+
+const migrations: Migration[] = [
+  { version: 1, name: '001_initial',          up: migration001 },
+  { version: 2, name: '002_seed',             up: migration002 },
+  { version: 3, name: '003_add_counters',     up: migration003 },
+  { version: 4, name: '004_partners',         up: migration004 },
+  { version: 5, name: '005_expenses',         up: migration005 },
+  { version: 6, name: '006_role_permissions', up: migration006, preUp: preUp006 },
+  { version: 7, name: '007_tasks',            up: migration007 },
+  { version: 8, name: '008_branding',         up: migration008 },
+]
+
+export async function runMigrations(db: Database.Database): Promise<void> {
+  // Create migrations tracking table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      version   INTEGER PRIMARY KEY,
+      name      TEXT NOT NULL,
+      run_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+
+  const getApplied = db.prepare('SELECT version FROM _migrations')
+  const applied = new Set((getApplied.all() as { version: number }[]).map(r => r.version))
+
+  const insertMigration = db.prepare(
+    'INSERT INTO _migrations (version, name) VALUES (?, ?)'
+  )
+
+  for (const migration of migrations) {
+    if (applied.has(migration.version)) continue
+
+    log.info(`Running migration ${migration.name}...`)
+
+    // preUp runs outside a transaction (safe for DDL / FK-disabling ops)
+    if (migration.preUp) migration.preUp(db)
+
+    const run = db.transaction(() => {
+      migration.up(db)
+      insertMigration.run(migration.version, migration.name)
+    })
+    run()
+    log.info(`Migration ${migration.name} completed.`)
+  }
+}
