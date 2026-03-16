@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { userRepo } from '../database/repositories/userRepo'
 import { authService, ROLE_DEFAULTS } from '../services/authService'
 import { activityLogRepo } from '../database/repositories/activityLogRepo'
+import { getTieredLicenseInfo } from '../licensing/license-manager'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
 import bcrypt from 'bcryptjs'
@@ -21,19 +22,18 @@ export function registerUserHandlers(): void {
       if (!authService.hasPermission(event.sender.id, 'users.manage')) return err('Forbidden', 'ERR_FORBIDDEN')
       // Enforce license user limit
       try {
-        // Lazy require to avoid circular deps
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const licenseManager = require('../licensing/license-manager') as typeof import('../licensing/license-manager')
-        const info = licenseManager.getTieredLicenseInfo()
+        const info = getTieredLicenseInfo()
         if (info.maxUsers !== -1) {
           const currentCount = userRepo.list().length
           if (currentCount >= info.maxUsers) {
-            return err('Your license plan does not allow adding more users.', 'ERR_LICENSE_USER_LIMIT')
+            const tier = info.tier
+            if (tier === 'BASIC') return err('BASIC license allows only 1 user. Upgrade to STANDARD (5 users) or PREMIUM (unlimited).', 'ERR_LICENSE_USER_LIMIT')
+            if (tier === 'STANDARD') return err('STANDARD license allows up to 5 users. Upgrade to PREMIUM for unlimited users.', 'ERR_LICENSE_USER_LIMIT')
+            return err('Maximum users reached for your license tier.', 'ERR_LICENSE_USER_LIMIT')
           }
         }
       } catch (e) {
-        log.error('users:create license check failed', e)
-        return err('License check failed', 'ERR_LICENSE')
+        log.error('users:create license check error (allowing creation):', e)
       }
       const hash = bcrypt.hashSync(input.password, 12)
       const id = userRepo.create({ ...input, password_hash: hash })

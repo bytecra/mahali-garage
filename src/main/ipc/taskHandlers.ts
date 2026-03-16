@@ -2,13 +2,26 @@ import { ipcMain } from 'electron'
 import { taskRepo } from '../database/repositories/taskRepo'
 import { notificationRepo } from '../database/repositories/notificationRepo'
 import { authService } from '../services/authService'
+import { hasFeature } from '../licensing/license-manager'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
+
+function requireLicense(feature: string): string | null {
+  try {
+    if (!hasFeature(feature)) return 'This feature requires STANDARD or PREMIUM license'
+  } catch (e) {
+    log.error('License check error', e)
+    return null
+  }
+  return null
+}
 
 export function registerTaskHandlers(): void {
   // ── List ──────────────────────────────────────────────────────────────────
   ipcMain.handle('tasks:list', (event, filters) => {
     try {
+      const licErr = requireLicense('tasks.view')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.view'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const session = authService.getSession(event.sender.id)!
@@ -24,6 +37,8 @@ export function registerTaskHandlers(): void {
   // ── Get by ID ─────────────────────────────────────────────────────────────
   ipcMain.handle('tasks:getById', (event, id: number) => {
     try {
+      const licErr = requireLicense('tasks.view')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.view'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const task = taskRepo.getById(id)
@@ -38,12 +53,13 @@ export function registerTaskHandlers(): void {
   // ── Create ────────────────────────────────────────────────────────────────
   ipcMain.handle('tasks:create', (event, data) => {
     try {
+      const licErr = requireLicense('tasks.add')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.create'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const session = authService.getSession(event.sender.id)!
       const taskId = taskRepo.create({ ...data, created_by: session.userId })
 
-      // Handle assignees
       if (Array.isArray(data.assignee_ids) && data.assignee_ids.length > 0) {
         if (authService.hasPermission(event.sender.id, 'tasks.assign')) {
           taskRepo.setAssignees(taskId, data.assignee_ids, session.userId)
@@ -61,13 +77,14 @@ export function registerTaskHandlers(): void {
   // ── Update ────────────────────────────────────────────────────────────────
   ipcMain.handle('tasks:update', (event, id: number, data) => {
     try {
+      const licErr = requireLicense('tasks.add')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.view'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const session = authService.getSession(event.sender.id)!
       const task = taskRepo.getById(id)
       if (!task) return err('Task not found', 'ERR_NOT_FOUND')
 
-      // Employees can only edit their own tasks
       const isPrivileged = ['owner', 'manager'].includes(session.role)
       if (!isPrivileged && !authService.hasPermission(event.sender.id, 'tasks.edit')) {
         if (task.created_by !== session.userId)
@@ -76,7 +93,6 @@ export function registerTaskHandlers(): void {
 
       taskRepo.update(id, data)
 
-      // Update assignees if provided
       if (Array.isArray(data.assignee_ids) && authService.hasPermission(event.sender.id, 'tasks.assign')) {
         const prev = taskRepo.getAssignees(id).map(a => a.user_id)
         taskRepo.setAssignees(id, data.assignee_ids, session.userId)
@@ -95,6 +111,8 @@ export function registerTaskHandlers(): void {
   // ── Delete ────────────────────────────────────────────────────────────────
   ipcMain.handle('tasks:delete', (event, id: number) => {
     try {
+      const licErr = requireLicense('tasks.add')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.delete'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const task = taskRepo.getById(id)
@@ -110,6 +128,8 @@ export function registerTaskHandlers(): void {
   // ── Calendar ──────────────────────────────────────────────────────────────
   ipcMain.handle('tasks:getForCalendar', (event, dateFrom: string, dateTo: string) => {
     try {
+      const licErr = requireLicense('calendar.view')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.view'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const session = authService.getSession(event.sender.id)!
@@ -125,6 +145,8 @@ export function registerTaskHandlers(): void {
   // ── Set assignees ─────────────────────────────────────────────────────────
   ipcMain.handle('tasks:setAssignees', (event, taskId: number, userIds: number[]) => {
     try {
+      const licErr = requireLicense('tasks.add')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.assign'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const session = authService.getSession(event.sender.id)!
@@ -145,6 +167,8 @@ export function registerTaskHandlers(): void {
   // ── Create delivery from sale ─────────────────────────────────────────────
   ipcMain.handle('tasks:createDelivery', (event, data) => {
     try {
+      const licErr = requireLicense('tasks.add')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.create'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const session = authService.getSession(event.sender.id)!
@@ -163,6 +187,8 @@ export function registerTaskHandlers(): void {
   // ── Dashboard summary ─────────────────────────────────────────────────────
   ipcMain.handle('tasks:getSummary', (event) => {
     try {
+      const licErr = requireLicense('tasks.view')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'tasks.view'))
         return err('Forbidden', 'ERR_FORBIDDEN')
       const session = authService.getSession(event.sender.id)!

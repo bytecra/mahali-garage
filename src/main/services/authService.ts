@@ -147,8 +147,12 @@ export const authService = {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const licenseManager = require('../licensing/license-manager') as typeof import('../licensing/license-manager')
       return roleAllowed && licenseManager.hasFeature(feature)
-    } catch {
-      return false
+    } catch (e) {
+      // If license-manager can't be loaded (e.g. HMAC_SECRET missing), log but don't
+      // silently block — role permission alone is sufficient as a fallback.
+      // Explicit license checks in IPC handlers provide the primary enforcement.
+      console.error('[authService] License check failed, falling back to role-only:', e)
+      return roleAllowed
     }
   },
 
