@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HardDrive, CheckCircle, AlertCircle } from 'lucide-react'
 import { toast } from '../../store/notificationStore'
@@ -7,7 +7,9 @@ import { useLangStore } from '../../store/langStore'
 import { useBrandingStore } from '../../store/brandingStore'
 import { usePermission } from '../../hooks/usePermission'
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity'
+const JobTypesSettings = lazy(() => import('./JobTypesSettings'))
+
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types'
 
 interface ActivityRow {
   id: number; user_id: number | null; full_name: string | null
@@ -152,6 +154,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'tax',        label: t('settings.tax'),            guard: canSettings },
     { key: 'appearance', label: t('settings.appearance') },
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
+    { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
     { key: 'backup',     label: t('settings.backup'),         guard: canBackup },
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
     { key: 'license',    label: 'License' },
@@ -314,6 +317,12 @@ export default function SettingsPage(): JSX.Element {
               </button>
             </div>
           </div>
+        )}
+
+        {tab === 'job-types' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
+            <JobTypesSettings />
+          </Suspense>
         )}
 
         {tab === 'license' && (

@@ -454,6 +454,13 @@
     "restoreBackup": "استعادة نسخة احتياطية",
     "autoBackup": "نسخ احتياطي تلقائي",
     "paymentMethods": "طرق الدفع",
+    "jobTypes": "أنواع العمل",
+    "addJobType": "إضافة نوع عمل",
+    "editJobType": "تعديل نوع العمل",
+    "deleteJobType": "حذف نوع العمل",
+    "jobTypeName": "اسم نوع العمل",
+    "jobTypeDescription": "الوصف",
+    "ownerOnly": "غير مسموح",
     "activityLog": "سجل النشاط",
     "activity": {
       "title": "سجل النشاط",

@@ -19,6 +19,7 @@ import { registerNotificationHandlers }  from './notificationHandlers'
 import { registerVehicleHandlers }       from './vehicleHandlers'
 import { registerJobCardHandlers }       from './jobCardHandlers'
 import { registerServiceHandlers }       from './serviceHandlers'
+import { registerJobTypeHandlers }       from './jobTypeHandlers'
 
 export function registerAllHandlers(): void {
   registerAuthHandlers()
@@ -42,4 +43,5 @@ export function registerAllHandlers(): void {
   registerVehicleHandlers()
   registerJobCardHandlers()
   registerServiceHandlers()
+  registerJobTypeHandlers()
 }

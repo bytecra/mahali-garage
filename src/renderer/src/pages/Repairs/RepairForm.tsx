@@ -19,12 +19,8 @@ interface VehicleOption {
   owner_id: number | null; owner_name: string | null
 }
 interface Part { name: string; qty: number; cost: number }
+interface JobTypeOption { id: number; name: string }
 
-const JOB_TYPES = [
-  'General Service', 'Oil Change', 'Brake Service', 'Engine Repair',
-  'Transmission Work', 'Electrical Repair', 'Body Work', 'Tire Service',
-  'Diagnostic', 'AC/Heating', 'Suspension', 'Exhaust System', 'Custom Work', 'Other',
-]
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
 const STATUSES = ['pending', 'in_progress', 'waiting_parts', 'ready', 'delivered', 'cancelled'] as const
 const BAYS = ['', 'Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Bay 6']
@@ -37,6 +33,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
   const [saving, setSaving] = useState(false)
   const [technicians, setTechnicians] = useState<Technician[]>([])
   const [vehicles, setVehicles] = useState<VehicleOption[]>([])
+  const [jobTypes, setJobTypes] = useState<JobTypeOption[]>([])
   const [parts, setParts] = useState<Part[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleOption | null>(null)
 
@@ -71,9 +68,11 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
     Promise.all([
       window.electronAPI.users?.list({}),
       window.electronAPI.vehicles.list({ pageSize: 500 }),
-    ]).then(([techRes, vehRes]) => {
+      window.electronAPI.jobTypes.listActive(),
+    ]).then(([techRes, vehRes, jtRes]) => {
       if (techRes?.success) setTechnicians((techRes.data as { rows: Technician[] }).rows ?? [])
       if (vehRes?.success) setVehicles((vehRes.data as { items: VehicleOption[] }).items ?? [])
+      if (jtRes?.success) setJobTypes(jtRes.data as JobTypeOption[])
     })
 
     if (isEdit) {
@@ -239,7 +238,10 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
           <div>
             <label className={labelCls}>Job Type</label>
             <select value={form.job_type} onChange={e => set('job_type', e.target.value)} className={inputCls}>
-              {JOB_TYPES.map(jt => <option key={jt} value={jt}>{jt}</option>)}
+              {jobTypes.length > 0
+                ? jobTypes.map(jt => <option key={jt.id} value={jt.name}>{jt.name}</option>)
+                : <option value={form.job_type}>{form.job_type}</option>
+              }
             </select>
           </div>
           <div>

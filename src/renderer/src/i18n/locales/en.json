@@ -454,6 +454,13 @@
     "restoreBackup": "Restore Backup",
     "autoBackup": "Auto Backup",
     "paymentMethods": "Payment Methods",
+    "jobTypes": "Job Types",
+    "addJobType": "Add Job Type",
+    "editJobType": "Edit Job Type",
+    "deleteJobType": "Delete Job Type",
+    "jobTypeName": "Job Type Name",
+    "jobTypeDescription": "Description",
+    "ownerOnly": "Permission Denied",
     "activityLog": "Activity Log",
     "activity": {
       "title": "Activity Log",

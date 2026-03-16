@@ -223,6 +223,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCategories:  ()                           => invoke('services:getCategories'),
   },
 
+  // ── Job Types ──────────────────────────────────────────────────────────
+  jobTypes: {
+    listAll:    ()                                              => invoke('jobTypes:listAll'),
+    listActive: ()                                              => invoke('jobTypes:listActive'),
+    create:     (data: { name: string; description?: string; is_active?: boolean }) => invoke('jobTypes:create', data),
+    update:     (id: number, data: { name?: string; description?: string; is_active?: boolean }) => invoke('jobTypes:update', id, data),
+    delete:     (id: number)                                    => invoke('jobTypes:delete', id),
+    reorder:    (id: number, direction: 'up' | 'down')          => invoke('jobTypes:reorder', id, direction),
+  },
+
   // ── App (activation window) ───────────────────────────────────────────────
   app: {
     licenseActivated: () => ipcRenderer.send('app:licenseActivated'),
