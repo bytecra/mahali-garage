@@ -1,4 +1,4 @@
-## Mahali POS License Secret & Generator Usage
+## Mahali Garage License Secret & Generator Usage
 
 ### 1. Generate a strong HMAC secret (one-time)
 
@@ -32,4 +32,3 @@ Supported types are documented in `scripts/license-generator.ts` (BASIC/STANDARD
 - Every environment (staging, production) should have its own `LICENSE_HMAC_SECRET`.
 - Never ship the secret inside the binary or source code.
 - If the secret is ever leaked, treat all existing licenses as compromised and rotate to a new secret.
-

@@ -16,6 +16,9 @@ import { registerActivityHandlers } from './activityHandlers'
 import { registerExpenseHandlers }      from './expenseHandlers'
 import { registerTaskHandlers }          from './taskHandlers'
 import { registerNotificationHandlers }  from './notificationHandlers'
+import { registerVehicleHandlers }       from './vehicleHandlers'
+import { registerJobCardHandlers }       from './jobCardHandlers'
+import { registerServiceHandlers }       from './serviceHandlers'
 
 export function registerAllHandlers(): void {
   registerAuthHandlers()
@@ -36,4 +39,7 @@ export function registerAllHandlers(): void {
   registerExpenseHandlers()
   registerTaskHandlers()
   registerNotificationHandlers()
+  registerVehicleHandlers()
+  registerJobCardHandlers()
+  registerServiceHandlers()
 }

@@ -21,7 +21,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 
-const SALT = 'opskey-fp-v1'
+const SALT = 'mahali-garage-fp-v1'
 
 function getDeviceIdFilePath(): string {
   return join(app.getPath('userData'), '.device-id')

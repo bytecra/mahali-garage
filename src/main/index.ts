@@ -60,7 +60,7 @@ function createActivationWindow(): void {
     resizable: false,
     show: false,
     autoHideMenuBar: true,
-    title: 'Activate Mahali POS',
+    title: 'Activate Mahali Garage',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

@@ -1,7 +1,7 @@
 {
-  "name": "mahali",
+  "name": "mahali-garage",
   "version": "1.0.0",
-  "description": "Mahali Point of Sale System",
+  "description": "Professional garage and auto repair shop management system",
   "main": "./out/main/index.js",
   "author": "",
   "license": "UNLICENSED",
@@ -84,5 +84,9 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.11"
   },
-  "productName": "Mahali POS"
+  "productName": "Mahali Garage",
+  "build": {
+    "appId": "com.ali.mahali-garage",
+    "productName": "Mahali Garage"
+  }
 }

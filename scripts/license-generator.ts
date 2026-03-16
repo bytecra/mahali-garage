@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CLI tool to generate device-bound license codes for Mahali POS.
+ * CLI tool to generate device-bound license codes for Mahali Garage.
  * Use the same LICENSE_HMAC_SECRET as the app (or set via env).
  *
  * Usage:
@@ -13,9 +13,9 @@
  *   npx tsx scripts/license-generator.ts --device ABC123 --type STANDARD_TRIAL_30
  *
  * Tiers:
- *   BASIC ($99):     POS, Inventory, Customers, 1 user
- *   STANDARD ($249): + Reports, Tasks, Expenses, Calendar, up to 5 users
- *   PREMIUM ($499):  + Repairs, unlimited users
+ *   BASIC ($99):     Quick Invoice, Parts, Vehicle Owners, 1 user
+ *   STANDARD ($249): + Job Cards, Vehicles, Reports, Tasks, Expenses, up to 5 users
+ *   PREMIUM ($499):  + Services Catalog, Advanced Job Cards, unlimited users
  */
 
 import crypto from 'crypto'
@@ -78,7 +78,7 @@ function generateLicenseCode(deviceId: string, type: LicenseType): string {
 function showUsage() {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║           Mahali POS - License Generator                     ║
+║         Mahali Garage - License Generator                     ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Usage:
@@ -109,9 +109,9 @@ Examples:
   npx tsx scripts/license-generator.ts --device ABC123XYZ --type STANDARD_TRIAL_30
 
 Tier Features:
-  BASIC:    POS, Inventory, Customers, Settings (1 user)
-  STANDARD: + Reports, Tasks, Expenses, Calendar (5 users)
-  PREMIUM:  + Repairs, Advanced Permissions (unlimited users)
+  BASIC:    Quick Invoice, Parts, Vehicle Owners, Settings (1 user)
+  STANDARD: + Job Cards, Vehicles, Reports, Tasks, Expenses, Calendar (5 users)
+  PREMIUM:  + Services Catalog, Advanced Job Cards, Backup (unlimited users)
 `)
   process.exit(1)
 }

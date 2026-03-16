@@ -50,10 +50,16 @@
   },
   "nav": {
     "dashboard": "لوحة التحكم",
-    "pos": "نقطة البيع",
-    "inventory": "المخزون",
-    "customers": "العملاء",
-    "repairs": "الإصلاحات",
+    "quickInvoice": "فاتورة سريعة",
+    "pos": "فاتورة سريعة",
+    "jobCards": "بطاقات العمل",
+    "vehicles": "المركبات",
+    "services": "الخدمات",
+    "parts": "قطع الغيار",
+    "inventory": "قطع الغيار",
+    "owners": "أصحاب المركبات",
+    "customers": "أصحاب المركبات",
+    "repairs": "بطاقات العمل",
     "reports": "التقارير",
     "users": "المستخدمون",
     "settings": "الإعدادات",
@@ -68,7 +74,7 @@
     "password": "كلمة المرور",
     "loginButton": "دخول",
     "loginError": "اسم المستخدم أو كلمة المرور غير صحيحة",
-    "welcome": "مرحباً بك في Mahali POS"
+    "welcome": "مرحباً بك في Mahali Garage"
   },
   "dashboard": {
     "title": "لوحة التحكم",

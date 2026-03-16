@@ -50,10 +50,16 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "pos": "Point of Sale",
-    "inventory": "Inventory",
-    "customers": "Customers",
-    "repairs": "Repairs",
+    "quickInvoice": "Quick Invoice",
+    "pos": "Quick Invoice",
+    "jobCards": "Job Cards",
+    "vehicles": "Vehicles",
+    "services": "Services",
+    "parts": "Parts Inventory",
+    "inventory": "Parts Inventory",
+    "owners": "Vehicle Owners",
+    "customers": "Vehicle Owners",
+    "repairs": "Job Cards",
     "reports": "Reports",
     "users": "Users",
     "settings": "Settings",
@@ -68,7 +74,7 @@
     "password": "Password",
     "loginButton": "Sign In",
     "loginError": "Invalid username or password",
-    "welcome": "Welcome to Mahali POS"
+    "welcome": "Welcome to Mahali Garage"
   },
   "dashboard": {
     "title": "Dashboard",

@@ -10,7 +10,6 @@ import ProtectedRoute from './components/layout/ProtectedRoute'
 import LoginPage from './pages/Login/LoginPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 
-// Lazy stub pages — will be replaced with real implementations
 import { lazy, Suspense } from 'react'
 const POSPage         = lazy(() => import('./pages/POS/POSPage'))
 const InventoryPage   = lazy(() => import('./pages/Inventory/InventoryPage'))
@@ -23,6 +22,8 @@ const ExpensesPage    = lazy(() => import('./pages/Expenses/ExpensesPage'))
 const TasksPage       = lazy(() => import('./pages/Tasks/TasksPage'))
 const CalendarPage    = lazy(() => import('./pages/Calendar/CalendarPage'))
 const InvoicesPage    = lazy(() => import('./pages/Invoices/InvoicesPage'))
+const VehiclesPage    = lazy(() => import('./pages/Vehicles/VehiclesPage'))
+const ServicesPage    = lazy(() => import('./pages/Services/ServicesPage'))
 
 function LoadingFallback(): JSX.Element {
   return (
@@ -41,26 +42,21 @@ export default function App(): JSX.Element {
   useEffect(() => {
     async function init(): Promise<void> {
       try {
-        // Load persisted settings
         const settingsRes = await window.electronAPI.settings.getAll()
         if (settingsRes.success && settingsRes.data) {
           const s = settingsRes.data
 
-          // Apply theme
           const theme = (s['appearance.theme'] as 'light' | 'dark' | 'system') || 'system'
           setTheme(theme)
           applyTheme(theme)
 
-          // Apply language
           const lang = (s['appearance.language'] as 'en' | 'ar') || 'en'
           setLang(lang)
           applyLanguage(lang)
         }
 
-        // Load branding (app name + tagline)
         await loadBranding()
 
-        // Restore session
         const sessionRes = await window.electronAPI.auth.getSession()
         if (sessionRes.success && sessionRes.data) {
           setUser(sessionRes.data)
@@ -81,18 +77,28 @@ export default function App(): JSX.Element {
           <Route element={<AppShell />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/pos" element={
+            <Route path="/quick-invoice" element={
               <Suspense fallback={<LoadingFallback />}><POSPage /></Suspense>
             } />
-            <Route path="/inventory" element={
-              <Suspense fallback={<LoadingFallback />}><InventoryPage /></Suspense>
-            } />
-            <Route path="/customers/*" element={
-              <Suspense fallback={<LoadingFallback />}><CustomersPage /></Suspense>
-            } />
-            <Route path="/repairs/*" element={
+            <Route path="/pos" element={<Navigate to="/quick-invoice" replace />} />
+            <Route path="/job-cards" element={
               <Suspense fallback={<LoadingFallback />}><RepairsPage /></Suspense>
             } />
+            <Route path="/repairs/*" element={<Navigate to="/job-cards" replace />} />
+            <Route path="/vehicles/*" element={
+              <Suspense fallback={<LoadingFallback />}><VehiclesPage /></Suspense>
+            } />
+            <Route path="/services" element={
+              <Suspense fallback={<LoadingFallback />}><ServicesPage /></Suspense>
+            } />
+            <Route path="/parts" element={
+              <Suspense fallback={<LoadingFallback />}><InventoryPage /></Suspense>
+            } />
+            <Route path="/inventory" element={<Navigate to="/parts" replace />} />
+            <Route path="/owners/*" element={
+              <Suspense fallback={<LoadingFallback />}><CustomersPage /></Suspense>
+            } />
+            <Route path="/customers/*" element={<Navigate to="/owners" replace />} />
             <Route path="/reports/*" element={
               <Suspense fallback={<LoadingFallback />}><ReportsPage /></Suspense>
             } />

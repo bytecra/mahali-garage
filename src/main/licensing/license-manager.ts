@@ -309,17 +309,26 @@ export function hasFeature(feature: string): boolean {
   const premiumOnly = tier === LicenseTier.PREMIUM
 
   const featureAccess: Record<string, boolean> = {
-    // BASIC (all tiers have these)
+    // BASIC (all tiers)
     'dashboard.view': true,
+    'quick_invoice': true,
     'pos': true,
+    'parts.view': true,
+    'parts.edit': true,
     'inventory.view': true,
     'inventory.edit': true,
+    'owners.view': true,
+    'owners.edit': true,
     'customers.view': true,
     'customers.edit': true,
     'settings.view': true,
     'settings.edit': true,
 
-    // STANDARD+ (STANDARD and PREMIUM only)
+    // STANDARD+ (STANDARD and PREMIUM)
+    'job_cards.view': stdOrPremium,
+    'job_cards.edit': stdOrPremium,
+    'vehicles.view': stdOrPremium,
+    'vehicles.edit': stdOrPremium,
     'reports.view': stdOrPremium,
     'reports.export': stdOrPremium,
     'expenses.view': stdOrPremium,
@@ -329,10 +338,13 @@ export function hasFeature(feature: string): boolean {
     'calendar.view': stdOrPremium,
     'invoices.view': stdOrPremium,
     'invoices.edit': stdOrPremium,
+    'repairs.view': stdOrPremium,
+    'repairs.edit': stdOrPremium,
 
     // PREMIUM only
-    'repairs.view': premiumOnly,
-    'repairs.edit': premiumOnly,
+    'services.view': premiumOnly,
+    'services.edit': premiumOnly,
+    'job_cards.advanced': premiumOnly,
     'users.advanced_permissions': premiumOnly,
     'activity_log.view': premiumOnly,
     'backup.manage': premiumOnly,

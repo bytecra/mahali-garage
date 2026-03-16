@@ -5,8 +5,8 @@ import { MakerZIP }      from '@electron-forge/maker-zip'
 
 const config: ForgeConfig = {
   packagerConfig: {
-    name:      'Mahali',
-    executableName: 'mahali',
+    name:      'Mahali Garage',
+    executableName: 'mahali-garage',
     asar: true,
     icon: './resources/icon',   // .ico on Windows, .icns on macOS — create these assets later
     extraResource: [],
@@ -20,12 +20,12 @@ const config: ForgeConfig = {
   makers: [
     // Windows installer
     new MakerSquirrel({
-      name: 'Mahali',
+      name: 'MahaliGarage',
       setupIcon: './resources/icon.ico',
     }),
     // macOS disk image
     new MakerDMG({
-      name: 'Mahali',
+      name: 'Mahali Garage',
       icon: './resources/icon.icns',
     }),
     // Cross-platform ZIP (fallback)

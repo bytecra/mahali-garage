@@ -8,6 +8,7 @@ import { migration005 } from './005_expenses'
 import { migration006, preUp006 } from './006_role_permissions'
 import { migration007 } from './007_tasks'
 import { migration008 } from './008_branding'
+import { migration009 } from './009_garage'
 
 interface Migration {
   version: number
@@ -26,10 +27,10 @@ const migrations: Migration[] = [
   { version: 6, name: '006_role_permissions', up: migration006, preUp: preUp006 },
   { version: 7, name: '007_tasks',            up: migration007 },
   { version: 8, name: '008_branding',         up: migration008 },
+  { version: 9, name: '009_garage',           up: migration009 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {
-  // Create migrations tracking table
   db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       version   INTEGER PRIMARY KEY,
@@ -50,7 +51,6 @@ export async function runMigrations(db: Database.Database): Promise<void> {
 
     log.info(`Running migration ${migration.name}...`)
 
-    // preUp runs outside a transaction (safe for DDL / FK-disabling ops)
     if (migration.preUp) migration.preUp(db)
 
     const run = db.transaction(() => {

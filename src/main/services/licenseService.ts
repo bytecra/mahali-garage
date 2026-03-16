@@ -10,7 +10,7 @@ import { machineIdSync } from 'node-machine-id'
 import { getDb } from '../database/index'
 import log from '../utils/logger'
 
-const HMAC_SECRET = 'opskey-hmac-secret-2024'   // In production: obfuscated or env-injected
+const HMAC_SECRET = 'mahali-garage-hmac-secret-2024'   // In production: obfuscated or env-injected
 const GRACE_DAYS = 7                              // days to allow after HW change
 
 export interface LicenseStatus {

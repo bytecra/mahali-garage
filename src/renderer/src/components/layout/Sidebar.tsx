@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Wrench,
   BarChart3, UserCog, Settings, Receipt, CheckSquare, CalendarDays, FileText, Lock,
+  Car, Cog,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
@@ -17,18 +18,20 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard',  icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-  { to: '/pos',        icon: ShoppingCart,    labelKey: 'nav.pos',        permission: 'sales.view' },
-  { to: '/inventory',  icon: Package,         labelKey: 'nav.inventory',  permission: 'inventory.view' },
-  { to: '/customers',  icon: Users,           labelKey: 'nav.customers',  permission: 'customers.view' },
-  { to: '/repairs',    icon: Wrench,          labelKey: 'nav.repairs',    permission: 'repairs.view',   feature: 'repairs.view' },
-  { to: '/reports',    icon: BarChart3,       labelKey: 'nav.reports',    permission: 'reports.view',   feature: 'reports.view' },
-  { to: '/expenses',   icon: Receipt,         labelKey: 'nav.expenses',   permission: 'expenses.view',  feature: 'expenses.view' },
-  { to: '/tasks',      icon: CheckSquare,     labelKey: 'nav.tasks',      permission: 'tasks.view',     feature: 'tasks.view' },
-  { to: '/calendar',   icon: CalendarDays,    labelKey: 'nav.calendar',   permission: 'tasks.view',     feature: 'calendar.view' },
-  { to: '/invoices',   icon: FileText,        labelKey: 'nav.invoices',   permission: 'sales.view',    feature: 'invoices.view' },
-  { to: '/users',      icon: UserCog,         labelKey: 'nav.users',      permission: 'users.manage' },
-  { to: '/settings',   icon: Settings,        labelKey: 'nav.settings',   permission: 'settings.manage' },
+  { to: '/dashboard',     icon: LayoutDashboard, labelKey: 'nav.dashboard' },
+  { to: '/quick-invoice', icon: ShoppingCart,    labelKey: 'nav.quickInvoice', permission: 'sales.view' },
+  { to: '/job-cards',     icon: Wrench,          labelKey: 'nav.jobCards',     permission: 'repairs.view',   feature: 'job_cards.view' },
+  { to: '/vehicles',      icon: Car,             labelKey: 'nav.vehicles',     permission: 'repairs.view',   feature: 'vehicles.view' },
+  { to: '/services',      icon: Cog,             labelKey: 'nav.services',                                   feature: 'services.view' },
+  { to: '/parts',         icon: Package,         labelKey: 'nav.parts',        permission: 'inventory.view' },
+  { to: '/owners',        icon: Users,           labelKey: 'nav.owners',       permission: 'customers.view' },
+  { to: '/reports',       icon: BarChart3,       labelKey: 'nav.reports',      permission: 'reports.view',   feature: 'reports.view' },
+  { to: '/expenses',      icon: Receipt,         labelKey: 'nav.expenses',     permission: 'expenses.view',  feature: 'expenses.view' },
+  { to: '/tasks',         icon: CheckSquare,     labelKey: 'nav.tasks',        permission: 'tasks.view',     feature: 'tasks.view' },
+  { to: '/calendar',      icon: CalendarDays,    labelKey: 'nav.calendar',     permission: 'tasks.view',     feature: 'calendar.view' },
+  { to: '/invoices',      icon: FileText,        labelKey: 'nav.invoices',     permission: 'sales.view',     feature: 'invoices.view' },
+  { to: '/users',         icon: UserCog,         labelKey: 'nav.users',        permission: 'users.manage' },
+  { to: '/settings',      icon: Settings,        labelKey: 'nav.settings',     permission: 'settings.manage' },
 ]
 
 interface SidebarProps {
@@ -44,7 +47,10 @@ export default function Sidebar({ collapsed }: SidebarProps): JSX.Element {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const features = ['repairs.view','reports.view','expenses.view','tasks.view','calendar.view','invoices.view']
+      const features = [
+        'job_cards.view','vehicles.view','services.view',
+        'reports.view','expenses.view','tasks.view','calendar.view','invoices.view',
+      ]
       try {
         const results = await Promise.all(
           features.map(async f => {

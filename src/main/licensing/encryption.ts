@@ -9,10 +9,10 @@ const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
 const AUTH_TAG_LENGTH = 16
 const KEY_LENGTH = 32
-const SALT = 'opskey-lic-enc-v1'
+const SALT = 'mahali-garage-lic-enc-v1'
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.LICENSE_ENCRYPTION_SECRET || 'opskey-default-encryption-key-32bytes!!'
+  const secret = process.env.LICENSE_ENCRYPTION_SECRET || 'mahali-garage-default-enc-key-32bytes!!'
   return crypto.createHash('sha256').update(SALT + secret, 'utf8').digest()
 }
 

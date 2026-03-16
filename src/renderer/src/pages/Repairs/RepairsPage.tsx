@@ -34,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function RepairsPage(): JSX.Element {
   return (
-    <FeatureGate feature="repairs.view">
+    <FeatureGate feature="job_cards.view">
       <RepairsPageInner />
     </FeatureGate>
   )

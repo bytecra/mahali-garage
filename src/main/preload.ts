@@ -189,6 +189,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sumByMonth:     (year: number)                  => invoke('expenses:sumByMonth', year),
   },
 
+  // ── Vehicles ─────────────────────────────────────────────────────────────
+  vehicles: {
+    list:       (filters?: unknown)           => invoke('vehicles:list', filters),
+    getById:    (id: number)                 => invoke('vehicles:getById', id),
+    create:     (data: unknown)              => invoke('vehicles:create', data),
+    update:     (id: number, data: unknown)  => invoke('vehicles:update', id, data),
+    delete:     (id: number)                 => invoke('vehicles:delete', id),
+    getByOwner: (ownerId: number)            => invoke('vehicles:getByOwner', ownerId),
+  },
+
+  // ── Job Cards ───────────────────────────────────────────────────────────
+  jobCards: {
+    list:           (filters?: unknown)                              => invoke('jobCards:list', filters),
+    getByStatus:    ()                                              => invoke('jobCards:getByStatus'),
+    getById:        (id: number)                                    => invoke('jobCards:getById', id),
+    create:         (data: unknown)                                 => invoke('jobCards:create', data),
+    update:         (id: number, data: unknown)                     => invoke('jobCards:update', id, data),
+    updateStatus:   (id: number, status: string)                    => invoke('jobCards:updateStatus', id, status),
+    delete:         (id: number)                                    => invoke('jobCards:delete', id),
+    addPart:        (jobCardId: number, part: unknown)              => invoke('jobCards:addPart', jobCardId, part),
+    removePart:     (partId: number)                                => invoke('jobCards:removePart', partId),
+    getForVehicle:  (vehicleId: number)                             => invoke('jobCards:getForVehicle', vehicleId),
+  },
+
+  // ── Services Catalog ────────────────────────────────────────────────────
+  services: {
+    list:           (filters?: unknown)           => invoke('services:list', filters),
+    getById:        (id: number)                 => invoke('services:getById', id),
+    create:         (data: unknown)              => invoke('services:create', data),
+    update:         (id: number, data: unknown)  => invoke('services:update', id, data),
+    delete:         (id: number)                 => invoke('services:delete', id),
+    getCategories:  ()                           => invoke('services:getCategories'),
+  },
+
   // ── App (activation window) ───────────────────────────────────────────────
   app: {
     licenseActivated: () => ipcRenderer.send('app:licenseActivated'),

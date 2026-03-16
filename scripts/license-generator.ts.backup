@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CLI tool to generate device-bound license codes for Mahali POS.
+ * CLI tool to generate device-bound license codes for Mahali Garage.
  * Use the same LICENSE_HMAC_SECRET as the app (or set via env).
  *
  * Usage:
@@ -20,7 +20,7 @@
 
 import crypto from 'crypto'
 
-const HMAC_SECRET = process.env.LICENSE_HMAC_SECRET || 'opskey-hmac-secret-2024-change-in-production'
+const HMAC_SECRET = process.env.LICENSE_HMAC_SECRET || 'mahali-garage-hmac-secret-2024-change-in-production'
 
 type LicenseType = 
   // BASIC
@@ -68,7 +68,7 @@ function generateLicenseCode(deviceId: string, type: LicenseType): string {
 function showUsage() {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║           Mahali POS - License Generator                     ║
+║         Mahali Garage - License Generator                     ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Usage:

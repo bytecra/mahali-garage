@@ -128,7 +128,7 @@ export const authService = {
       // Invoices (STANDARD+)
       'invoices.edit': 'invoices.edit',
 
-      // Repairs (PREMIUM)
+      // Job Cards / Repairs (STANDARD+)
       'repairs.view': 'repairs.view',
       'repairs.edit': 'repairs.edit',
       'repairs.updateStatus': 'repairs.edit',

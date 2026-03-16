@@ -97,7 +97,7 @@ export default function SettingsPage(): JSX.Element {
 
   const saveBranding = async () => {
     setSaving(true)
-    const appName    = settings['app.name']    ?? 'Mahali POS'
+    const appName    = settings['app.name']    ?? 'Mahali Garage'
     const appTagline = settings['app.tagline'] ?? ''
     const res = await window.electronAPI.settings.setBulk({ 'app.name': appName, 'app.tagline': appTagline })
     setSaving(false)
@@ -186,9 +186,9 @@ export default function SettingsPage(): JSX.Element {
                 <div>
                   <label className={labelCls}>App Name <span className="text-muted-foreground font-normal">(shown in sidebar &amp; login title)</span></label>
                   <input
-                    value={settings['app.name'] ?? 'Mahali POS'}
+                    value={settings['app.name'] ?? 'Mahali Garage'}
                     onChange={e => set('app.name', e.target.value)}
-                    placeholder="Mahali POS"
+                    placeholder="Mahali Garage"
                     className={inputCls}
                   />
                 </div>
@@ -197,7 +197,7 @@ export default function SettingsPage(): JSX.Element {
                   <input
                     value={settings['app.tagline'] ?? ''}
                     onChange={e => set('app.tagline', e.target.value)}
-                    placeholder={`Welcome to ${settings['app.name'] ?? 'Mahali POS'}`}
+                    placeholder={`Welcome to ${settings['app.name'] ?? 'Mahali Garage'}`}
                     className={inputCls}
                   />
                   <p className="text-xs text-muted-foreground mt-1">Leave empty to auto-generate from App Name.</p>

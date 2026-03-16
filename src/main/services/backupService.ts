@@ -5,7 +5,7 @@ import { getDb } from '../database/index'
 import log from '../utils/logger'
 
 function defaultBackupDir(): string {
-  const dir = path.join(app.getPath('documents'), 'Mahali Backups')
+  const dir = path.join(app.getPath('documents'), 'Mahali Garage Backups')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
   return dir
 }
@@ -31,7 +31,7 @@ export const backupService = {
 
   async selectFile(): Promise<string | null> {
     const result = await dialog.showOpenDialog({
-      title: 'Select Mahali Backup',
+      title: 'Select Mahali Garage Backup',
       filters: [{ name: 'Database', extensions: ['db'] }],
       properties: ['openFile'],
     })
