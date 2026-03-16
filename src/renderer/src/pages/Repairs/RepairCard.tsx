@@ -1,14 +1,15 @@
 import { useTranslation } from 'react-i18next'
-import { User, Smartphone, Clock, AlertCircle } from 'lucide-react'
-import { formatDate } from '../../lib/utils'
+import { User, Car, Clock, AlertCircle, Wrench } from 'lucide-react'
+import { formatDate, formatCurrency } from '../../lib/utils'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
 export interface RepairRow {
-  id: number; job_number: string; type: string; status: string; priority: string
-  customer_name: string | null; device_brand: string | null; device_model: string | null
-  technician_name: string | null; reported_issue: string; final_cost: number; estimated_cost: number
-  created_at: string; estimated_date: string | null
+  id: number; job_number: string; job_type: string; status: string; priority: string
+  owner_name: string | null; vehicle_make: string | null; vehicle_model: string | null
+  vehicle_year: number | null; vehicle_plate: string | null
+  technician_name: string | null; complaint: string | null; total: number; balance_due: number
+  bay_number: string | null; created_at: string; expected_completion: string | null
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -25,7 +26,7 @@ export default function RepairCard({ repair, onClick }: Props): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: repair.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
 
-  const device = [repair.device_brand, repair.device_model].filter(Boolean).join(' ') || '—'
+  const vehicle = [repair.vehicle_make, repair.vehicle_model, repair.vehicle_year].filter(Boolean).join(' ') || '—'
 
   return (
     <div
@@ -36,22 +37,26 @@ export default function RepairCard({ repair, onClick }: Props): JSX.Element {
       <div className="flex items-center justify-between mb-2">
         <span className="font-mono text-xs text-muted-foreground">{repair.job_number}</span>
         <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PRIORITY_COLORS[repair.priority] ?? PRIORITY_COLORS.normal}`}>
-          {t(`repairs.${repair.priority}`)}
+          {repair.priority.charAt(0).toUpperCase() + repair.priority.slice(1)}
         </span>
       </div>
-      <p className="text-sm font-medium text-foreground line-clamp-2 mb-2">{repair.reported_issue}</p>
+      {repair.complaint && <p className="text-sm font-medium text-foreground line-clamp-2 mb-2">{repair.complaint}</p>}
       <div className="space-y-1 text-xs text-muted-foreground">
-        {repair.customer_name && (
-          <div className="flex items-center gap-1.5"><User className="w-3 h-3" />{repair.customer_name}</div>
-        )}
-        <div className="flex items-center gap-1.5"><Smartphone className="w-3 h-3" />{device}</div>
+        <div className="flex items-center gap-1.5"><Car className="w-3 h-3" />{vehicle}{repair.vehicle_plate ? ` (${repair.vehicle_plate})` : ''}</div>
+        {repair.owner_name && <div className="flex items-center gap-1.5"><User className="w-3 h-3" />{repair.owner_name}</div>}
+        <div className="flex items-center gap-1.5"><Wrench className="w-3 h-3" />{repair.job_type}</div>
         <div className="flex items-center gap-1.5"><Clock className="w-3 h-3" />{formatDate(repair.created_at)}</div>
-        {repair.estimated_date && (
-          <div className="flex items-center gap-1.5">
-            <AlertCircle className="w-3 h-3" />Due {formatDate(repair.estimated_date)}
-          </div>
+        {repair.expected_completion && (
+          <div className="flex items-center gap-1.5"><AlertCircle className="w-3 h-3" />Due {formatDate(repair.expected_completion)}</div>
         )}
+        {repair.bay_number && <div className="flex items-center gap-1.5 text-primary font-medium">{repair.bay_number}</div>}
       </div>
+      {(repair.total > 0 || repair.balance_due > 0) && (
+        <div className="mt-2 pt-2 border-t border-border flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Total: {formatCurrency(repair.total)}</span>
+          {repair.balance_due > 0 && <span className="text-destructive font-medium">Due: {formatCurrency(repair.balance_due)}</span>}
+        </div>
+      )}
       {repair.technician_name && (
         <div className="mt-2 pt-2 border-t border-border flex items-center gap-1.5 text-xs text-muted-foreground">
           <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">

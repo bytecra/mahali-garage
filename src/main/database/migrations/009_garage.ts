@@ -27,32 +27,42 @@ export function migration009(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_vehicles_plate   ON vehicles(license_plate);
     CREATE INDEX IF NOT EXISTS idx_vehicles_vin     ON vehicles(vin);
 
-    -- ── Job Cards (extends repairs concept) ───────────────────────────────────
+    -- ── Job Cards ─────────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS job_cards (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      job_number      TEXT UNIQUE NOT NULL,
-      vehicle_id      INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
-      owner_id        INTEGER REFERENCES customers(id) ON DELETE SET NULL,
-      date_in         TEXT NOT NULL DEFAULT (datetime('now')),
-      date_out        TEXT,
-      status          TEXT NOT NULL DEFAULT 'pending'
-                        CHECK(status IN ('pending','in_progress','waiting_parts','ready','delivered','cancelled')),
-      technician_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      bay_number      TEXT,
-      mileage_in      INTEGER,
-      mileage_out     INTEGER,
-      complaint       TEXT,
-      diagnosis       TEXT,
-      work_done       TEXT,
-      labor_hours     REAL DEFAULT 0,
-      labor_rate      REAL DEFAULT 0,
-      parts_total     REAL DEFAULT 0,
-      labor_total     REAL DEFAULT 0,
-      total           REAL DEFAULT 0,
-      notes           TEXT,
-      created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_number            TEXT UNIQUE NOT NULL,
+      vehicle_id            INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+      owner_id              INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      job_type              TEXT NOT NULL DEFAULT 'General Service',
+      priority              TEXT NOT NULL DEFAULT 'normal'
+                              CHECK(priority IN ('low','normal','high','urgent')),
+      status                TEXT NOT NULL DEFAULT 'pending'
+                              CHECK(status IN ('pending','in_progress','waiting_parts','ready','delivered','cancelled')),
+      date_in               TEXT NOT NULL DEFAULT (datetime('now')),
+      expected_completion   TEXT,
+      date_out              TEXT,
+      technician_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      bay_number            TEXT,
+      mileage_in            INTEGER,
+      mileage_out           INTEGER,
+      complaint             TEXT,
+      diagnosis             TEXT,
+      work_done             TEXT,
+      labor_hours           REAL DEFAULT 0,
+      labor_rate            REAL DEFAULT 85,
+      labor_total           REAL DEFAULT 0,
+      parts_total           REAL DEFAULT 0,
+      subtotal              REAL DEFAULT 0,
+      tax_rate              REAL DEFAULT 0,
+      tax_amount            REAL DEFAULT 0,
+      total                 REAL DEFAULT 0,
+      deposit               REAL DEFAULT 0,
+      balance_due           REAL DEFAULT 0,
+      notes                 TEXT,
+      customer_authorized   INTEGER DEFAULT 0,
+      created_by            INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_job_cards_number     ON job_cards(job_number);
     CREATE INDEX IF NOT EXISTS idx_job_cards_vehicle    ON job_cards(vehicle_id);
@@ -60,7 +70,7 @@ export function migration009(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_job_cards_status     ON job_cards(status);
     CREATE INDEX IF NOT EXISTS idx_job_cards_technician ON job_cards(technician_id);
 
-    -- ── Job Parts (parts used in a job card) ──────────────────────────────────
+    -- ── Job Parts ─────────────────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS job_parts (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       job_card_id   INTEGER NOT NULL REFERENCES job_cards(id) ON DELETE CASCADE,
@@ -86,7 +96,7 @@ export function migration009(db: Database.Database): void {
       updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    -- ── Counters for job cards ────────────────────────────────────────────────
+    -- ── Counters ──────────────────────────────────────────────────────────────
     INSERT OR IGNORE INTO settings (key, value) VALUES ('job_card.next_number', '1');
   `)
 }
