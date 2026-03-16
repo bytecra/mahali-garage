@@ -87,7 +87,7 @@
     "netProfit": "صافي الربح (الشهر)",
     "thisMonth": "هذا الشهر",
     "recentSales": "المبيعات الأخيرة",
-    "topProducts": "أكثر المنتجات مبيعاً",
+    "topProducts": "أكثر القطع مبيعاً",
     "urgentJobs": "المهام العاجلة",
     "salesTrend": "اتجاه المبيعات (7 أيام)",
     "taskOverview": "نظرة عامة على المهام",
@@ -97,7 +97,15 @@
     "dueTodayTasks": "مستحقة اليوم",
     "deliveriesToday": "توصيلات اليوم",
     "myTasksToday": "مهامي اليوم",
-    "myOverdue": "مهامي المتأخرة"
+    "myOverdue": "مهامي المتأخرة",
+    "vehiclesInGarage": "المركبات في الورشة",
+    "readyForPickup": "جاهزة للاستلام",
+    "totalVehicles": "إجمالي المركبات",
+    "activeJobCards": "بطاقات العمل النشطة",
+    "activeRepairsLabel": "إصلاحات نشطة",
+    "completedJobs": "أعمال مكتملة",
+    "inProgress": "قيد التنفيذ",
+    "inSystem": "في النظام"
   },
   "pos": {
     "title": "نقطة البيع",

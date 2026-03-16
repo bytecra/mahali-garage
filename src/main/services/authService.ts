@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { userRepo } from '../database/repositories/userRepo'
+import { hasFeature as checkLicenseFeature } from '../licensing/license-manager'
 
 // Role-based default permissions — single source of truth
 // When adding/changing these, also update 006_role_permissions.ts ROLE_DEFAULTS_SNAP
@@ -143,14 +144,8 @@ export const authService = {
     if (!feature) return roleAllowed
 
     try {
-      // Lazy require to avoid circular imports at module top level
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const licenseManager = require('../licensing/license-manager') as typeof import('../licensing/license-manager')
-      return roleAllowed && licenseManager.hasFeature(feature)
+      return roleAllowed && checkLicenseFeature(feature)
     } catch (e) {
-      // If license-manager can't be loaded (e.g. HMAC_SECRET missing), log but don't
-      // silently block — role permission alone is sufficient as a fallback.
-      // Explicit license checks in IPC handlers provide the primary enforcement.
       console.error('[authService] License check failed, falling back to role-only:', e)
       return roleAllowed
     }

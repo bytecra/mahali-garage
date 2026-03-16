@@ -10,13 +10,15 @@ import { app } from 'electron'
 import { getDeviceId } from './device-fingerprint'
 import { encrypt, decrypt } from './encryption'
 
-const HMAC_SECRET = process.env.LICENSE_HMAC_SECRET
-
-if (!HMAC_SECRET) {
-  throw new Error(
-    'CRITICAL: LICENSE_HMAC_SECRET environment variable is not set. ' +
-      'The application cannot start without a valid license signing secret.'
-  )
+function getHmacSecret(): string {
+  const secret = process.env.LICENSE_HMAC_SECRET
+  if (!secret) {
+    throw new Error(
+      'LICENSE_HMAC_SECRET environment variable is not set. ' +
+        'Cannot verify license signatures without a valid signing secret.'
+    )
+  }
+  return secret
 }
 
 export enum LicenseTier {
@@ -81,7 +83,7 @@ function getLicensePath(): string {
 
 function signPayload(deviceId: string, type: string, expiresAt: number): string {
   const payload = `${deviceId}:${type}:${expiresAt}`
-  return crypto.createHmac('sha256', HMAC_SECRET).update(payload).digest('hex').slice(0, 32)
+  return crypto.createHmac('sha256', getHmacSecret()).update(payload).digest('hex').slice(0, 32)
 }
 
 /**

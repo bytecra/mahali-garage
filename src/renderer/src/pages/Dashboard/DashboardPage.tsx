@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert } from 'lucide-react'
+import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
 import { formatCurrency } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
@@ -20,9 +20,17 @@ interface DashboardData {
   monthNetProfit: number
   activeRepairs: number
   lowStock: number
+  totalVehicles: number
+  vehiclesInGarage: number
+  readyForPickup: number
+  activeJobCards: number
   salesTrend: Array<{ day: string; revenue: number; count: number }>
   topProducts: Array<{ product_name: string; total_qty: number; total_revenue: number }>
-  urgentRepairs: Array<{ job_number: string; priority: string; status: string; customer_name: string | null; device_brand: string | null; device_model: string | null }>
+  urgentJobCards: Array<{
+    job_number: string; priority: string; status: string; job_type: string; bay_number: string | null
+    owner_name: string | null
+    vehicle_make: string | null; vehicle_model: string | null; vehicle_year: number | null; vehicle_plate: string | null
+  }>
 }
 
 function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string | number; sub?: string; color: string }): JSX.Element {
@@ -69,7 +77,27 @@ export default function DashboardPage(): JSX.Element {
     <div>
       <h1 className="text-2xl font-bold text-foreground mb-6">{t('dashboard.title')}</h1>
 
-      {/* Stats Row 1 */}
+      {/* Stats Row 1 — Garage Overview */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <StatCard icon={Car} label={t('dashboard.vehiclesInGarage')}
+          value={data?.vehiclesInGarage ?? 0}
+          sub={t('dashboard.activeRepairsLabel')}
+          color="bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" />
+        <StatCard icon={CheckCircle} label={t('dashboard.readyForPickup')}
+          value={data?.readyForPickup ?? 0}
+          sub={t('dashboard.completedJobs')}
+          color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />
+        <StatCard icon={Wrench} label={t('dashboard.activeJobCards')}
+          value={data?.activeJobCards ?? 0}
+          sub={t('dashboard.inProgress')}
+          color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />
+        <StatCard icon={DatabaseIcon} label={t('dashboard.totalVehicles')}
+          value={data?.totalVehicles ?? 0}
+          sub={t('dashboard.inSystem')}
+          color="bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-400" />
+      </div>
+
+      {/* Stats Row 2 — Sales & Stock */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard icon={ShoppingCart} label={t('dashboard.todaySales')}
           value={formatCurrency(data?.todayRevenue ?? 0)}
@@ -78,15 +106,12 @@ export default function DashboardPage(): JSX.Element {
         <StatCard icon={TrendingUp} label={t('dashboard.monthRevenue')}
           value={formatCurrency(data?.monthRevenue ?? 0)}
           color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />
-        <StatCard icon={Wrench} label={t('dashboard.activeRepairs')}
-          value={data?.activeRepairs ?? 0}
-          color="bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" />
         <StatCard icon={Package} label={t('dashboard.lowStock')}
           value={data?.lowStock ?? 0}
           color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />
       </div>
 
-      {/* Stats Row 2 — Financials */}
+      {/* Stats Row 3 — Financials */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
         <StatCard icon={TrendingUp} label={t('dashboard.grossProfit')}
           value={formatCurrency(data?.monthGrossProfit ?? 0)}
@@ -102,7 +127,7 @@ export default function DashboardPage(): JSX.Element {
           color={(data?.monthNetProfit ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'} />
       </div>
 
-      {/* Stats Row 3 — Tasks (role-aware) */}
+      {/* Stats Row 4 — Tasks (role-aware) */}
       {canTasks && taskSummary && (
         <div className="mb-8">
           <h2 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -173,25 +198,29 @@ export default function DashboardPage(): JSX.Element {
         </div>
       </div>
 
-      {/* Urgent repairs */}
-      {(data?.urgentRepairs?.length ?? 0) > 0 && (
+      {/* Urgent job cards */}
+      {(data?.urgentJobCards?.length ?? 0) > 0 && (
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="flex items-center gap-2 mb-4">
             <AlertCircle className="w-4 h-4 text-destructive" />
             <h2 className="font-semibold text-foreground">{t('dashboard.urgentJobs')}</h2>
           </div>
           <div className="space-y-2">
-            {data?.urgentRepairs?.map((r, i) => (
+            {data?.urgentJobCards?.map((r, i) => (
               <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                 <div>
                   <span className="font-mono text-xs text-muted-foreground">{r.job_number}</span>
                   <span className="mx-2 text-muted-foreground">·</span>
-                  <span className="text-sm text-foreground">{r.customer_name ?? 'Walk-in'}</span>
-                  {(r.device_brand || r.device_model) && (
-                    <span className="text-sm text-muted-foreground ml-2">— {[r.device_brand, r.device_model].filter(Boolean).join(' ')}</span>
+                  <span className="text-sm text-foreground">{r.owner_name ?? 'Walk-in'}</span>
+                  {(r.vehicle_make || r.vehicle_model) && (
+                    <span className="text-sm text-muted-foreground ml-2">
+                      — {[r.vehicle_year, r.vehicle_make, r.vehicle_model].filter(Boolean).join(' ')}
+                      {r.vehicle_plate && <span className="ml-1 font-mono">({r.vehicle_plate})</span>}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  {r.bay_number && <span className="text-xs font-mono text-muted-foreground">{r.bay_number}</span>}
                   <span className={`text-xs px-2 py-0.5 rounded-full ${r.priority === 'urgent' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400'}`}>{r.priority}</span>
                   <span className="text-xs text-muted-foreground">{r.status.replace('_', ' ')}</span>
                 </div>

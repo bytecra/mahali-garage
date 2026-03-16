@@ -87,7 +87,7 @@
     "netProfit": "Net Profit (Month)",
     "thisMonth": "This month",
     "recentSales": "Recent Sales",
-    "topProducts": "Top Products",
+    "topProducts": "Top Parts",
     "urgentJobs": "Urgent Jobs",
     "salesTrend": "Sales Trend (7 days)",
     "taskOverview": "Task Overview",
@@ -97,7 +97,15 @@
     "dueTodayTasks": "Due Today",
     "deliveriesToday": "Deliveries Today",
     "myTasksToday": "My Tasks Today",
-    "myOverdue": "My Overdue"
+    "myOverdue": "My Overdue",
+    "vehiclesInGarage": "Vehicles in Garage",
+    "readyForPickup": "Ready for Pickup",
+    "totalVehicles": "Total Vehicles",
+    "activeJobCards": "Active Job Cards",
+    "activeRepairsLabel": "Active repairs",
+    "completedJobs": "Completed jobs",
+    "inProgress": "In progress",
+    "inSystem": "In system"
   },
   "pos": {
     "title": "Point of Sale",

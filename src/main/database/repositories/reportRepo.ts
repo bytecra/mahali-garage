@@ -25,6 +25,21 @@ export const reportRepo = {
       SELECT COUNT(*) as cnt FROM products WHERE stock_quantity <= low_stock_threshold AND is_active = 1
     `).get() as { cnt: number }).cnt
 
+    // Garage-specific metrics (safe — tables may not exist in older DBs)
+    let totalVehicles = 0, vehiclesInGarage = 0, readyForPickup = 0, activeJobCards = 0
+    try {
+      totalVehicles = (db.prepare('SELECT COUNT(*) as cnt FROM vehicles').get() as { cnt: number }).cnt
+      vehiclesInGarage = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE status IN ('pending','in_progress','waiting_parts')`
+      ).get() as { cnt: number }).cnt
+      readyForPickup = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE status = 'ready'`
+      ).get() as { cnt: number }).cnt
+      activeJobCards = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE status NOT IN ('delivered','cancelled')`
+      ).get() as { cnt: number }).cnt
+    } catch { /* tables not ready yet */ }
+
     // 7-day sales trend
     const salesTrend = db.prepare(`
       SELECT date(created_at) as day, COALESCE(SUM(total_amount),0) as revenue, COUNT(*) as count
@@ -44,14 +59,22 @@ export const reportRepo = {
       LIMIT 5
     `).all(today)
 
-    // Urgent/high repairs
-    const urgentRepairs = db.prepare(`
-      SELECT r.job_number, r.priority, r.status, c.name as customer_name, r.device_brand, r.device_model
-      FROM repairs r LEFT JOIN customers c ON r.customer_id = c.id
-      WHERE r.priority IN ('urgent','high') AND r.status NOT IN ('delivered','cancelled','completed')
-      ORDER BY CASE r.priority WHEN 'urgent' THEN 0 ELSE 1 END, r.created_at
-      LIMIT 5
-    `).all()
+    // Urgent/high job cards (safe — columns may not exist yet)
+    let urgentJobCards: unknown[] = []
+    try {
+      urgentJobCards = db.prepare(`
+        SELECT j.job_number, j.priority, j.status, j.job_type, j.bay_number,
+               c.name as owner_name,
+               v.make as vehicle_make, v.model as vehicle_model, v.year as vehicle_year,
+               v.license_plate as vehicle_plate
+        FROM job_cards j
+        LEFT JOIN customers c ON j.owner_id = c.id
+        LEFT JOIN vehicles v ON j.vehicle_id = v.id
+        WHERE j.priority IN ('urgent','high') AND j.status NOT IN ('delivered','cancelled')
+        ORDER BY CASE j.priority WHEN 'urgent' THEN 0 ELSE 1 END, j.created_at
+        LIMIT 5
+      `).all()
+    } catch { /* columns not migrated yet */ }
 
     // Month gross profit (revenue - COGS)
     const monthCogsRow = db.prepare(`
@@ -75,7 +98,11 @@ export const reportRepo = {
       lowStock,
       salesTrend,
       topProducts,
-      urgentRepairs,
+      totalVehicles,
+      vehiclesInGarage,
+      readyForPickup,
+      activeJobCards,
+      urgentJobCards,
     }
   },
 
