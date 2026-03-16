@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
-import { HardDrive, CheckCircle, AlertCircle } from 'lucide-react'
+import { CheckCircle, AlertCircle } from 'lucide-react'
 import { toast } from '../../store/notificationStore'
 import { useThemeStore } from '../../store/themeStore'
 import { useLangStore } from '../../store/langStore'
@@ -8,6 +8,7 @@ import { useBrandingStore } from '../../store/brandingStore'
 import { usePermission } from '../../hooks/usePermission'
 
 const JobTypesSettings = lazy(() => import('./JobTypesSettings'))
+const BackupSettingsTab = lazy(() => import('./BackupSettings'))
 
 type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types'
 
@@ -44,7 +45,7 @@ export default function SettingsPage(): JSX.Element {
   const [licKey, setLicKey] = useState('')
   const [hwId, setHwId] = useState('')
   const [activating, setActivating] = useState(false)
-  const [backupBusy, setBackupBusy] = useState(false)
+  
 
   // Activity log state
   const [activityRows, setActivityRows]   = useState<ActivityRow[]>([])
@@ -120,31 +121,6 @@ export default function SettingsPage(): JSX.Element {
       const result = res.data as { success: boolean; error?: string }
       if (result.success) { toast.success('License activated!'); load() }
       else toast.error(result.error ?? 'Activation failed')
-    } else toast.error(res.error ?? t('common.error'))
-  }
-
-  const handleBackup = async () => {
-    setBackupBusy(true)
-    const res = await window.electronAPI.backup.create()
-    setBackupBusy(false)
-    if (res.success) {
-      const result = res.data as { success: boolean; filePath?: string; error?: string }
-      if (result.success) toast.success(`Backup saved to: ${result.filePath}`)
-      else toast.error(result.error ?? 'Backup failed')
-    } else toast.error(res.error ?? t('common.error'))
-  }
-
-  const handleRestore = async () => {
-    const fileRes = await window.electronAPI.backup.selectFile()
-    if (!fileRes.success || !fileRes.data) return
-    setBackupBusy(true)
-    const res = await window.electronAPI.backup.restore(fileRes.data)
-    setBackupBusy(false)
-    if (res.success) {
-      const result = res.data as { success: boolean; error?: string }
-      if (result.success) {
-        toast.success('Database restored. Restart the app to apply changes.')
-      } else toast.error(result.error ?? 'Restore failed')
     } else toast.error(res.error ?? t('common.error'))
   }
 
@@ -299,24 +275,9 @@ export default function SettingsPage(): JSX.Element {
         )}
 
         {tab === 'backup' && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-semibold text-foreground mb-1">{t('settings.backupNow')}</h3>
-              <p className="text-sm text-muted-foreground mb-3">Creates a copy of the database in your Documents/Mahali Backups folder.</p>
-              <button onClick={handleBackup} disabled={backupBusy}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-60">
-                <HardDrive className="w-4 h-4" />{backupBusy ? 'Creating backup...' : t('settings.backupNow')}
-              </button>
-            </div>
-            <div className="border-t border-border pt-6">
-              <h3 className="font-semibold text-foreground mb-1">{t('settings.restoreBackup')}</h3>
-              <p className="text-sm text-muted-foreground mb-3">Restore from a previous backup file. The app will need to restart after restore.</p>
-              <button onClick={handleRestore} disabled={backupBusy}
-                className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-60">
-                {backupBusy ? 'Restoring...' : t('settings.restoreBackup')}
-              </button>
-            </div>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
+            <BackupSettingsTab />
+          </Suspense>
         )}
 
         {tab === 'job-types' && (

@@ -139,9 +139,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Backup ────────────────────────────────────────────────────────────────
   backup: {
-    create:     ()                   => invoke('backup:create'),
-    restore:    (filePath: string)   => invoke('backup:restore', filePath),
-    selectFile: ()                   => invoke('backup:selectFile'),
+    create:         ()                     => invoke('backup:create'),
+    restore:        (filePath: string)     => invoke('backup:restore', filePath),
+    selectFile:     ()                     => invoke('backup:selectFile'),
+    getSettings:    ()                     => invoke('backup:getSettings'),
+    updateSettings: (data: unknown)        => invoke('backup:updateSettings', data),
+    runNow:         ()                     => invoke('backup:runNow'),
+    chooseFolder:   ()                     => invoke('backup:chooseFolder'),
+    openFolder:     (folderPath: string)   => invoke('backup:openFolder', folderPath),
   },
 
   // ── License ───────────────────────────────────────────────────────────────
@@ -239,6 +244,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getById:  (id: number)                 => invoke('customReceipts:getById', id),
     create:   (data: unknown)              => invoke('customReceipts:create', data),
     delete:   (id: number)                 => invoke('customReceipts:delete', id),
+  },
+
+  // ── Employees (HR) ────────────────────────────────────────────────────────
+  employees: {
+    list:            (filters?: unknown)                               => invoke('employees:list', filters),
+    getById:         (id: number)                                     => invoke('employees:getById', id),
+    create:          (data: unknown)                                  => invoke('employees:create', data),
+    update:          (id: number, data: unknown)                      => invoke('employees:update', id, data),
+    delete:          (id: number)                                     => invoke('employees:delete', id),
+    listVacations:   (employeeId: number)                             => invoke('employees:listVacations', employeeId),
+    addVacation:     (data: unknown)                                  => invoke('employees:addVacation', data),
+    endVacation:     (vacationId: number, actualReturnDate: string)   => invoke('employees:endVacation', vacationId, actualReturnDate),
+    deleteVacation:  (vacationId: number)                             => invoke('employees:deleteVacation', vacationId),
+    listDocuments:   (employeeId: number)                             => invoke('employees:listDocuments', employeeId),
+    uploadDocument:  (data: unknown)                                  => invoke('employees:uploadDocument', data),
+    openDocument:    (docId: number)                                  => invoke('employees:openDocument', docId),
+    deleteDocument:  (docId: number)                                  => invoke('employees:deleteDocument', docId),
+    chooseFile:      ()                                               => invoke('employees:chooseFile'),
   },
 
   // ── App (activation window) ───────────────────────────────────────────────

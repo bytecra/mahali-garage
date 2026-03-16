@@ -5,6 +5,7 @@ import log from 'electron-log'
 import { initDatabase } from './database/index'
 import { registerAllHandlers } from './ipc/index'
 import { checkLicense } from './licensing/license-manager'
+import { initBackupScheduler, stopBackupScheduler } from './services/backupScheduler'
 
 log.initialize()
 log.info('App starting...')
@@ -118,6 +119,8 @@ app.whenReady().then(async () => {
       createWindow()
     })
 
+    initBackupScheduler()
+
     openMainOrActivation()
 
     app.on('activate', () => {
@@ -133,6 +136,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('will-quit', () => {
+  stopBackupScheduler()
 })
 
 process.on('unhandledRejection', (reason) => {

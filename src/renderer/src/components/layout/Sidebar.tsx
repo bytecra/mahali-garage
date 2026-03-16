@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Wrench,
   BarChart3, UserCog, Settings, Receipt, CheckSquare, CalendarDays, FileText, Lock,
-  Car, Cog, ReceiptText,
+  Car, Cog, ReceiptText, HardHat,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
@@ -32,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/calendar',      icon: CalendarDays,    labelKey: 'nav.calendar',     permission: 'tasks.view',     feature: 'calendar.view' },
   { to: '/invoices',      icon: FileText,        labelKey: 'nav.invoices',     permission: 'sales.view',     feature: 'invoices.view' },
   { to: '/users',         icon: UserCog,         labelKey: 'nav.users',        permission: 'users.manage' },
+  { to: '/employees',     icon: HardHat,         labelKey: 'nav.employees',    permission: 'users.manage' },
   { to: '/settings',      icon: Settings,        labelKey: 'nav.settings',     permission: 'settings.manage' },
 ]
 

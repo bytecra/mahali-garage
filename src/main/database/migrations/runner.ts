@@ -12,6 +12,8 @@ import { migration009 } from './009_garage'
 import { migration010 } from './010_job_types'
 import { migration011 } from './011_patch_job_cards'
 import { migration012 } from './012_custom_receipts'
+import { migration013 } from './013_backup_settings'
+import { migration014 } from './014_employees'
 
 interface Migration {
   version: number
@@ -34,6 +36,8 @@ const migrations: Migration[] = [
   { version: 10, name: '010_job_types',       up: migration010 },
   { version: 11, name: '011_patch_job_cards', up: migration011 },
   { version: 12, name: '012_custom_receipts', up: migration012 },
+  { version: 13, name: '013_backup_settings', up: migration013 },
+  { version: 14, name: '014_employees',       up: migration014 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {
