@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Calendar, dateFnsLocalizer, Views, View } from 'react-big-calendar'
 import dragAndDropAddon, { withDragAndDropProps } from 'react-big-calendar/lib/addons/dragAndDrop'
@@ -57,8 +57,10 @@ function getEventColor(event: CalendarEvent): string {
 
 const withDragAndDropFn = typeof dragAndDropAddon === 'function' ? dragAndDropAddon : (dragAndDropAddon as { default?: (C: unknown) => unknown })?.default
 // Use drag-and-drop calendar if addon loads (CJS interop); otherwise plain Calendar
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const DnDCalendar = typeof withDragAndDropFn === 'function' ? withDragAndDropFn(Calendar as any) : Calendar
+// Typed as element type so we can pass calendar + drag-and-drop props (onEventDrop, onEventResize, etc.)
+const DnDCalendar = (typeof withDragAndDropFn === 'function'
+  ? withDragAndDropFn(Calendar)
+  : Calendar) as React.ComponentType<Record<string, unknown>>
 
 // ── Localize date-fns ─────────────────────────────────────────────────────────
 const locales = { 'en-US': enUS, 'ar': ar }
@@ -322,7 +324,7 @@ function CalendarPageInner(): JSX.Element {
             view={currentView}
             onNavigate={setCurrentDate}
             onView={setCurrentView}
-            onSelectEvent={event => setSelectedEvent(event as CalendarEvent)}
+            onSelectEvent={(event: object) => setSelectedEvent(event as CalendarEvent)}
             onEventDrop={handleEventDrop as any}
             onEventResize={handleEventResize as any}
             eventPropGetter={eventStyleGetter as (event: object) => object}
