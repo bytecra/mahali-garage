@@ -227,9 +227,9 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
             className="relative p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
             title={t('notifications.title')}
           >
-            <Bell className="w-4 h-4" />
+            <Bell className="w-5 h-5" />
             {totalBadge > 0 && (
-              <span className="absolute top-0.5 end-0.5 min-w-[16px] h-4 flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full px-0.5">
+              <span className="absolute -top-1 -end-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full px-1 shadow-sm ring-2 ring-card">
                 {totalBadge > 99 ? '99+' : totalBadge}
               </span>
             )}
