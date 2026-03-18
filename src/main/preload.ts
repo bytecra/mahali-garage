@@ -192,6 +192,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openReceipt:    (filePath: string)              => invoke('expenses:openReceipt', filePath),
     sumByCategory:  (from: string, to: string)      => invoke('expenses:sumByCategory', from, to),
     sumByMonth:     (year: number)                  => invoke('expenses:sumByMonth', year),
+    upcomingDue:    (days?: number)                 => invoke('expenses:upcomingDue', days),
+    markPaid:       (id: number)                    => invoke('expenses:markPaid', id),
   },
 
   // ── Vehicles ─────────────────────────────────────────────────────────────

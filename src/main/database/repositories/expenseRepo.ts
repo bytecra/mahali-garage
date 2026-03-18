@@ -7,9 +7,15 @@ export interface ExpenseCategory {
 export interface Expense {
   id: number; name: string
   category_id: number | null; category_name: string | null; category_color: string | null
-  amount: number; date: string; branch: string | null; notes: string | null
+  amount: number; date: string; due_date: string | null; is_paid: number
+  branch: string | null; notes: string | null
   user_id: number | null; full_name: string | null
   receipt_path: string | null; created_at: string; updated_at: string
+}
+
+export interface UpcomingExpense {
+  id: number; name: string; amount: number; due_date: string; is_paid: number
+  category_name: string | null; category_color: string | null; is_overdue: number
 }
 
 interface ExpenseFilters {
@@ -19,6 +25,7 @@ interface ExpenseFilters {
 
 interface CreateExpenseInput {
   name: string; category_id?: number | null; amount: number; date: string
+  due_date?: string | null; is_paid?: number
   branch?: string | null; notes?: string | null; user_id?: number | null; receipt_path?: string | null
 }
 
@@ -78,12 +85,40 @@ export const expenseRepo = {
     `).get(id) as Expense | null
   },
 
+  /**
+   * Returns unpaid expenses due within `days` days (including overdue).
+   */
+  getUpcomingDue(days = 7): UpcomingExpense[] {
+    return getDb().prepare(`
+      SELECT
+        e.id, e.name, e.amount, e.due_date, e.is_paid,
+        ec.name  AS category_name,
+        ec.color AS category_color,
+        CASE WHEN e.due_date < date('now') THEN 1 ELSE 0 END AS is_overdue
+      FROM expenses e
+      LEFT JOIN expense_categories ec ON ec.id = e.category_id
+      WHERE e.due_date IS NOT NULL
+        AND e.is_paid = 0
+        AND e.due_date <= date('now', '+' || ? || ' days')
+      ORDER BY e.due_date ASC
+    `).all(days) as UpcomingExpense[]
+  },
+
+  markPaid(id: number): void {
+    getDb().prepare(
+      `UPDATE expenses SET is_paid = 1, updated_at = datetime('now') WHERE id = ?`
+    ).run(id)
+  },
+
   create(data: CreateExpenseInput): number {
     const r = getDb().prepare(`
-      INSERT INTO expenses (name, category_id, amount, date, branch, notes, user_id, receipt_path, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `).run(data.name, data.category_id ?? null, data.amount, data.date,
-           data.branch ?? null, data.notes ?? null, data.user_id ?? null, data.receipt_path ?? null)
+      INSERT INTO expenses (name, category_id, amount, date, due_date, is_paid, branch, notes, user_id, receipt_path, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).run(
+      data.name, data.category_id ?? null, data.amount, data.date,
+      data.due_date ?? null, data.is_paid ?? 0,
+      data.branch ?? null, data.notes ?? null, data.user_id ?? null, data.receipt_path ?? null
+    )
     return r.lastInsertRowid as number
   },
 
@@ -95,6 +130,8 @@ export const expenseRepo = {
     if (data.category_id  !== undefined) { fields.push('category_id = ?');  params.push(data.category_id ?? null) }
     if (data.amount       !== undefined) { fields.push('amount = ?');       params.push(data.amount) }
     if (data.date         !== undefined) { fields.push('date = ?');         params.push(data.date) }
+    if (data.due_date     !== undefined) { fields.push('due_date = ?');     params.push(data.due_date ?? null) }
+    if (data.is_paid      !== undefined) { fields.push('is_paid = ?');      params.push(data.is_paid) }
     if (data.branch       !== undefined) { fields.push('branch = ?');       params.push(data.branch ?? null) }
     if (data.notes        !== undefined) { fields.push('notes = ?');        params.push(data.notes ?? null) }
     if (data.receipt_path !== undefined) { fields.push('receipt_path = ?'); params.push(data.receipt_path ?? null) }

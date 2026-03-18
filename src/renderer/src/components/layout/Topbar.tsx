@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, ReceiptText, Bell, CheckCheck, Palette, Package, AlertTriangle } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, ReceiptText, Bell, CheckCheck, Palette, Package, AlertTriangle, CalendarClock, CircleDollarSign } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
@@ -31,6 +31,16 @@ interface LowStockItem {
   unit: string
 }
 
+interface DueSoonItem {
+  id: number
+  name: string
+  amount: number
+  due_date: string
+  is_overdue: number
+  category_name: string | null
+  category_color: string | null
+}
+
 interface TopbarProps {
   collapsed: boolean
   onToggle: () => void
@@ -53,17 +63,19 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
   const navigate = useNavigate()
   const canSales      = usePermission('sales.create')
   const canInventory  = usePermission('inventory.view')
+  const canExpenses   = usePermission('expenses.view')
   const clearCart = useCartStore(s => s.clear)
-  const { unreadCount, lowStockCount, refresh } = useNotificationPoll(60_000)
+  const { unreadCount, lowStockCount, dueSoonCount, refresh } = useNotificationPoll(60_000)
 
   const [notifOpen, setNotifOpen]         = useState(false)
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([])
+  const [dueSoonItems, setDueSoonItems]   = useState<DueSoonItem[]>([])
   const [colorOpen, setColorOpen]         = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
   const colorRef = useRef<HTMLDivElement>(null)
 
-  const totalBadge = unreadCount + lowStockCount
+  const totalBadge = unreadCount + lowStockCount + dueSoonCount
 
   const handleLogout = (): void => {
     logout()
@@ -81,7 +93,7 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
     { value: 'system',icon: Monitor, label: t('settings.system') },
   ] as const
 
-  // Load notifications + low-stock items when dropdown opens
+  // Load notifications + low-stock + due-soon when dropdown opens
   useEffect(() => {
     if (!notifOpen) return
     window.electronAPI.notifications.list(20).then(res => {
@@ -90,6 +102,11 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
     if (canInventory) {
       window.electronAPI.products.getLowStock().then(res => {
         if (res.success) setLowStockItems(res.data as LowStockItem[])
+      })
+    }
+    if (canExpenses) {
+      window.electronAPI.expenses.upcomingDue(7).then(res => {
+        if (res.success) setDueSoonItems(res.data as DueSoonItem[])
       })
     }
   }, [notifOpen])
@@ -302,16 +319,62 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
                   </div>
                 )}
 
+                {/* Due soon section */}
+                {canExpenses && dueSoonItems.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 border-b border-orange-500/20">
+                      <CalendarClock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                      <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 flex-1">
+                        Due Soon
+                      </span>
+                      <span className="text-[10px] font-bold bg-orange-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {dueSoonItems.length}
+                      </span>
+                    </div>
+                    {dueSoonItems.map(item => (
+                      <div key={item.id} className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border/30 last:border-0 hover:bg-muted/50 transition-colors">
+                        <div className={cn(
+                          'flex items-center justify-center w-7 h-7 rounded-md shrink-0',
+                          item.is_overdue ? 'bg-red-500/15 text-red-500' : 'bg-orange-500/15 text-orange-500'
+                        )}>
+                          <CircleDollarSign className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate text-foreground">{item.name}</p>
+                          <p className={cn('text-[10px]', item.is_overdue ? 'text-red-500 font-semibold' : 'text-muted-foreground')}>
+                            {item.is_overdue ? 'Overdue · ' : 'Due · '}{item.due_date}
+                          </p>
+                        </div>
+                        <div className="text-end shrink-0">
+                          <p className={cn('text-xs font-bold', item.is_overdue ? 'text-red-500' : 'text-orange-500')}>
+                            ${Number(item.amount).toFixed(2)}
+                          </p>
+                          <button
+                            onClick={() => {
+                              window.electronAPI.expenses.markPaid(item.id)
+                              setDueSoonItems(d => d.filter(x => x.id !== item.id))
+                              refresh()
+                            }}
+                            className="text-[10px] text-primary hover:underline mt-0.5"
+                          >
+                            Mark paid
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Task notifications */}
-                {notifications.length === 0 && (!canInventory || lowStockItems.length === 0) ? (
+                {notifications.length === 0 && (!canInventory || lowStockItems.length === 0) && (!canExpenses || dueSoonItems.length === 0) ? (
                   <div className="text-center py-8 text-muted-foreground text-sm">{t('notifications.noNotifications')}</div>
                 ) : notifications.length > 0 ? (
                   <div>
-                    {(canInventory && lowStockItems.length > 0) && (
+                    {(canInventory && lowStockItems.length > 0) || (canExpenses && dueSoonItems.length > 0) ? (
                       <div className="px-4 py-2 bg-muted/30 border-b border-border/50">
                         <span className="text-xs font-semibold text-muted-foreground">{t('notifications.title')}</span>
                       </div>
-                    )}
+                    ) : null}
                     {notifications.map(n => (
                     <button
                       key={n.id}

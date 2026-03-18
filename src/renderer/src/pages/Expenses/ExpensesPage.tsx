@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Edit2, Search, Receipt, ExternalLink, Tag } from 'lucide-react'
+import { Plus, Trash2, Edit2, Search, Receipt, ExternalLink, Tag, CalendarClock } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import { toast } from '../../store/notificationStore'
 import { usePermission } from '../../hooks/usePermission'
@@ -12,7 +12,8 @@ interface Category { id: number; name: string; color: string }
 interface Expense {
   id: number; name: string
   category_id: number | null; category_name: string | null; category_color: string | null
-  amount: number; date: string; branch: string | null; notes: string | null
+  amount: number; date: string; due_date: string | null; is_paid: number
+  branch: string | null; notes: string | null
   user_id: number | null; full_name: string | null; receipt_path: string | null
 }
 
@@ -21,7 +22,7 @@ const monthStart = today.slice(0, 7) + '-01'
 
 const EMPTY_FORM = {
   name: '', category_id: '' as string | number, amount: '',
-  date: today, branch: '', notes: '', receipt_path: '',
+  date: today, due_date: '', branch: '', notes: '', receipt_path: '',
 }
 
 type Tab = 'expenses' | 'categories'
@@ -105,6 +106,7 @@ function ExpensesPageInner(): JSX.Element {
     setForm({
       name: e.name, category_id: e.category_id ?? '',
       amount: String(e.amount), date: e.date,
+      due_date: e.due_date ?? '',
       branch: e.branch ?? '', notes: e.notes ?? '',
       receipt_path: e.receipt_path ?? '',
     })
@@ -121,6 +123,7 @@ function ExpensesPageInner(): JSX.Element {
       category_id: form.category_id ? Number(form.category_id) : null,
       amount:      Number(form.amount),
       date:        form.date,
+      due_date:    form.due_date || null,
       branch:      form.branch.trim() || null,
       notes:       form.notes.trim()  || null,
       receipt_path: form.receipt_path || null,
@@ -249,6 +252,7 @@ function ExpensesPageInner(): JSX.Element {
                 <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
                   <tr>
                     <th className="text-start px-4 py-3 font-medium">{t('common.date')}</th>
+                    <th className="text-start px-4 py-3 font-medium">Due Date</th>
                     <th className="text-start px-4 py-3 font-medium">{t('expenses.expenseName')}</th>
                     <th className="text-start px-4 py-3 font-medium">{t('expenses.category')}</th>
                     <th className="text-start px-4 py-3 font-medium">{t('expenses.branch')}</th>
@@ -261,6 +265,18 @@ function ExpensesPageInner(): JSX.Element {
                   {expenses.map(e => (
                     <tr key={e.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{e.date}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {e.due_date ? (
+                          <span className={`inline-flex items-center gap-1 font-medium ${
+                            e.is_paid ? 'text-muted-foreground line-through' :
+                            e.due_date < today ? 'text-red-500' : 'text-orange-500'
+                          }`}>
+                            <CalendarClock className="w-3 h-3" />
+                            {e.due_date}
+                            {e.is_paid && <span className="text-green-500 no-underline not-italic ml-1">✓</span>}
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </td>
                       <td className="px-4 py-3 font-medium">
                         <div>{e.name}</div>
                         {e.notes && <div className="text-xs text-muted-foreground truncate max-w-xs">{e.notes}</div>}
@@ -361,6 +377,10 @@ function ExpensesPageInner(): JSX.Element {
           <div>
             <label className={labelCls}>{t('common.date')} *</label>
             <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Due Date <span className="text-muted-foreground font-normal text-xs">(optional)</span></label>
+            <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t('expenses.branch')}</label>

@@ -120,6 +120,24 @@ export function registerExpenseHandlers(): void {
     } catch (e) { log.error('expenses:openReceipt', e); return err('Failed') }
   })
 
+  ipcMain.handle('expenses:upcomingDue', (event, days?: number) => {
+    try {
+      const licErr = requireLicense('expenses.view')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
+      if (!authService.hasPermission(event.sender.id, 'expenses.view')) return err('Forbidden', 'ERR_FORBIDDEN')
+      return ok(expenseRepo.getUpcomingDue(days ?? 7))
+    } catch (e) { log.error('expenses:upcomingDue', e); return err('Failed') }
+  })
+
+  ipcMain.handle('expenses:markPaid', (event, id: number) => {
+    try {
+      const licErr = requireLicense('expenses.add')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
+      if (!authService.hasPermission(event.sender.id, 'expenses.add')) return err('Forbidden', 'ERR_FORBIDDEN')
+      expenseRepo.markPaid(id); return ok(null)
+    } catch (e) { log.error('expenses:markPaid', e); return err('Failed') }
+  })
+
   // ── Report queries ────────────────────────────────────────────────────────
   ipcMain.handle('expenses:sumByCategory', (event, from: string, to: string) => {
     try {
