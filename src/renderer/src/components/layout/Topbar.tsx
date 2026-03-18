@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, ReceiptText, Bell, CheckCheck } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, ReceiptText, Bell, CheckCheck, Palette } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
@@ -10,6 +10,7 @@ import { cn } from '../../lib/utils'
 import { usePermission } from '../../hooks/usePermission'
 import { useCartStore } from '../../store/cartStore'
 import { useNotificationPoll } from '../../hooks/useNotificationPoll'
+import { useNavColorStore, NAV_COLOR_PRESETS, NavColorPreset } from '../../store/navColorStore'
 
 interface NotificationRow {
   id: number
@@ -39,6 +40,7 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
   const { user, logout } = useAuthStore()
   const { theme, setTheme } = useThemeStore()
   const { lang, setLang } = useLangStore()
+  const { navColor, setNavColor } = useNavColorStore()
   const navigate = useNavigate()
   const canSales = usePermission('sales.create')
   const clearCart = useCartStore(s => s.clear)
@@ -46,7 +48,9 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
 
   const [notifOpen, setNotifOpen]         = useState(false)
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
+  const [colorOpen, setColorOpen]         = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
+  const colorRef = useRef<HTMLDivElement>(null)
 
   const handleLogout = (): void => {
     logout()
@@ -72,11 +76,14 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
     })
   }, [notifOpen])
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false)
+      }
+      if (colorRef.current && !colorRef.current.contains(e.target as Node)) {
+        setColorOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -156,6 +163,43 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
               <Icon className="w-4 h-4" />
             </button>
           ))}
+        </div>
+
+        {/* Nav color picker */}
+        <div ref={colorRef} className="relative">
+          <button
+            onClick={() => setColorOpen(o => !o)}
+            className={cn(
+              'p-2 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted',
+              colorOpen && 'bg-muted text-foreground'
+            )}
+            title="Sidebar color"
+          >
+            <Palette className="w-4 h-4" />
+          </button>
+
+          {colorOpen && (
+            <div className="absolute end-0 top-full mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-50 w-52">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Sidebar Color</p>
+              <div className="grid grid-cols-4 gap-2">
+                {(Object.entries(NAV_COLOR_PRESETS) as [NavColorPreset, typeof NAV_COLOR_PRESETS[NavColorPreset]][]).map(([key, config]) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (user) setNavColor(key, user.userId)
+                      setColorOpen(false)
+                    }}
+                    title={config.label}
+                    className={cn(
+                      'w-9 h-9 rounded-lg border-2 transition-transform hover:scale-110',
+                      navColor === key ? 'border-primary ring-2 ring-primary ring-offset-1' : 'border-transparent'
+                    )}
+                    style={{ backgroundColor: config.hex }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Notification bell */}

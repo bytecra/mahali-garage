@@ -1,11 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import ToastContainer from '../shared/ToastContainer'
+import { useAuthStore } from '../../store/authStore'
+import { useNavColorStore } from '../../store/navColorStore'
 
 export default function AppShell(): JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
+  const user = useAuthStore(s => s.user)
+  const loadNavColor = useNavColorStore(s => s.loadNavColor)
+
+  useEffect(() => {
+    if (user) loadNavColor(user.userId)
+  }, [user?.userId])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
