@@ -2,16 +2,29 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../store/authStore'
 
 export function useNotificationPoll(intervalMs = 60_000) {
-  const { userId } = useAuthStore()
-  const [unreadCount, setUnreadCount] = useState(0)
+  const user = useAuthStore(s => s.user)
+  const [unreadCount, setUnreadCount]     = useState(0)
+  const [lowStockCount, setLowStockCount] = useState(0)
+
+  const canViewInventory = user?.permissions.includes('inventory.view') ?? false
 
   const poll = useCallback(async () => {
-    if (!userId) { setUnreadCount(0); return }
+    if (!user) {
+      setUnreadCount(0)
+      setLowStockCount(0)
+      return
+    }
     try {
-      const res = await window.electronAPI.notifications.getUnreadCount()
-      if (res.success) setUnreadCount(res.data ?? 0)
+      const [notifRes, lowRes] = await Promise.all([
+        window.electronAPI.notifications.getUnreadCount(),
+        canViewInventory
+          ? window.electronAPI.products.getLowStock()
+          : Promise.resolve(null),
+      ])
+      if (notifRes.success) setUnreadCount(notifRes.data ?? 0)
+      if (lowRes?.success) setLowStockCount((lowRes.data as unknown[])?.length ?? 0)
     } catch { /* ignore */ }
-  }, [userId])
+  }, [user?.userId, canViewInventory])
 
   useEffect(() => {
     poll()
@@ -19,5 +32,5 @@ export function useNotificationPoll(intervalMs = 60_000) {
     return () => clearInterval(id)
   }, [poll, intervalMs])
 
-  return { unreadCount, refresh: poll }
+  return { unreadCount, lowStockCount, refresh: poll }
 }
