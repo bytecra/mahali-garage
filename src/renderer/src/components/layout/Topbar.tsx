@@ -179,9 +179,9 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
           </button>
 
           {colorOpen && (
-            <div className="absolute end-0 top-full mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-50 w-52">
+            <div className="absolute end-0 top-full mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-50 w-60">
               <p className="text-xs font-medium text-muted-foreground mb-2">Sidebar Color</p>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 {(Object.entries(NAV_COLOR_PRESETS) as [NavColorPreset, typeof NAV_COLOR_PRESETS[NavColorPreset]][]).map(([key, config]) => (
                   <button
                     key={key}
