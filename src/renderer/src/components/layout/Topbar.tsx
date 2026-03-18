@@ -93,9 +93,10 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
     { value: 'system',icon: Monitor, label: t('settings.system') },
   ] as const
 
-  // Load notifications + low-stock + due-soon when dropdown opens
+  // Load notifications + low-stock + due-soon when dropdown opens; also refresh badge counts
   useEffect(() => {
     if (!notifOpen) return
+    refresh()
     window.electronAPI.notifications.list(20).then(res => {
       if (res.success) setNotifications(res.data as NotificationRow[])
     })
