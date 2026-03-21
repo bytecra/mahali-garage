@@ -7,13 +7,19 @@
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
+    "dev": "node ./node_modules/electron-vite/bin/electron-vite.js dev",
+    "build": "node ./node_modules/electron-vite/bin/electron-vite.js build",
+    "preview": "node ./node_modules/electron-vite/bin/electron-vite.js preview",
     "package": "npm run build && electron-forge package",
     "make": "npm run build && electron-forge make",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
+    "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
+    "bootstrap": "npm install --ignore-scripts && node node_modules/electron/install.js && node ./node_modules/electron-builder/cli.js install-app-deps",
+    "dist:win": "npm run build && node ./node_modules/electron-builder/cli.js --win --x64 --ia32",
     "generate-license": "tsx scripts/license-generator.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -87,6 +93,58 @@
   "productName": "Mahali Garage",
   "build": {
     "appId": "com.ali.mahali-garage",
-    "productName": "Mahali Garage"
+    "productName": "Mahali Garage",
+    "copyright": "Copyright © Mahali Garage",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico",
+      "executableName": "mahali-garage"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": true,
+      "allowElevation": true,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mahali Garage",
+      "menuCategory": "Mahali Garage",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "include": "installer.nsh",
+      "warningsAsErrors": false,
+      "uninstallDisplayName": "${productName} ${version}",
+      "multiLanguageInstaller": false
+    }
   }
 }
