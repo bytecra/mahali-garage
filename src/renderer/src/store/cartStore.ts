@@ -21,7 +21,10 @@ export interface CartCustomer {
 
 export interface CartPayment {
   method: 'cash' | 'card' | 'transfer' | 'mobile' | 'other'
+  /** Portion of invoice total allocated to this tender */
   amount: number
+  /** Cash only: bills/coins received (defaults to amount when omitted). */
+  cash_received?: number
   reference?: string
 }
 

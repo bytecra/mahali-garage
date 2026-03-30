@@ -72,6 +72,8 @@ export interface SaleItemInput {
 export interface PaymentInput {
   amount: number
   method: 'cash' | 'card' | 'transfer' | 'mobile' | 'other'
+  /** For cash only: bills/coins received from customer (≥ amount). Omitted = exact amount. */
+  cash_received?: number | null
   reference?: string
   notes?: string
 }
@@ -167,6 +169,14 @@ export const saleRepo = {
 
       const status = input.balance_due <= 0 ? 'completed' : 'partial'
 
+      for (const p of input.payments) {
+        if (p.method === 'cash' && p.cash_received != null && p.cash_received > 0) {
+          if (p.cash_received + 1e-9 < p.amount) {
+            throw new Error('Cash received cannot be less than the amount applied to the sale for this tender')
+          }
+        }
+      }
+
       // Validate & update stock for each item
       for (const item of input.items) {
         if (!item.product_id) continue
@@ -230,10 +240,14 @@ export const saleRepo = {
 
       // Payments after invoice so cash-drawer notes can use invoice #
       for (const p of input.payments) {
+        const cashReceived =
+          p.method === 'cash' && p.cash_received != null && p.cash_received > 0
+            ? p.cash_received
+            : null
         const payRes = db.prepare(`
-          INSERT INTO payments (sale_id, customer_id, amount, method, reference, notes)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).run(sale_id, input.customer_id ?? null, p.amount, p.method, p.reference ?? null, p.notes ?? null)
+          INSERT INTO payments (sale_id, customer_id, amount, method, reference, notes, cash_received)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(sale_id, input.customer_id ?? null, p.amount, p.method, p.reference ?? null, p.notes ?? null, cashReceived)
         insertSalePaymentInTx(db, payRes.lastInsertRowid as number, sale_id)
       }
 
@@ -292,8 +306,19 @@ export const saleRepo = {
       } | undefined
       if (!sale || sale.status === 'voided') throw new Error('Cannot add payment to this sale')
 
-      const payIns = db.prepare(`INSERT INTO payments (sale_id, customer_id, amount, method, reference, notes) VALUES (?, ?, ?, ?, ?, ?)`)
-        .run(saleId, sale.customer_id, payment.amount, payment.method, payment.reference ?? null, payment.notes ?? null)
+      if (payment.method === 'cash' && payment.cash_received != null && payment.cash_received > 0) {
+        if (payment.cash_received + 1e-9 < payment.amount) {
+          throw new Error('Cash received cannot be less than the amount applied to the sale for this tender')
+        }
+      }
+      const cashReceived =
+        payment.method === 'cash' && payment.cash_received != null && payment.cash_received > 0
+          ? payment.cash_received
+          : null
+      const payIns = db.prepare(`
+        INSERT INTO payments (sale_id, customer_id, amount, method, reference, notes, cash_received)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(saleId, sale.customer_id, payment.amount, payment.method, payment.reference ?? null, payment.notes ?? null, cashReceived)
       insertSalePaymentInTx(db, payIns.lastInsertRowid as number, saleId)
 
       const new_paid = sale.amount_paid + payment.amount

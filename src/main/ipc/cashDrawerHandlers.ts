@@ -4,7 +4,7 @@ import { authService } from '../services/authService'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
 
-const OUT_TYPES = new Set<CashDrawerEntryType>(['withdrawal', 'change_given', 'manual_out'])
+const OUT_TYPES = new Set<CashDrawerEntryType>(['withdrawal', 'manual_out'])
 const IN_TYPES = new Set<CashDrawerEntryType>(['manual_in'])
 
 function validManualPair(direction: 'in' | 'out', entryType: CashDrawerEntryType): boolean {

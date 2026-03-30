@@ -1,4 +1,5 @@
 import { getDb } from '../index'
+import { insertCustomReceiptCashInTx } from './cashDrawerRepo'
 
 export interface CustomReceiptInput {
   customer_name?: string
@@ -7,6 +8,8 @@ export interface CustomReceiptInput {
   services_description?: string
   amount: number
   payment_method?: string
+  /** For Cash: actual bills/coins received (≥ amount). Omitted = exact amount. */
+  cash_received?: number | null
   notes?: string
   created_by: number
 }
@@ -22,6 +25,15 @@ export interface CustomReceiptFilters {
 export const customReceiptRepo = {
   create(input: CustomReceiptInput): { id: number; receipt_number: string } {
     const db = getDb()
+    const method = (input.payment_method || 'Cash').toLowerCase()
+    let cashReceivedCol: number | null = null
+    if (method === 'cash') {
+      let cr = input.cash_received
+      if (cr == null || cr <= 0) cr = input.amount
+      if (cr + 1e-9 < input.amount) throw new Error('Cash received cannot be less than the receipt total')
+      cashReceivedCol = cr
+    }
+
     const year = new Date().getFullYear()
     const nextRaw = (
       db.prepare(`SELECT value FROM settings WHERE key = 'custom_receipt.next_number'`).get() as
@@ -30,11 +42,12 @@ export const customReceiptRepo = {
     const next = parseInt(nextRaw, 10)
     const receipt_number = `CR-${year}-${String(next).padStart(4, '0')}`
 
-    const result = db.prepare(`
+    const txn = db.transaction(() => {
+      const result = db.prepare(`
       INSERT INTO custom_receipts
         (receipt_number, customer_name, plate_number, car_type, services_description,
-         amount, payment_method, notes, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         amount, payment_method, notes, created_by, cash_received)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       receipt_number,
       input.customer_name || 'Walk-in Customer',
@@ -45,11 +58,31 @@ export const customReceiptRepo = {
       input.payment_method || 'Cash',
       input.notes ?? null,
       input.created_by,
+      cashReceivedCol,
     )
 
-    db.prepare(`UPDATE settings SET value = ? WHERE key = 'custom_receipt.next_number'`).run(String(next + 1))
+      const id = result.lastInsertRowid as number
+      db.prepare(`UPDATE settings SET value = ? WHERE key = 'custom_receipt.next_number'`).run(String(next + 1))
 
-    return { id: result.lastInsertRowid as number, receipt_number }
+      if (method === 'cash' && cashReceivedCol != null && cashReceivedCol > 0) {
+        const row = db.prepare(`
+          SELECT created_at FROM custom_receipts WHERE id = ?
+        `).get(id) as { created_at: string } | undefined
+        if (row) {
+          insertCustomReceiptCashInTx(db, {
+            createdAt: row.created_at,
+            businessDate: row.created_at.slice(0, 10),
+            receiptNumber: receipt_number,
+            amount: input.amount,
+            cashReceived: cashReceivedCol,
+          })
+        }
+      }
+
+      return { id, receipt_number }
+    })
+
+    return txn()
   },
 
   getById(id: number) {

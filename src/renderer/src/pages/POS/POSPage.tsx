@@ -155,7 +155,7 @@ export default function POSPage(): JSX.Element {
     cart.addItem({ product_id: p.id, product_name: p.name, product_sku: p.sku, unit_price: p.sell_price, cost_price: p.cost_price, discount: 0, stock_quantity: p.stock_quantity })
   }
 
-  const handleCheckout = async (payments: Array<{ method: string; amount: number; reference?: string }>) => {
+  const handleCheckout = async (payments: Array<{ method: string; amount: number; cash_received?: number; reference?: string }>) => {
     if (cart.items.length === 0) { toast.error(t('pos.cartEmpty')); return }
     const totalPaid = payments.reduce((s, p) => s + p.amount, 0)
     const balance_due = Math.max(0, cart.total() - totalPaid)
@@ -176,7 +176,12 @@ export default function POSPage(): JSX.Element {
         product_id: i.product_id, product_name: i.product_name, product_sku: i.product_sku,
         unit_price: i.unit_price, cost_price: i.cost_price, quantity: i.quantity, discount: i.discount, line_total: i.line_total,
       })),
-      payments: payments.map(p => ({ method: p.method as 'cash' | 'card' | 'transfer' | 'mobile' | 'other', amount: p.amount, reference: p.reference })),
+      payments: payments.map(p => ({
+        method: p.method as 'cash' | 'card' | 'transfer' | 'mobile' | 'other',
+        amount: p.amount,
+        ...(p.method === 'cash' && p.cash_received != null && p.cash_received > 0 ? { cash_received: p.cash_received } : {}),
+        reference: p.reference,
+      })),
     }
     const res = await window.electronAPI.sales.create(input)
     if (!res.success) { toast.error(res.error ?? t('common.error')); setPaymentOpen(false); return }

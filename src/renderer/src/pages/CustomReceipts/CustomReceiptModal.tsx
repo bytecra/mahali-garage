@@ -10,6 +10,7 @@ interface CustomReceiptForm {
   carType: string
   servicesDescription: string
   amount: string
+  amountReceived: string
   paymentMethod: string
   notes: string
 }
@@ -26,6 +27,7 @@ const INITIAL: CustomReceiptForm = {
   carType: '',
   servicesDescription: '',
   amount: '',
+  amountReceived: '',
   paymentMethod: 'Cash',
   notes: '',
 }
@@ -50,6 +52,18 @@ export default function CustomReceiptModal({ open, onClose, onCreated }: Props):
     if (!form.carType.trim()) { setError(t('customReceipts.errorCarType')); return }
     if (isNaN(amt) || amt <= 0) { setError(t('customReceipts.errorAmount')); return }
 
+    const isCash = form.paymentMethod.toLowerCase() === 'cash'
+    let cashReceived: number | undefined
+    if (isCash) {
+      const raw = form.amountReceived.trim()
+      const ar = raw === '' ? amt : parseFloat(raw)
+      if (isNaN(ar) || ar + 1e-9 < amt) {
+        setError(t('customReceipts.errorCashReceived', { defaultValue: 'Cash received must be at least the receipt total.' }))
+        return
+      }
+      cashReceived = ar
+    }
+
     setSaving(true)
     try {
       const res = await window.electronAPI.customReceipts.create({
@@ -58,6 +72,7 @@ export default function CustomReceiptModal({ open, onClose, onCreated }: Props):
         car_type: form.carType.trim(),
         services_description: form.servicesDescription.trim(),
         amount: amt,
+        ...(isCash && cashReceived != null ? { cash_received: cashReceived } : {}),
         payment_method: form.paymentMethod,
         notes: form.notes.trim(),
       }) as { success: boolean; data?: { id: number; receipt_number: string }; error?: string }
@@ -111,7 +126,19 @@ export default function CustomReceiptModal({ open, onClose, onCreated }: Props):
 <div class="services">${receipt.services_description || '—'}</div>
 <div class="line"></div>
 <div class="row"><span class="total">Total:</span><span class="total">${getCurrencySymbol() + Number(receipt.amount).toFixed(2)} (${getCurrencyCode()})</span></div>
-<div class="row"><span>Payment:</span><span>${receipt.payment_method}</span></div>
+${(() => {
+  const sym = getCurrencySymbol()
+  const tot = Number(receipt.amount)
+  const pm = String(receipt.payment_method || '').toLowerCase()
+  const cr = receipt.cash_received != null ? Number(receipt.cash_received) : null
+  if (pm !== 'cash' || cr == null || !(cr > 0)) {
+    return `<div class="row"><span>Payment:</span><span>${receipt.payment_method}</span></div>`
+  }
+  const ch = Math.max(0, Math.round((cr - tot) * 100) / 100)
+  return `<div class="row"><span>Payment:</span><span>${receipt.payment_method}</span></div>
+<div class="row"><span>Cash received:</span><span class="bold">${sym + cr.toFixed(2)}</span></div>
+${ch > 0 ? `<div class="row"><span>Change:</span><span class="bold">${sym + ch.toFixed(2)}</span></div>` : ''}`
+})()}
 ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` : ''}
 <div class="line"></div>
 <div class="center footer">
@@ -198,6 +225,42 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
               </select>
             </div>
           </div>
+
+          {form.paymentMethod.toLowerCase() === 'cash' && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {t('customReceipts.cashReceived', { defaultValue: 'Cash received' })} *
+                </label>
+                <input
+                  className={inputCls}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.amountReceived}
+                  onChange={e => set('amountReceived', e.target.value)}
+                  placeholder={form.amount ? String(Math.max(parseFloat(form.amount) || 0, 0)) : '0.00'}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t('customReceipts.cashReceivedHint', { defaultValue: 'Leave blank to match total (exact cash). Change is recorded automatically.' })}
+                </p>
+              </div>
+              {(() => {
+                const tot = parseFloat(form.amount)
+                const raw = form.amountReceived.trim()
+                const recv = raw === '' ? tot : parseFloat(raw)
+                if (isNaN(tot) || tot <= 0 || isNaN(recv) || recv < tot) return null
+                const ch = Math.round((recv - tot) * 100) / 100
+                if (ch <= 0) return null
+                return (
+                  <div className="flex justify-between items-center text-sm font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 rounded-md px-2 py-1.5">
+                    <span>{t('pos.change', { defaultValue: 'Change due' })}</span>
+                    <span>{getCurrencySymbol() + ch.toFixed(2)} ({getCurrencyCode()})</span>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
 
           {/* Notes */}
           <div>

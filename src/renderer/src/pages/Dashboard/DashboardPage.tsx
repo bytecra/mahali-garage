@@ -144,7 +144,7 @@ function CashInHandWidget(): JSX.Element {
   const [openingDate, setOpeningDate] = useState(() => toYMD(new Date()))
   const [openingAmount, setOpeningAmount] = useState('')
   const [outAmount, setOutAmount] = useState('')
-  const [outType, setOutType] = useState<'withdrawal' | 'change_given' | 'manual_out'>('withdrawal')
+  const [outType, setOutType] = useState<'withdrawal' | 'manual_out'>('withdrawal')
   const [outNote, setOutNote] = useState('')
   const [inAmount, setInAmount] = useState('')
   const [inNote, setInNote] = useState('')
@@ -408,7 +408,6 @@ function CashInHandWidget(): JSX.Element {
                   disabled={busy}
                 >
                   <option value="withdrawal">{t('dashboard.cashDrawerWithdrawal', { defaultValue: 'Withdrawal' })}</option>
-                  <option value="change_given">{t('dashboard.cashDrawerChangeGiven', { defaultValue: 'Change given' })}</option>
                   <option value="manual_out">{t('dashboard.cashDrawerManualOut', { defaultValue: 'Other out' })}</option>
                 </select>
                 <input

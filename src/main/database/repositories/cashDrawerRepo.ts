@@ -20,21 +20,56 @@ export interface CashDrawerRow {
   payment_id: number | null
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
 /** Call inside sale transaction after inserting a payment row. */
 export function insertSalePaymentInTx(db: Database.Database, paymentId: number, saleId: number): void {
   const row = db.prepare(
-    `SELECT created_at, method, amount FROM payments WHERE id = ?`,
-  ).get(paymentId) as { created_at: string; method: string; amount: number } | undefined
+    `SELECT created_at, method, amount, cash_received FROM payments WHERE id = ?`,
+  ).get(paymentId) as { created_at: string; method: string; amount: number; cash_received: number | null } | undefined
   if (!row || row.method !== 'cash' || row.amount <= 0) return
+  const cashIn =
+    row.cash_received != null && row.cash_received > 0 ? row.cash_received : row.amount
+  if (cashIn + 1e-9 < row.amount) return
+  const change = round2(Math.max(0, cashIn - row.amount))
   const bd = row.created_at.slice(0, 10)
   const inv = db.prepare(`SELECT invoice_number FROM invoices WHERE sale_id = ?`).get(saleId) as
     | { invoice_number: string }
     | undefined
   const note = inv ? `Invoice ${inv.invoice_number}` : `Sale #${saleId}`
   db.prepare(`
-    INSERT OR IGNORE INTO cash_drawer_transactions (business_date, created_at, direction, amount, entry_type, note, payment_id)
+    INSERT INTO cash_drawer_transactions (business_date, created_at, direction, amount, entry_type, note, payment_id)
     VALUES (?, ?, 'in', ?, 'sale_payment', ?, ?)
-  `).run(bd, row.created_at, row.amount, note, paymentId)
+  `).run(bd, row.created_at, cashIn, note, paymentId)
+  if (change > 0) {
+    db.prepare(`
+      INSERT INTO cash_drawer_transactions (business_date, created_at, direction, amount, entry_type, note, payment_id)
+      VALUES (?, ?, 'out', ?, 'change_given', ?, ?)
+    `).run(bd, row.created_at, change, `Change · ${note}`, paymentId)
+  }
+}
+
+/** Cash drawer for custom receipts (no payments row). Call inside same transaction as receipt insert. */
+export function insertCustomReceiptCashInTx(
+  db: Database.Database,
+  input: { createdAt: string; businessDate: string; receiptNumber: string; amount: number; cashReceived: number },
+): void {
+  const { createdAt, businessDate, receiptNumber, amount, cashReceived } = input
+  if (cashReceived <= 0) return
+  const change = round2(Math.max(0, cashReceived - amount))
+  const noteBase = `Receipt ${receiptNumber}`
+  db.prepare(`
+    INSERT INTO cash_drawer_transactions (business_date, created_at, direction, amount, entry_type, note, payment_id)
+    VALUES (?, ?, 'in', ?, 'manual_in', ?, NULL)
+  `).run(businessDate, createdAt, cashReceived, `${noteBase} · Cash in`)
+  if (change > 0) {
+    db.prepare(`
+      INSERT INTO cash_drawer_transactions (business_date, created_at, direction, amount, entry_type, note, payment_id)
+      VALUES (?, ?, 'out', ?, 'change_given', ?, NULL)
+    `).run(businessDate, createdAt, change, `Change · ${noteBase}`)
+  }
 }
 
 /** Remove auto-linked rows when voiding a sale (inside same transaction). */
