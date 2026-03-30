@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon } from 'lucide-react'
+import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
-import { formatCurrency } from '../../lib/utils'
+import { formatCurrency, cn } from '../../lib/utils'
 import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
 import { usePermission } from '../../hooks/usePermission'
@@ -49,6 +49,128 @@ function DeptBreakdown({ mechanical, programming }: { mechanical: number; progra
       <span className="text-muted-foreground font-normal text-sm">Programming:</span>{' '}
       {programming}
     </p>
+  )
+}
+
+type CashDatePreset = 'today' | 'week' | 'month' | 'custom'
+
+function toYMD(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function rangeForCashPreset(preset: CashDatePreset, customFrom: string, customTo: string): { from: string; to: string } {
+  const now = new Date()
+  if (preset === 'custom' && customFrom && customTo) return { from: customFrom, to: customTo }
+  if (preset === 'today') {
+    const s = toYMD(now)
+    return { from: s, to: s }
+  }
+  if (preset === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    return { from: toYMD(start), to: toYMD(end) }
+  }
+  const day = now.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const mon = new Date(now)
+  mon.setDate(now.getDate() + diff)
+  const sun = new Date(mon)
+  sun.setDate(mon.getDate() + 6)
+  return { from: toYMD(mon), to: toYMD(sun) }
+}
+
+/** Explicit AED display for cash widgets (د.إ). */
+function formatAed(amount: number): string {
+  const n = Number(amount ?? 0)
+  const x = (Number.isNaN(n) ? 0 : n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return `${x} د.إ`
+}
+
+function CashFlowWidget({
+  title,
+  subtitle,
+  icon: Icon,
+  valueKey,
+}: {
+  title: string
+  subtitle?: string
+  icon: React.ElementType
+  valueKey: 'cash' | 'non_cash' | 'total'
+}): JSX.Element {
+  const { t } = useTranslation()
+  const [preset, setPreset] = useState<CashDatePreset>('today')
+  const [customFrom, setCustomFrom] = useState(() => toYMD(new Date()))
+  const [customTo, setCustomTo] = useState(() => toYMD(new Date()))
+  const [totals, setTotals] = useState({ cash: 0, non_cash: 0, total: 0 })
+
+  const { from, to } = useMemo(() => rangeForCashPreset(preset, customFrom, customTo), [preset, customFrom, customTo])
+
+  useEffect(() => {
+    let cancelled = false
+    window.electronAPI.reports.cashByMethod(from, to).then(res => {
+      if (cancelled || !res.success || !res.data) return
+      setTotals(res.data)
+    })
+    return () => { cancelled = true }
+  }, [from, to])
+
+  const value = valueKey === 'cash' ? totals.cash : valueKey === 'non_cash' ? totals.non_cash : totals.total
+
+  const presetBtn = (p: CashDatePreset, label: string) => (
+    <button
+      key={p}
+      type="button"
+      onClick={() => setPreset(p)}
+      className={cn(
+        'px-2 py-1 text-xs font-medium rounded-md border transition-colors',
+        preset === p
+          ? 'border-primary bg-primary/10 text-primary'
+          : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted/60',
+      )}
+    >
+      {label}
+    </button>
+  )
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-4 flex flex-col h-full">
+      <div className="flex items-start gap-3">
+        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 shrink-0">
+          <Icon className="w-5 h-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-foreground leading-tight">{title}</h3>
+          {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight">{formatAed(value)}</p>
+          <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wide">AED · {from === to ? from : `${from} → ${to}`}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {presetBtn('today', t('dashboard.cashToday', { defaultValue: 'Today' }))}
+        {presetBtn('week', t('dashboard.cashThisWeek', { defaultValue: 'This Week' }))}
+        {presetBtn('month', t('dashboard.cashThisMonth', { defaultValue: 'This Month' }))}
+        {presetBtn('custom', t('dashboard.cashCustom', { defaultValue: 'Custom' }))}
+      </div>
+      {preset === 'custom' && (
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border">
+          <input
+            type="date"
+            value={customFrom}
+            onChange={e => setCustomFrom(e.target.value)}
+            className="flex-1 min-w-[8rem] px-2 py-1 text-xs border border-input rounded-md bg-background"
+          />
+          <input
+            type="date"
+            value={customTo}
+            onChange={e => setCustomTo(e.target.value)}
+            className="flex-1 min-w-[8rem] px-2 py-1 text-xs border border-input rounded-md bg-background"
+          />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -167,6 +289,32 @@ export default function DashboardPage(): JSX.Element {
           value={formatCurrency(data?.monthNetProfit ?? 0)}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
           color={(data?.monthNetProfit ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'} />
+      </div>
+
+      {/* Cash receipts (POS payments + custom receipts); each widget has its own date range. */}
+      <div className="mb-8">
+        <h2 className="text-base font-semibold text-foreground mb-3">{t('dashboard.cashWidgetsTitle', { defaultValue: 'Cash & receipts' })}</h2>
+        <p className="text-xs text-muted-foreground mb-3">{t('dashboard.cashWidgetsHint', { defaultValue: 'Totals from recorded payment methods (Quick Invoice). Job-card-only deposits are not split by method until recorded as payments.' })}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <CashFlowWidget
+            icon={Banknote}
+            title={t('dashboard.cashInHand', { defaultValue: 'Cash in hand' })}
+            subtitle={t('dashboard.cashInHandSub', { defaultValue: 'Cash payments' })}
+            valueKey="cash"
+          />
+          <CashFlowWidget
+            icon={Landmark}
+            title={t('dashboard.bankTransfer', { defaultValue: 'Bank transfer' })}
+            subtitle={t('dashboard.bankTransferSub', { defaultValue: 'Non-cash: card, transfer, mobile, other' })}
+            valueKey="non_cash"
+          />
+          <CashFlowWidget
+            icon={Sigma}
+            title={t('dashboard.cashTotal', { defaultValue: 'Total' })}
+            subtitle={t('dashboard.cashTotalSub', { defaultValue: 'Cash + non-cash' })}
+            valueKey="total"
+          />
+        </div>
       </div>
 
       {/* Stats Row 4 — Tasks (role-aware) */}

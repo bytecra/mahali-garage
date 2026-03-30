@@ -1,5 +1,5 @@
 import { ipcMain, dialog, shell } from 'electron'
-import { expenseRepo } from '../database/repositories/expenseRepo'
+import { expenseRepo, type ExpenseReportDepartment } from '../database/repositories/expenseRepo'
 import { authService } from '../services/authService'
 import { hasFeature } from '../licensing/license-manager'
 import { ok, err } from '../utils/ipcResponse'
@@ -139,21 +139,21 @@ export function registerExpenseHandlers(): void {
   })
 
   // ── Report queries ────────────────────────────────────────────────────────
-  ipcMain.handle('expenses:sumByCategory', (event, from: string, to: string) => {
+  ipcMain.handle('expenses:sumByCategory', (event, from: string, to: string, department?: ExpenseReportDepartment) => {
     try {
       const licErr = requireLicense('expenses.view')
       if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'expenses.view')) return err('Forbidden', 'ERR_FORBIDDEN')
-      return ok(expenseRepo.sumByCategory(from, to))
+      return ok(expenseRepo.sumByCategory(from, to, department ?? 'all'))
     } catch (e) { log.error('expenses:sumByCategory', e); return err('Failed') }
   })
 
-  ipcMain.handle('expenses:sumByMonth', (event, year: number) => {
+  ipcMain.handle('expenses:sumByMonth', (event, year: number, department?: ExpenseReportDepartment) => {
     try {
       const licErr = requireLicense('expenses.view')
       if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
       if (!authService.hasPermission(event.sender.id, 'expenses.view')) return err('Forbidden', 'ERR_FORBIDDEN')
-      return ok(expenseRepo.sumByMonth(year))
+      return ok(expenseRepo.sumByMonth(year, department ?? 'all'))
     } catch (e) { log.error('expenses:sumByMonth', e); return err('Failed') }
   })
 }

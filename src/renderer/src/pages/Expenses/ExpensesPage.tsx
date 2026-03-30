@@ -13,6 +13,7 @@ interface Expense {
   id: number; name: string
   category_id: number | null; category_name: string | null; category_color: string | null
   amount: number; date: string; due_date: string | null; is_paid: number
+  department: string | null
   branch: string | null; notes: string | null
   user_id: number | null; full_name: string | null; receipt_path: string | null
 }
@@ -22,7 +23,8 @@ const monthStart = today.slice(0, 7) + '-01'
 
 const EMPTY_FORM = {
   name: '', category_id: '' as string | number, amount: '',
-  date: today, due_date: '', branch: '', notes: '', receipt_path: '',
+  date: today, due_date: '', department: '' as '' | 'mechanical' | 'programming' | 'both',
+  branch: '', notes: '', receipt_path: '',
 }
 
 type Tab = 'expenses' | 'categories'
@@ -107,6 +109,7 @@ function ExpensesPageInner(): JSX.Element {
       name: e.name, category_id: e.category_id ?? '',
       amount: String(e.amount), date: e.date,
       due_date: e.due_date ?? '',
+      department: (e.department === 'mechanical' || e.department === 'programming' || e.department === 'both' ? e.department : ''),
       branch: e.branch ?? '', notes: e.notes ?? '',
       receipt_path: e.receipt_path ?? '',
     })
@@ -124,6 +127,7 @@ function ExpensesPageInner(): JSX.Element {
       amount:      Number(form.amount),
       date:        form.date,
       due_date:    form.due_date || null,
+      department:  form.department || null,
       branch:      form.branch.trim() || null,
       notes:       form.notes.trim()  || null,
       receipt_path: form.receipt_path || null,
@@ -373,6 +377,15 @@ function ExpensesPageInner(): JSX.Element {
           <div>
             <label className={labelCls}>{t('expenses.amount')} *</label>
             <input type="number" min="0" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>{t('reports.department', { defaultValue: 'Department' })}</label>
+            <select value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value as typeof f.department }))} className={inputCls}>
+              <option value="">{t('expenses.deptShared', { defaultValue: 'Shared (both departments)' })}</option>
+              <option value="mechanical">{t('reports.dept.mechanical', { defaultValue: 'Mechanical' })}</option>
+              <option value="programming">{t('reports.dept.programming', { defaultValue: 'Programming' })}</option>
+              <option value="both">{t('expenses.deptBoth', { defaultValue: 'Both' })}</option>
+            </select>
           </div>
           <div>
             <label className={labelCls}>{t('common.date')} *</label>

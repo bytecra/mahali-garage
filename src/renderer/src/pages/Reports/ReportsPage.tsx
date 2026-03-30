@@ -6,6 +6,7 @@ import { formatCurrency, formatDate } from '../../lib/utils'
 import { FeatureGate } from '../../components/FeatureGate'
 
 type ReportTab = 'sales' | 'profit' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly'
+type ReportDept = 'all' | 'mechanical' | 'programming'
 
 const today = new Date().toISOString().slice(0, 10)
 const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -34,6 +35,7 @@ function ReportsPageInner(): JSX.Element {
   const [tab, setTab] = useState<ReportTab>('sales')
   const [dateFrom, setDateFrom] = useState(monthAgo)
   const [dateTo, setDateTo] = useState(today)
+  const [reportDept, setReportDept] = useState<ReportDept>('all')
   const [data, setData] = useState<unknown[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -42,19 +44,19 @@ function ReportsPageInner(): JSX.Element {
     setData([])
     try {
       let res
-      if (tab === 'sales') res = await window.electronAPI.reports.salesDaily(dateFrom)
-      else if (tab === 'profit') res = await window.electronAPI.reports.profit(dateFrom, dateTo)
+      if (tab === 'sales') res = await window.electronAPI.reports.salesDaily(dateFrom, dateTo, reportDept)
+      else if (tab === 'profit') res = await window.electronAPI.reports.profit(dateFrom, dateTo, reportDept)
       else if (tab === 'inventory') res = await window.electronAPI.reports.inventory()
       else if (tab === 'lowstock') res = await window.electronAPI.reports.lowStock()
       else if (tab === 'topproducts') res = await window.electronAPI.reports.topProducts(dateFrom, dateTo)
-      else if (tab === 'debts') res = await window.electronAPI.reports.customerDebts()
-      else if (tab === 'expenses_category') res = await window.electronAPI.expenses.sumByCategory(dateFrom, dateTo)
-      else if (tab === 'expenses_monthly') res = await window.electronAPI.expenses.sumByMonth(parseInt(dateFrom.slice(0, 4)))
+      else if (tab === 'debts') res = await window.electronAPI.reports.customerDebts(reportDept)
+      else if (tab === 'expenses_category') res = await window.electronAPI.expenses.sumByCategory(dateFrom, dateTo, reportDept)
+      else if (tab === 'expenses_monthly') res = await window.electronAPI.expenses.sumByMonth(parseInt(dateFrom.slice(0, 4)), reportDept)
       if (res?.success) setData(res.data as unknown[])
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [tab, dateFrom, dateTo])
+  useEffect(() => { load() }, [tab, dateFrom, dateTo, reportDept])
 
   const TABS: Array<{ key: ReportTab; label: string }> = [
     { key: 'sales',       label: t('reports.salesDaily') },
@@ -68,6 +70,7 @@ function ReportsPageInner(): JSX.Element {
   ]
 
   const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly'].includes(tab)
+  const showDeptFilter = ['sales', 'profit', 'debts', 'expenses_category', 'expenses_monthly'].includes(tab)
 
   return (
     <div>
@@ -91,7 +94,7 @@ function ReportsPageInner(): JSX.Element {
 
       {/* Date range */}
       {showDateRange && (
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">{t('common.from')}</label>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
@@ -102,6 +105,35 @@ function ReportsPageInner(): JSX.Element {
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
               className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
           </div>
+          {showDeptFilter && (
+            <div className="flex items-center gap-2 ms-auto">
+              <label className="text-sm text-muted-foreground whitespace-nowrap">{t('reports.department', { defaultValue: 'Department' })}</label>
+              <select
+                value={reportDept}
+                onChange={e => setReportDept(e.target.value as ReportDept)}
+                className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">{t('common.all')}</option>
+                <option value="mechanical">{t('reports.dept.mechanical', { defaultValue: 'Mechanical' })}</option>
+                <option value="programming">{t('reports.dept.programming', { defaultValue: 'Programming' })}</option>
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showDeptFilter && !showDateRange && (
+        <div className="flex items-center gap-2 mb-4">
+          <label className="text-sm text-muted-foreground">{t('reports.department', { defaultValue: 'Department' })}</label>
+          <select
+            value={reportDept}
+            onChange={e => setReportDept(e.target.value as ReportDept)}
+            className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="all">{t('common.all')}</option>
+            <option value="mechanical">{t('reports.dept.mechanical', { defaultValue: 'Mechanical' })}</option>
+            <option value="programming">{t('reports.dept.programming', { defaultValue: 'Programming' })}</option>
+          </select>
         </div>
       )}
 
@@ -167,14 +199,14 @@ function ReportsPageInner(): JSX.Element {
           )}
 
           {/* Table */}
-          <ReportTable tab={tab} data={data} />
+          <ReportTable tab={tab} data={data} reportDept={reportDept} />
         </>
       )}
     </div>
   )
 }
 
-function ReportTable({ tab, data }: { tab: ReportTab; data: unknown[] }): JSX.Element {
+function ReportTable({ tab, data, reportDept }: { tab: ReportTab; data: unknown[]; reportDept: ReportDept }): JSX.Element {
   const { t } = useTranslation()
   if (data.length === 0) return <p className="py-8 text-center text-muted-foreground text-sm">{t('common.noData')}</p>
 
@@ -365,7 +397,9 @@ function ReportTable({ tab, data }: { tab: ReportTab; data: unknown[] }): JSX.El
                 <td className="px-4 py-3 font-medium">{r.name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{r.phone ?? '—'}</td>
                 <td className="px-4 py-3 text-end">{r.sale_count}</td>
-                <td className="px-4 py-3 text-end font-bold text-destructive">{formatCurrency(Math.abs(r.balance))}</td>
+                <td className="px-4 py-3 text-end font-bold text-destructive">
+                  {formatCurrency(reportDept !== 'all' ? r.total_due : Math.abs(r.balance))}
+                </td>
               </tr>
             ))}
           </tbody>

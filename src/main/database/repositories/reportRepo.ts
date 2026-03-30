@@ -1,6 +1,16 @@
 import { getDb } from '../index'
 import { expenseRepo } from './expenseRepo'
 
+export type ReportDepartmentFilter = 'all' | 'mechanical' | 'programming'
+
+function invoiceDeptPredicate(dept: ReportDepartmentFilter, invoiceAlias = 'i'): string {
+  if (dept === 'all') return '1=1'
+  if (dept === 'mechanical') {
+    return `COALESCE(${invoiceAlias}.department, 'mechanical') IN ('mechanical','both')`
+  }
+  return `COALESCE(${invoiceAlias}.department, 'mechanical') IN ('programming','both')`
+}
+
 export const reportRepo = {
   dashboard() {
     const db = getDb()
@@ -147,8 +157,42 @@ export const reportRepo = {
     }
   },
 
-  salesDaily(date: string) {
+  /**
+   * Cash vs non-cash receipts: POS `payments` (by method) + custom receipts (payment_method text).
+   * Dates are inclusive on payment/receipt `created_at` (calendar day).
+   */
+  cashByMethodRange(dateFrom: string, dateTo: string): { cash: number; non_cash: number; total: number } {
     const db = getDb()
+    const pos = db.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN p.method = 'cash' THEN p.amount ELSE 0 END), 0) AS cash_sum,
+        COALESCE(SUM(CASE WHEN p.method != 'cash' THEN p.amount ELSE 0 END), 0) AS non_cash_sum
+      FROM payments p
+      INNER JOIN sales s ON s.id = p.sale_id AND s.status != 'voided'
+      WHERE date(p.created_at) BETWEEN date(?) AND date(?)
+    `).get(dateFrom, dateTo) as { cash_sum: number; non_cash_sum: number }
+
+    let custom = { cash_sum: 0, non_cash_sum: 0 }
+    try {
+      custom = db.prepare(`
+        SELECT
+          COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) = 'cash' THEN amount ELSE 0 END), 0) AS cash_sum,
+          COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) != 'cash' THEN amount ELSE 0 END), 0) AS non_cash_sum
+        FROM custom_receipts
+        WHERE date(created_at) BETWEEN date(?) AND date(?)
+      `).get(dateFrom, dateTo) as { cash_sum: number; non_cash_sum: number }
+    } catch {
+      /* custom_receipts missing in older DBs */
+    }
+
+    const cash = (pos?.cash_sum ?? 0) + (custom?.cash_sum ?? 0)
+    const nonCash = (pos?.non_cash_sum ?? 0) + (custom?.non_cash_sum ?? 0)
+    return { cash, non_cash: nonCash, total: cash + nonCash }
+  },
+
+  salesDaily(dateFrom: string, dateTo: string, department: ReportDepartmentFilter = 'all') {
+    const db = getDb()
+    const deptPred = invoiceDeptPredicate(department, 'i')
     return db.prepare(`
       SELECT s.sale_number, i.invoice_number, s.total_amount, s.amount_paid, s.balance_due,
              s.status, s.created_at, c.name as customer_name, u.full_name as cashier_name
@@ -156,9 +200,11 @@ export const reportRepo = {
       LEFT JOIN customers c ON s.customer_id = c.id
       LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN invoices i ON i.sale_id = s.id
-      WHERE date(s.created_at) = ? AND s.status != 'voided'
+      WHERE date(s.created_at) BETWEEN date(?) AND date(?)
+        AND s.status != 'voided'
+        AND (${deptPred})
       ORDER BY s.created_at
-    `).all(date)
+    `).all(dateFrom, dateTo)
   },
 
   salesMonthly(year: number, month: number) {
@@ -175,8 +221,9 @@ export const reportRepo = {
     `).all(prefix)
   },
 
-  profit(dateFrom: string, dateTo: string) {
+  profit(dateFrom: string, dateTo: string, department: ReportDepartmentFilter = 'all') {
     const db = getDb()
+    const deptPred = invoiceDeptPredicate(department, 'i')
     return db.prepare(`
       SELECT
         date(s.created_at) as day,
@@ -185,7 +232,9 @@ export const reportRepo = {
         COALESCE(SUM(s.total_amount),0) - COALESCE(SUM(si.cost_price * si.quantity),0) as gross_profit
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id
+      LEFT JOIN invoices i ON i.sale_id = s.id
       WHERE date(s.created_at) BETWEEN ? AND ? AND s.status != 'voided'
+        AND (${deptPred})
       GROUP BY day ORDER BY day
     `).all(dateFrom, dateTo)
   },
@@ -235,17 +284,32 @@ export const reportRepo = {
     `).all(dateFrom, dateTo, limit)
   },
 
-  customerDebts() {
+  customerDebts(department: ReportDepartmentFilter = 'all') {
     const db = getDb()
+    if (department === 'all') {
+      return db.prepare(`
+        SELECT c.id, c.name, c.phone, c.email, c.balance,
+               COUNT(DISTINCT s.id) as sale_count,
+               COALESCE(SUM(CASE WHEN s.status IN ('partial','completed') THEN s.balance_due ELSE 0 END),0) as total_due
+        FROM customers c
+        LEFT JOIN sales s ON s.customer_id = c.id AND s.status != 'voided'
+        WHERE c.balance < 0
+        GROUP BY c.id
+        ORDER BY c.balance ASC
+      `).all()
+    }
+    const deptPred = invoiceDeptPredicate(department, 'i')
     return db.prepare(`
       SELECT c.id, c.name, c.phone, c.email, c.balance,
              COUNT(DISTINCT s.id) as sale_count,
              COALESCE(SUM(CASE WHEN s.status IN ('partial','completed') THEN s.balance_due ELSE 0 END),0) as total_due
       FROM customers c
-      LEFT JOIN sales s ON s.customer_id = c.id AND s.status != 'voided'
-      WHERE c.balance < 0
+      INNER JOIN sales s ON s.customer_id = c.id AND s.status != 'voided'
+      INNER JOIN invoices i ON i.sale_id = s.id
+      WHERE (${deptPred})
       GROUP BY c.id
-      ORDER BY c.balance ASC
+      HAVING SUM(CASE WHEN s.status IN ('partial','completed') THEN s.balance_due ELSE 0 END) > 0.005
+      ORDER BY total_due DESC
     `).all()
   },
 }

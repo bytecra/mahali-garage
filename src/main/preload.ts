@@ -106,13 +106,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Reports ───────────────────────────────────────────────────────────────
   reports: {
-    salesDaily:      (date: string)                      => invoke('reports:salesDaily', date),
+    salesDaily:      (dateFrom: string, dateTo?: string, department?: string) =>
+                       invoke('reports:salesDaily', dateFrom, dateTo ?? dateFrom, department ?? 'all'),
     salesMonthly:    (year: number, month: number)       => invoke('reports:salesMonthly', year, month),
-    profit:          (from: string, to: string)          => invoke('reports:profit', from, to),
+    profit:          (from: string, to: string, department?: string) =>
+                       invoke('reports:profit', from, to, department ?? 'all'),
+    cashByMethod:    (from: string, to?: string)         => invoke('reports:cashByMethod', from, to ?? from),
     topProducts:     (from: string, to: string)          => invoke('reports:topProducts', from, to),
     inventory:       ()                                  => invoke('reports:inventory'),
     lowStock:        ()                                  => invoke('reports:lowStock'),
-    customerDebts:   ()                                  => invoke('reports:customerDebts'),
+    customerDebts:   (department?: string)              => invoke('reports:customerDebts', department ?? 'all'),
     exportCsv:       (type: string, params: unknown)     => invoke('reports:exportCsv', type, params),
   },
 
@@ -190,8 +193,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete:         (id: number)                    => invoke('expenses:delete', id),
     selectReceipt:  ()                              => invoke('expenses:selectReceipt'),
     openReceipt:    (filePath: string)              => invoke('expenses:openReceipt', filePath),
-    sumByCategory:  (from: string, to: string)      => invoke('expenses:sumByCategory', from, to),
-    sumByMonth:     (year: number)                  => invoke('expenses:sumByMonth', year),
+    sumByCategory:  (from: string, to: string, department?: string) =>
+                        invoke('expenses:sumByCategory', from, to, department ?? 'all'),
+    sumByMonth:     (year: number, department?: string) =>
+                        invoke('expenses:sumByMonth', year, department ?? 'all'),
     upcomingDue:    (days?: number)                 => invoke('expenses:upcomingDue', days),
     markPaid:       (id: number)                    => invoke('expenses:markPaid', id),
   },

@@ -111,13 +111,14 @@ declare global {
         delete: (id: number) => Promise<IpcResponse<null>>
       }
       reports: {
-        salesDaily: (date: string) => Promise<IpcResponse<unknown>>
+        salesDaily: (dateFrom: string, dateTo?: string, department?: string) => Promise<IpcResponse<unknown>>
         salesMonthly: (year: number, month: number) => Promise<IpcResponse<unknown>>
-        profit: (from: string, to: string) => Promise<IpcResponse<unknown>>
+        profit: (from: string, to: string, department?: string) => Promise<IpcResponse<unknown>>
+        cashByMethod: (from: string, to?: string) => Promise<IpcResponse<{ cash: number; non_cash: number; total: number }>>
         topProducts: (from: string, to: string) => Promise<IpcResponse<unknown[]>>
         inventory: () => Promise<IpcResponse<unknown[]>>
         lowStock: () => Promise<IpcResponse<unknown[]>>
-        customerDebts: () => Promise<IpcResponse<unknown[]>>
+        customerDebts: (department?: string) => Promise<IpcResponse<unknown[]>>
         exportCsv: (type: string, params: unknown) => Promise<IpcResponse<string>>
       }
       dashboard: {
@@ -159,8 +160,8 @@ declare global {
         delete:        (id: number)                => Promise<IpcResponse<null>>
         selectReceipt: ()                          => Promise<IpcResponse<string | null>>
         openReceipt:   (filePath: string)          => Promise<IpcResponse<null>>
-        sumByCategory: (from: string, to: string)  => Promise<IpcResponse<unknown[]>>
-        sumByMonth:    (year: number)              => Promise<IpcResponse<unknown[]>>
+        sumByCategory: (from: string, to: string, department?: string)  => Promise<IpcResponse<unknown[]>>
+        sumByMonth:    (year: number, department?: string)              => Promise<IpcResponse<unknown[]>>
       }
       license: {
         check: () => Promise<IpcResponse<unknown>>

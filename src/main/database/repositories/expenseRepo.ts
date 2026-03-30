@@ -1,5 +1,16 @@
 import { getDb } from '../index'
 
+/** Department slice for expense reports (NULL = shared / applies to both). */
+export type ExpenseReportDepartment = 'all' | 'mechanical' | 'programming'
+
+function expenseReportDeptSql(dept: ExpenseReportDepartment, tableAlias = 'e'): string {
+  if (dept === 'all') return ''
+  if (dept === 'mechanical') {
+    return ` AND (${tableAlias}.department IS NULL OR ${tableAlias}.department IN ('mechanical','both'))`
+  }
+  return ` AND (${tableAlias}.department IS NULL OR ${tableAlias}.department IN ('programming','both'))`
+}
+
 export interface ExpenseCategory {
   id: number; name: string; color: string; created_at: string
 }
@@ -8,6 +19,7 @@ export interface Expense {
   id: number; name: string
   category_id: number | null; category_name: string | null; category_color: string | null
   amount: number; date: string; due_date: string | null; is_paid: number
+  department: string | null
   branch: string | null; notes: string | null
   user_id: number | null; full_name: string | null
   receipt_path: string | null; created_at: string; updated_at: string
@@ -26,6 +38,7 @@ interface ExpenseFilters {
 interface CreateExpenseInput {
   name: string; category_id?: number | null; amount: number; date: string
   due_date?: string | null; is_paid?: number
+  department?: string | null
   branch?: string | null; notes?: string | null; user_id?: number | null; receipt_path?: string | null
 }
 
@@ -112,11 +125,12 @@ export const expenseRepo = {
 
   create(data: CreateExpenseInput): number {
     const r = getDb().prepare(`
-      INSERT INTO expenses (name, category_id, amount, date, due_date, is_paid, branch, notes, user_id, receipt_path, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT INTO expenses (name, category_id, amount, date, due_date, is_paid, department, branch, notes, user_id, receipt_path, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `).run(
       data.name, data.category_id ?? null, data.amount, data.date,
       data.due_date ?? null, data.is_paid ?? 0,
+      data.department ?? null,
       data.branch ?? null, data.notes ?? null, data.user_id ?? null, data.receipt_path ?? null
     )
     return r.lastInsertRowid as number
@@ -132,6 +146,7 @@ export const expenseRepo = {
     if (data.date         !== undefined) { fields.push('date = ?');         params.push(data.date) }
     if (data.due_date     !== undefined) { fields.push('due_date = ?');     params.push(data.due_date ?? null) }
     if (data.is_paid      !== undefined) { fields.push('is_paid = ?');      params.push(data.is_paid) }
+    if (data.department   !== undefined) { fields.push('department = ?');    params.push(data.department ?? null) }
     if (data.branch       !== undefined) { fields.push('branch = ?');       params.push(data.branch ?? null) }
     if (data.notes        !== undefined) { fields.push('notes = ?');        params.push(data.notes ?? null) }
     if (data.receipt_path !== undefined) { fields.push('receipt_path = ?'); params.push(data.receipt_path ?? null) }
@@ -145,24 +160,26 @@ export const expenseRepo = {
   },
 
   // ── Report queries ────────────────────────────────────────────────────────
-  sumByCategory(from: string, to: string): { category_name: string; color: string; total: number }[] {
+  sumByCategory(from: string, to: string, department: ExpenseReportDepartment = 'all'): { category_name: string; color: string; total: number }[] {
+    const dsql = expenseReportDeptSql(department, 'e')
     return getDb().prepare(`
       SELECT COALESCE(ec.name, 'Uncategorized') as category_name,
              COALESCE(ec.color, '#6b7280') as color,
              SUM(e.amount) as total
       FROM expenses e
       LEFT JOIN expense_categories ec ON ec.id = e.category_id
-      WHERE e.date BETWEEN ? AND ?
+      WHERE e.date BETWEEN ? AND ? ${dsql}
       GROUP BY e.category_id
       ORDER BY total DESC
     `).all(from, to) as { category_name: string; color: string; total: number }[]
   },
 
-  sumByMonth(year: number): { month: string; total: number }[] {
+  sumByMonth(year: number, department: ExpenseReportDepartment = 'all'): { month: string; total: number }[] {
+    const dsql = expenseReportDeptSql(department, 'e')
     return getDb().prepare(`
-      SELECT strftime('%Y-%m', date) as month, SUM(amount) as total
-      FROM expenses
-      WHERE strftime('%Y', date) = ?
+      SELECT strftime('%Y-%m', e.date) as month, SUM(e.amount) as total
+      FROM expenses e
+      WHERE strftime('%Y', e.date) = ? ${dsql}
       GROUP BY month ORDER BY month
     `).all(String(year)) as { month: string; total: number }[]
   },
