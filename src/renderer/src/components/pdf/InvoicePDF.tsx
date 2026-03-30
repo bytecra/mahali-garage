@@ -38,6 +38,7 @@ export interface InvoiceData {
   store_address?: string
   store_phone?: string
   invoice_footer?: string
+  currency_symbol?: string
 }
 
 const styles = StyleSheet.create({
@@ -77,10 +78,11 @@ const styles = StyleSheet.create({
   balanceText:{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#dc2626', textAlign: 'center' },
 })
 
-function fmt(n: number): string { return `$${n.toFixed(2)}` }
 function fmtDate(d: string): string { return new Date(d).toLocaleDateString() }
 
 export function InvoicePDF({ inv }: { inv: InvoiceData }): JSX.Element {
+  const sym = inv.currency_symbol ?? 'د.إ'
+  const fmt = (n: number): string => `${sym}${n.toFixed(2)}`
   return (
     <Document>
       <Page size="A4" style={styles.page}>

@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next'
 import { User, Car, Clock, AlertCircle, Wrench } from 'lucide-react'
 import { formatDate, formatCurrency } from '../../lib/utils'
 import { useSortable } from '@dnd-kit/sortable'
@@ -6,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 
 export interface RepairRow {
   id: number; job_number: string; job_type: string; status: string; priority: string
+  department?: string
   owner_name: string | null; vehicle_make: string | null; vehicle_model: string | null
   vehicle_year: number | null; vehicle_plate: string | null
   technician_name: string | null; complaint: string | null; total: number; balance_due: number
@@ -19,10 +19,21 @@ const PRIORITY_COLORS: Record<string, string> = {
   low:    'bg-muted text-muted-foreground border-border',
 }
 
+const DEPT_BADGE: Record<string, string> = {
+  mechanical:  'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border-amber-200/60',
+  programming: 'bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-300 border-violet-200/60',
+  both:        'bg-teal-100 text-teal-900 dark:bg-teal-950 dark:text-teal-300 border-teal-200/60',
+}
+
+function deptLabel(d: string | undefined): string {
+  if (d === 'programming') return 'Prog'
+  if (d === 'both') return 'Both'
+  return 'Mech'
+}
+
 interface Props { repair: RepairRow; onClick: () => void }
 
 export default function RepairCard({ repair, onClick }: Props): JSX.Element {
-  const { t } = useTranslation()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: repair.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
 
@@ -34,11 +45,16 @@ export default function RepairCard({ repair, onClick }: Props): JSX.Element {
       onClick={onClick}
       className="bg-card border border-border rounded-lg p-3 cursor-pointer hover:shadow-sm transition-shadow select-none"
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
         <span className="font-mono text-xs text-muted-foreground">{repair.job_number}</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PRIORITY_COLORS[repair.priority] ?? PRIORITY_COLORS.normal}`}>
-          {repair.priority.charAt(0).toUpperCase() + repair.priority.slice(1)}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide ${DEPT_BADGE[repair.department ?? 'mechanical'] ?? DEPT_BADGE.mechanical}`}>
+            {deptLabel(repair.department)}
+          </span>
+          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PRIORITY_COLORS[repair.priority] ?? PRIORITY_COLORS.normal}`}>
+            {repair.priority.charAt(0).toUpperCase() + repair.priority.slice(1)}
+          </span>
+        </div>
       </div>
       {repair.complaint && <p className="text-sm font-medium text-foreground line-clamp-2 mb-2">{repair.complaint}</p>}
       <div className="space-y-1 text-xs text-muted-foreground">

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Trash2 } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import { toast } from '../../store/notificationStore'
-import { formatCurrency } from '../../lib/utils'
+import { cn, formatCurrency } from '../../lib/utils'
 
 interface Props {
   open: boolean
@@ -23,6 +23,11 @@ interface JobTypeOption { id: number; name: string }
 
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
 const STATUSES = ['pending', 'in_progress', 'waiting_parts', 'ready', 'delivered', 'cancelled'] as const
+const DEPARTMENTS = [
+  { value: 'mechanical', label: 'Mechanical' },
+  { value: 'programming', label: 'Programming' },
+  { value: 'both', label: 'Both' },
+] as const
 const BAYS = ['', 'Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Bay 6']
 
 const EMPTY_PART: Part = { name: '', qty: 1, cost: 0 }
@@ -39,6 +44,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
 
   const [form, setForm] = useState({
     job_type:              'General Service',
+    department:            'mechanical' as typeof DEPARTMENTS[number]['value'],
     priority:              'normal' as typeof PRIORITIES[number],
     status:                'pending' as typeof STATUSES[number],
     vehicle_id:            '',
@@ -81,6 +87,9 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
           const r = res.data as Record<string, unknown>
           setForm({
             job_type:            (r.job_type as string) ?? 'General Service',
+            department:          (['mechanical', 'programming', 'both'].includes(r.department as string)
+              ? r.department
+              : 'mechanical') as typeof DEPARTMENTS[number]['value'],
             priority:            (r.priority as typeof PRIORITIES[number]) ?? 'normal',
             status:              (r.status as typeof STATUSES[number]) ?? 'pending',
             vehicle_id:          r.vehicle_id ? String(r.vehicle_id) : '',
@@ -120,7 +129,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
       })
     } else {
       setForm({
-        job_type: 'General Service', priority: 'normal', status: 'pending',
+        job_type: 'General Service', department: 'mechanical', priority: 'normal', status: 'pending',
         vehicle_id: '', owner_id: '', technician_id: '', bay_number: '',
         mileage_in: '', expected_completion: '', complaint: '', diagnosis: '',
         work_done: '', labor_hours: '0', labor_rate: '85', deposit: '0',
@@ -164,6 +173,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
       vehicle_id: Number(form.vehicle_id) || null,
       owner_id: Number(form.owner_id) || null,
       job_type: form.job_type,
+      department: form.department,
       priority: form.priority,
       technician_id: Number(form.technician_id) || null,
       bay_number: form.bay_number || null,
@@ -255,6 +265,27 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
             <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
               {STATUSES.map(v => <option key={v} value={v}>{v.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>)}
             </select>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className={labelCls}>Department</label>
+          <div className="flex rounded-lg border border-input p-0.5 bg-muted/40 gap-0.5">
+            {DEPARTMENTS.map(d => (
+              <button
+                key={d.value}
+                type="button"
+                onClick={() => set('department', d.value)}
+                className={cn(
+                  'flex-1 px-2 py-2 text-sm font-medium rounded-md transition-colors',
+                  form.department === d.value
+                    ? 'bg-background text-foreground shadow-sm border border-border/80'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {d.label}
+              </button>
+            ))}
           </div>
         </div>
 

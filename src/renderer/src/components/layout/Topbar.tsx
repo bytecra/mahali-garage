@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
 import { useLangStore } from '../../store/langStore'
 import { useNavigate } from 'react-router-dom'
-import { cn } from '../../lib/utils'
+import { cn, formatCurrency } from '../../lib/utils'
 import { usePermission } from '../../hooks/usePermission'
 import { useCartStore } from '../../store/cartStore'
 import { useNotificationPoll } from '../../hooks/useNotificationPoll'
@@ -348,7 +348,7 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
                         </div>
                         <div className="text-end shrink-0">
                           <p className={cn('text-xs font-bold', item.is_overdue ? 'text-red-500' : 'text-orange-500')}>
-                            ${Number(item.amount).toFixed(2)}
+                            {formatCurrency(item.amount)}
                           </p>
                           <button
                             onClick={() => {

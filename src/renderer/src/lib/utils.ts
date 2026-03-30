@@ -1,13 +1,15 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { getCurrencySymbol } from '../store/currencyStore'
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number | null | undefined, symbol = '$'): string {
+export function formatCurrency(amount: number | null | undefined, symbol?: string): string {
   const n = Number(amount ?? 0)
-  return `${symbol}${(isNaN(n) ? 0 : n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
+  const sym = symbol ?? getCurrencySymbol()
+  return `${sym}${(isNaN(n) ? 0 : n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
 }
 
 export function formatDate(dateStr: string): string {

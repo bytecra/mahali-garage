@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Printer, Trash2, Search } from 'lucide-react'
 import { formatCurrency } from '../../lib/utils'
+import { getCurrencySymbol } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
 import { useBrandingStore } from '../../store/brandingStore'
 import CustomReceiptModal from './CustomReceiptModal'
@@ -83,7 +84,7 @@ export default function CustomReceiptsPage(): JSX.Element {
 <div class="bold">Services:</div>
 <div class="services">${receipt.services_description || '—'}</div>
 <div class="line"></div>
-<div class="row"><span class="total">Total:</span><span class="total">$${Number(receipt.amount).toFixed(2)}</span></div>
+<div class="row"><span class="total">Total:</span><span class="total">${getCurrencySymbol() + Number(receipt.amount).toFixed(2)}</span></div>
 <div class="row"><span>Payment:</span><span>${receipt.payment_method}</span></div>
 ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` : ''}
 <div class="line"></div>

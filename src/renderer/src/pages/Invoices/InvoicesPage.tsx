@@ -140,6 +140,7 @@ function InvoicesPageInner(): JSX.Element {
         store_address:   settings['store.address'],
         store_phone:     settings['store.phone'],
         invoice_footer:  settings['invoice.footer_text'],
+        currency_symbol: settings['store.currency_symbol'] ?? 'د.إ',
       }
 
       const blob = await pdf(<InvoicePDF inv={inv} />).toBlob()

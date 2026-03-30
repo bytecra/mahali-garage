@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
 import { formatCurrency } from '../../lib/utils'
+import { getCurrencySymbol } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
 import { usePermission } from '../../hooks/usePermission'
 
@@ -22,6 +23,8 @@ interface DashboardData {
   lowStock: number
   totalVehicles: number
   vehiclesInGarage: number
+  vehiclesInGarageMechanical: number
+  vehiclesInGarageProgramming: number
   readyForPickup: number
   activeJobCards: number
   salesTrend: Array<{ day: string; revenue: number; count: number }>
@@ -33,7 +36,14 @@ interface DashboardData {
   }>
 }
 
-function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string | number; sub?: string; color: string }): JSX.Element {
+function StatCard({ icon: Icon, label, value, valueContent, sub, color }: {
+  icon: React.ElementType
+  label: string
+  value?: string | number
+  valueContent?: React.ReactNode
+  sub?: string
+  color: string
+}): JSX.Element {
   return (
     <div className="bg-card border border-border rounded-lg p-5 flex items-start gap-4">
       <div className={`flex items-center justify-center w-11 h-11 rounded-lg ${color}`}>
@@ -41,7 +51,7 @@ function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.Elemen
       </div>
       <div>
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-2xl font-bold text-foreground mt-0.5">{value}</p>
+        {valueContent ?? <p className="text-2xl font-bold text-foreground mt-0.5">{value}</p>}
         {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </div>
     </div>
@@ -80,7 +90,15 @@ export default function DashboardPage(): JSX.Element {
       {/* Stats Row 1 — Garage Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard icon={Car} label={t('dashboard.vehiclesInGarage')}
-          value={data?.vehiclesInGarage ?? 0}
+          valueContent={(
+            <p className="text-base font-bold text-foreground mt-0.5 leading-snug">
+              <span className="text-muted-foreground font-normal text-sm">Mechanical:</span>{' '}
+              {data?.vehiclesInGarageMechanical ?? 0}
+              <span className="text-muted-foreground mx-2">|</span>
+              <span className="text-muted-foreground font-normal text-sm">Programming:</span>{' '}
+              {data?.vehiclesInGarageProgramming ?? 0}
+            </p>
+          )}
           sub={t('dashboard.activeRepairsLabel')}
           color="bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" />
         <StatCard icon={CheckCircle} label={t('dashboard.readyForPickup')}
@@ -173,7 +191,7 @@ export default function DashboardPage(): JSX.Element {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" tick={{ fontSize: 11 }} tickFormatter={d => d.slice(5)} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${getCurrencySymbol()}${v}`} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="url(#revenueGrad)" strokeWidth={2} />
               </AreaChart>

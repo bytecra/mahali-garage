@@ -38,6 +38,18 @@ const PRIORITY_COLORS: Record<string, string> = {
   low:    'bg-muted text-muted-foreground',
 }
 
+const DEPT_LIST_BADGE: Record<string, string> = {
+  mechanical:  'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300',
+  programming: 'bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-300',
+  both:        'bg-teal-100 text-teal-900 dark:bg-teal-950 dark:text-teal-300',
+}
+
+function listDeptLabel(d: string | undefined): string {
+  if (d === 'programming') return 'Programming'
+  if (d === 'both') return 'Both'
+  return 'Mechanical'
+}
+
 const BAYS = ['Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Bay 6']
 
 export default function RepairsPage(): JSX.Element {
@@ -59,6 +71,7 @@ function RepairsPageInner(): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [deptFilter, setDeptFilter] = useState<'' | 'mechanical' | 'programming'>('')
   const [techFilter, setTechFilter] = useState('')
   const [bayFilter, setBayFilter] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -73,13 +86,18 @@ function RepairsPageInner(): JSX.Element {
       const res = await window.electronAPI.jobCards.getByStatus()
       if (res.success) setRepairs(res.data as RepairRow[])
     } else {
-      const res = await window.electronAPI.jobCards.list({ search, status: statusFilter || undefined, pageSize: 100 })
+      const res = await window.electronAPI.jobCards.list({
+        search,
+        status: statusFilter || undefined,
+        department: deptFilter || undefined,
+        pageSize: 100,
+      })
       if (res.success) setRepairs((res.data as { rows: RepairRow[] }).rows)
     }
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [view, search, statusFilter])
+  useEffect(() => { load() }, [view, search, statusFilter, deptFilter])
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
@@ -118,6 +136,9 @@ function RepairsPageInner(): JSX.Element {
     )) return false
     if (techFilter && r.technician_name !== techFilter) return false
     if (bayFilter && r.bay_number !== bayFilter) return false
+    const d = r.department ?? 'mechanical'
+    if (deptFilter === 'mechanical' && !['mechanical', 'both'].includes(d)) return false
+    if (deptFilter === 'programming' && !['programming', 'both'].includes(d)) return false
     return true
   })
 
@@ -153,6 +174,12 @@ function RepairsPageInner(): JSX.Element {
             ))}
           </select>
         )}
+        <select value={deptFilter} onChange={e => setDeptFilter(e.target.value as '' | 'mechanical' | 'programming')}
+          className="px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring">
+          <option value="">All Departments</option>
+          <option value="mechanical">Mechanical</option>
+          <option value="programming">Programming</option>
+        </select>
         <select value={techFilter} onChange={e => setTechFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="">All Technicians</option>
@@ -204,6 +231,7 @@ function RepairsPageInner(): JSX.Element {
                   <th className="text-start px-4 py-3 font-medium">Vehicle</th>
                   <th className="text-start px-4 py-3 font-medium">Owner</th>
                   <th className="text-start px-4 py-3 font-medium">Type</th>
+                  <th className="text-center px-4 py-3 font-medium">Dept</th>
                   <th className="text-center px-4 py-3 font-medium">Priority</th>
                   <th className="text-center px-4 py-3 font-medium">Status</th>
                   <th className="text-start px-4 py-3 font-medium">Technician</th>
@@ -224,6 +252,11 @@ function RepairsPageInner(): JSX.Element {
                       <td className="px-4 py-3">{vehicle || '—'}{r.vehicle_plate ? ` (${r.vehicle_plate})` : ''}</td>
                       <td className="px-4 py-3 text-muted-foreground">{r.owner_name ?? '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{r.job_type}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${DEPT_LIST_BADGE[r.department ?? 'mechanical'] ?? DEPT_LIST_BADGE.mechanical}`}>
+                          {listDeptLabel(r.department)}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[r.priority] ?? 'bg-muted text-muted-foreground'}`}>
                           {r.priority.charAt(0).toUpperCase() + r.priority.slice(1)}

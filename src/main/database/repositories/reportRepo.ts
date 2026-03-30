@@ -26,11 +26,26 @@ export const reportRepo = {
     `).get() as { cnt: number }).cnt
 
     // Garage-specific metrics (safe — tables may not exist in older DBs)
-    let totalVehicles = 0, vehiclesInGarage = 0, readyForPickup = 0, activeJobCards = 0
+    let totalVehicles = 0,
+      vehiclesInGarage = 0,
+      vehiclesInGarageMechanical = 0,
+      vehiclesInGarageProgramming = 0,
+      readyForPickup = 0,
+      activeJobCards = 0
     try {
       totalVehicles = (db.prepare('SELECT COUNT(*) as cnt FROM vehicles').get() as { cnt: number }).cnt
       vehiclesInGarage = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards WHERE status IN ('pending','in_progress','waiting_parts')`
+      ).get() as { cnt: number }).cnt
+      vehiclesInGarageMechanical = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status IN ('pending','in_progress','waiting_parts')
+           AND department IN ('mechanical','both')`
+      ).get() as { cnt: number }).cnt
+      vehiclesInGarageProgramming = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status IN ('pending','in_progress','waiting_parts')
+           AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
       readyForPickup = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards WHERE status = 'ready'`
@@ -100,6 +115,8 @@ export const reportRepo = {
       topProducts,
       totalVehicles,
       vehiclesInGarage,
+      vehiclesInGarageMechanical,
+      vehiclesInGarageProgramming,
       readyForPickup,
       activeJobCards,
       urgentJobCards,

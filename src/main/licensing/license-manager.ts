@@ -10,15 +10,12 @@ import { app } from 'electron'
 import { getDeviceId } from './device-fingerprint'
 import { encrypt, decrypt } from './encryption'
 
+/** Embedded fallback for packaged apps where env vars are not set (dev can override via LICENSE_HMAC_SECRET). */
+const DEFAULT_HMAC_SECRET =
+  '0f3466a0c8c1a0f22ab2313fbed729449dc996e286ef88f5bb41a8de72bf706a'
+
 function getHmacSecret(): string {
-  const secret = process.env.LICENSE_HMAC_SECRET
-  if (!secret) {
-    throw new Error(
-      'LICENSE_HMAC_SECRET environment variable is not set. ' +
-        'Cannot verify license signatures without a valid signing secret.'
-    )
-  }
-  return secret
+  return process.env.LICENSE_HMAC_SECRET || DEFAULT_HMAC_SECRET
 }
 
 export enum LicenseTier {
@@ -193,7 +190,7 @@ export function activateLicense(code: string): { success: boolean; error?: strin
   if (data.deviceId !== currentDeviceId) {
     return { success: false, error: 'This license code is for a different device. Use the device ID shown on this screen.' }
   }
-  if (data.expiresAt > 0 && Date.now() > data.expiresAt) {
+  if (data.expiresAt > 0 && Math.floor(Date.now() / 1000) > data.expiresAt) {
     return { success: false, error: 'This license has already expired.' }
   }
   try {

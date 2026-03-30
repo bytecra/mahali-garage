@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { useThemeStore, applyTheme } from './store/themeStore'
 import { useLangStore } from './store/langStore'
 import { useBrandingStore } from './store/brandingStore'
+import { useCurrencyStore } from './store/currencyStore'
 import { applyLanguage } from './i18n/index'
 import AppShell from './components/layout/AppShell'
 import ProtectedRoute from './components/layout/ProtectedRoute'
@@ -35,11 +36,15 @@ function LoadingFallback(): JSX.Element {
   )
 }
 
+/** `file://` + BrowserRouter breaks on Windows; HashRouter works in packaged builds. Dev uses http://localhost — BrowserRouter is fine. */
+const Router = import.meta.env.DEV ? BrowserRouter : HashRouter
+
 export default function App(): JSX.Element {
   const { setUser, setLoading } = useAuthStore()
   const { setTheme } = useThemeStore()
   const { setLang } = useLangStore()
   const { load: loadBranding } = useBrandingStore()
+  const { syncFromSettings: syncCurrency } = useCurrencyStore()
 
   useEffect(() => {
     async function init(): Promise<void> {
@@ -47,6 +52,7 @@ export default function App(): JSX.Element {
         const settingsRes = await window.electronAPI.settings.getAll()
         if (settingsRes.success && settingsRes.data) {
           const s = settingsRes.data
+          syncCurrency(s as Record<string, string>)
 
           const theme = (s['appearance.theme'] as 'light' | 'dark' | 'system') || 'system'
           setTheme(theme)
@@ -71,7 +77,7 @@ export default function App(): JSX.Element {
   }, [])
 
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
 
@@ -133,6 +139,6 @@ export default function App(): JSX.Element {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   )
 }

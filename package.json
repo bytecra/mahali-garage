@@ -15,7 +15,8 @@
     "postinstall": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "rebuild:native": "node ./node_modules/electron-builder/cli.js install-app-deps",
     "bootstrap": "npm install --ignore-scripts && node node_modules/electron/install.js && node ./node_modules/electron-builder/cli.js install-app-deps",
-    "dist:win": "npm run build && node ./node_modules/electron-builder/cli.js --win --x64 --ia32",
+    "clean:release": "node scripts/clean-release.js",
+    "dist:win": "npm run build && npm run clean:release && node ./node_modules/electron-builder/cli.js --win --x64 --ia32",
     "generate-license": "tsx scripts/license-generator.ts"
   },
   "engines": {

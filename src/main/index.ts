@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, globalShortcut } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
 import log from 'electron-log'
 import { initDatabase } from './database/index'
@@ -27,7 +28,7 @@ function createWindow(): void {
       sandbox: false,
       nodeIntegration: false,
       contextIsolation: true,
-      devTools: is.dev,
+      devTools: true,
     },
   })
 
@@ -40,17 +41,23 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // Disable DevTools in production
-  if (!is.dev) {
-    mainWindow.webContents.on('devtools-opened', () => {
-      mainWindow?.webContents.closeDevTools()
-    })
-  }
+  // Allow F12 to toggle DevTools for debugging
+  globalShortcut.register('F12', () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) {
+      if (win.webContents.isDevToolsOpened()) {
+        win.webContents.closeDevTools()
+      } else {
+        win.webContents.openDevTools()
+      }
+    }
+  })
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    // Use pathToFileURL to ensure spaces in the install path are properly encoded
+    mainWindow.loadURL(pathToFileURL(join(__dirname, '../renderer/index.html')).href)
   }
 }
 
@@ -67,7 +74,7 @@ function createActivationWindow(): void {
       sandbox: false,
       nodeIntegration: false,
       contextIsolation: true,
-      devTools: is.dev,
+      devTools: true,
     },
   })
 
@@ -84,7 +91,7 @@ function createActivationWindow(): void {
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     activationWindow.loadURL(process.env.ELECTRON_RENDERER_URL + '/activation.html')
   } else {
-    activationWindow.loadFile(join(__dirname, '../renderer/activation.html'))
+    activationWindow.loadURL(pathToFileURL(join(__dirname, '../renderer/activation.html')).href)
   }
 }
 
@@ -140,6 +147,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   stopBackupScheduler()
+  globalShortcut.unregisterAll()
 })
 
 process.on('unhandledRejection', (reason) => {

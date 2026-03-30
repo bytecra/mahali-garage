@@ -1,6 +1,19 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import type { Plugin } from 'vite'
+
+/** Vite injects `crossorigin` on tags; with `file://` that breaks script/CSS loads in packaged Electron. */
+function stripHtmlCrossorigin(): Plugin {
+  return {
+    name: 'strip-html-crossorigin',
+    apply: 'build',
+    enforce: 'post',
+    transformIndexHtml(html) {
+      return html.replace(/\s+crossorigin(?:="[^"]*")?/g, '')
+    },
+  }
+}
 
 export default defineConfig({
   main: {
@@ -30,14 +43,16 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/renderer',
+    base: './',
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
         '@': resolve('src/renderer/src'),
       },
     },
-    plugins: [react()],
+    plugins: [react(), stripHtmlCrossorigin()],
     build: {
+      modulePreload: false,
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),

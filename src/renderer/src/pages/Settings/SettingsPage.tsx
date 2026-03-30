@@ -5,6 +5,7 @@ import { toast } from '../../store/notificationStore'
 import { useThemeStore } from '../../store/themeStore'
 import { useLangStore } from '../../store/langStore'
 import { useBrandingStore } from '../../store/brandingStore'
+import { useCurrencyStore } from '../../store/currencyStore'
 import { usePermission } from '../../hooks/usePermission'
 
 const JobTypesSettings = lazy(() => import('./JobTypesSettings'))
@@ -35,6 +36,7 @@ export default function SettingsPage(): JSX.Element {
   const { theme, setTheme } = useThemeStore()
   const { lang, setLang } = useLangStore()
   const { setBranding } = useBrandingStore()
+  const { syncFromSettings: syncCurrency } = useCurrencyStore()
   const canBackup      = usePermission('backup.manage')
   const canSettings    = usePermission('settings.manage')
   const canActivityLog = usePermission('activity_log.view')
@@ -57,7 +59,11 @@ export default function SettingsPage(): JSX.Element {
 
   const load = async () => {
     const res = await window.electronAPI.settings.getAll()
-    if (res.success) setSettings(res.data as Record<string, string>)
+    if (res.success) {
+      const data = res.data as Record<string, string>
+      setSettings(data)
+      syncCurrency(data)
+    }
     if (tab === 'license') {
       const [statusRes, hwRes] = await Promise.all([
         window.electronAPI.license.getStatus(),
@@ -94,8 +100,10 @@ export default function SettingsPage(): JSX.Element {
     for (const k of keys) entries[k] = settings[k] ?? ''
     const res = await window.electronAPI.settings.setBulk(entries)
     setSaving(false)
-    if (res.success) toast.success(t('common.success'))
-    else toast.error(res.error ?? t('common.error'))
+    if (res.success) {
+      toast.success(t('common.success'))
+      syncCurrency(settings)
+    } else toast.error(res.error ?? t('common.error'))
   }
 
   const saveBranding = async () => {
@@ -194,8 +202,8 @@ export default function SettingsPage(): JSX.Element {
             <div><label className={labelCls}>{t('settings.storePhone')}</label><input value={settings['store.phone'] ?? ''} onChange={e => set('store.phone', e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>{t('settings.storeEmail')}</label><input value={settings['store.email'] ?? ''} onChange={e => set('store.email', e.target.value)} className={inputCls} /></div>
             <div className="flex gap-3">
-              <div className="flex-1"><label className={labelCls}>{t('settings.currency')}</label><input value={settings['store.currency'] ?? 'USD'} onChange={e => set('store.currency', e.target.value)} className={inputCls} /></div>
-              <div className="w-24"><label className={labelCls}>Symbol</label><input value={settings['store.currency_symbol'] ?? '$'} onChange={e => set('store.currency_symbol', e.target.value)} className={inputCls} /></div>
+              <div className="flex-1"><label className={labelCls}>{t('settings.currency')}</label><input value={settings['store.currency'] ?? 'AED'} onChange={e => set('store.currency', e.target.value)} className={inputCls} /></div>
+              <div className="w-28"><label className={labelCls}>Symbol</label><input value={settings['store.currency_symbol'] ?? 'د.إ'} onChange={e => set('store.currency_symbol', e.target.value)} className={inputCls} /></div>
             </div>
             <button onClick={() => save(['store.name','store.address','store.phone','store.email','store.currency','store.currency_symbol'])} disabled={saving} className={saveBtnCls}>
               {saving ? t('common.loading') : t('common.save')}

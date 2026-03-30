@@ -1,8 +1,17 @@
 import { getDb } from '../index'
 
+export type JobDepartment = 'mechanical' | 'programming' | 'both'
+
+function normalizeDepartment(v: unknown): JobDepartment {
+  if (v === 'programming' || v === 'both' || v === 'mechanical') return v
+  return 'mechanical'
+}
+
 export interface JobCardFilters {
   search?: string
   status?: string
+  /** Narrow board/list to jobs that include this department (includes `both` with either filter). */
+  department?: 'mechanical' | 'programming'
   technician_id?: number
   vehicle_id?: number
   owner_id?: number
@@ -28,6 +37,7 @@ export interface CreateJobCardInput {
   tax_rate?: number
   notes?: string
   customer_authorized?: number
+  department?: JobDepartment
   created_by: number
 }
 
@@ -52,6 +62,7 @@ export interface UpdateJobCardInput {
   notes?: string
   customer_authorized?: number
   date_out?: string
+  department?: JobDepartment
 }
 
 export interface JobPartInput {
@@ -64,7 +75,7 @@ export interface JobPartInput {
 export const jobCardRepo = {
   list(filters: JobCardFilters = {}) {
     const db = getDb()
-    const { search, status, technician_id, vehicle_id, owner_id, bay_number, page = 1, pageSize = 25 } = filters
+    const { search, status, department, technician_id, vehicle_id, owner_id, bay_number, page = 1, pageSize = 25 } = filters
     const offset = (page - 1) * pageSize
     const conditions: string[] = []
     const params: unknown[] = []
@@ -75,6 +86,11 @@ export const jobCardRepo = {
       params.push(like, like, like, like, like, like)
     }
     if (status) { conditions.push('j.status = ?'); params.push(status) }
+    if (department === 'mechanical') {
+      conditions.push(`j.department IN ('mechanical','both')`)
+    } else if (department === 'programming') {
+      conditions.push(`j.department IN ('programming','both')`)
+    }
     if (technician_id) { conditions.push('j.technician_id = ?'); params.push(technician_id) }
     if (vehicle_id) { conditions.push('j.vehicle_id = ?'); params.push(vehicle_id) }
     if (owner_id) { conditions.push('j.owner_id = ?'); params.push(owner_id) }
@@ -159,12 +175,13 @@ export const jobCardRepo = {
 
     const deposit = input.deposit ?? 0
     const taxRate = input.tax_rate ?? 0
+    const dept = normalizeDepartment(input.department)
 
     const result = db.prepare(`
       INSERT INTO job_cards (job_number, vehicle_id, owner_id, job_type, priority, status, complaint, diagnosis,
         technician_id, bay_number, mileage_in, labor_rate, expected_completion, deposit, tax_rate,
-        notes, customer_authorized, created_by, balance_due)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        notes, customer_authorized, department, created_by, balance_due)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       job_number,
       input.vehicle_id ?? null,
@@ -183,6 +200,7 @@ export const jobCardRepo = {
       taxRate,
       input.notes ?? null,
       input.customer_authorized ?? 0,
+      dept,
       input.created_by,
       -deposit,
     )
@@ -194,7 +212,9 @@ export const jobCardRepo = {
 
   update(id: number, input: UpdateJobCardInput): boolean {
     const db = getDb()
-    const fields = Object.entries(input).filter(([, v]) => v !== undefined)
+    const normalized: Record<string, unknown> = { ...input }
+    if (input.department !== undefined) normalized.department = normalizeDepartment(input.department)
+    const fields = Object.entries(normalized).filter(([, v]) => v !== undefined)
     if (!fields.length) return false
     const sets = fields.map(([k]) => `${k} = ?`).join(', ')
     const values = fields.map(([, v]) => v)

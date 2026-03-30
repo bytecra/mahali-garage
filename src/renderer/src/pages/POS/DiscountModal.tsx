@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../../components/shared/Modal'
+import { formatCurrency } from '../../lib/utils'
+import { getCurrencySymbol } from '../../store/currencyStore'
 import { useCartStore } from '../../store/cartStore'
 
 interface Props { onClose: () => void }
@@ -39,7 +41,7 @@ export default function DiscountModal({ onClose }: Props): JSX.Element {
           {(['percent', 'fixed'] as const).map(t_ => (
             <button key={t_} onClick={() => setType(t_)}
               className={`flex-1 py-2 text-sm rounded-md border-2 font-medium transition-colors ${type === t_ ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-muted-foreground'}`}>
-              {t_ === 'percent' ? '%' : '$'} {t_ === 'percent' ? t('common.percent') : t('common.fixed')}
+              {t_ === 'percent' ? '%' : getCurrencySymbol()} {t_ === 'percent' ? t('common.percent') : t('common.fixed')}
             </button>
           ))}
         </div>
@@ -52,7 +54,7 @@ export default function DiscountModal({ onClose }: Props): JSX.Element {
         {Number(value) > 0 && (
           <div className="flex justify-between text-sm bg-muted/30 rounded-md px-3 py-2">
             <span className="text-muted-foreground">{t('pos.discountAmount')}</span>
-            <span className="font-bold text-destructive">-${preview().toFixed(2)}</span>
+            <span className="font-bold text-destructive">{formatCurrency(-preview())}</span>
           </div>
         )}
       </div>
