@@ -86,6 +86,8 @@ export default function POSPage(): JSX.Element {
         store_phone:     settings['store.phone'],
         invoice_footer:  settings['invoice.footer_text'],
         currency_symbol: settings['store.currency_symbol'] ?? 'د.إ',
+        currency_code:   settings['store.currency'] ?? 'AED',
+        store_logo:      settings['store_logo'] || undefined,
       }
 
       const blob = await pdf(<InvoicePDF inv={inv} />).toBlob()

@@ -79,6 +79,7 @@ function InvoicesPageInner(): JSX.Element {
 
   // PDF generation tracker
   const [generatingId, setGeneratingId] = useState<number | null>(null)
+  const [invoiceBranding, setInvoiceBranding] = useState<Record<string, string> | null>(null)
 
   // ── Load list ─────────────────────────────────────────────────────────────
   const loadSales = useCallback(async (p = 1) => {
@@ -104,6 +105,16 @@ function InvoicesPageInner(): JSX.Element {
   }, [search, status, dateFrom, dateTo])
 
   useEffect(() => { loadSales(1) }, [loadSales])
+
+  useEffect(() => {
+    if (!detailOpen) {
+      setInvoiceBranding(null)
+      return
+    }
+    void window.electronAPI.settings.getAll().then(res => {
+      if (res.success && res.data) setInvoiceBranding(res.data as Record<string, string>)
+    })
+  }, [detailOpen])
 
   // ── Download PDF ──────────────────────────────────────────────────────────
   const downloadPDF = async (saleId: number, invoiceNumber: string) => {
@@ -141,6 +152,8 @@ function InvoicesPageInner(): JSX.Element {
         store_phone:     settings['store.phone'],
         invoice_footer:  settings['invoice.footer_text'],
         currency_symbol: settings['store.currency_symbol'] ?? 'د.إ',
+        currency_code:   settings['store.currency'] ?? 'AED',
+        store_logo:      settings['store_logo'] || undefined,
       }
 
       const blob = await pdf(<InvoicePDF inv={inv} />).toBlob()
@@ -421,6 +434,31 @@ function InvoicesPageInner(): JSX.Element {
                 </div>
               ) : detailSale ? (
                 <>
+                  {invoiceBranding && (
+                    <div className="flex flex-col sm:flex-row gap-4 pb-4 border-b border-border">
+                      {invoiceBranding['store_logo'] ? (
+                        <img
+                          src={invoiceBranding['store_logo']}
+                          alt=""
+                          className="h-16 w-auto max-w-[160px] object-contain rounded-md border border-border bg-muted/20 p-2 shrink-0"
+                        />
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="text-xl font-bold text-foreground leading-tight">
+                          {invoiceBranding['store.name'] || 'Garage'}
+                        </p>
+                        {invoiceBranding['store.address'] ? (
+                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{invoiceBranding['store.address']}</p>
+                        ) : null}
+                        {invoiceBranding['store.phone'] ? (
+                          <p className="text-sm text-muted-foreground mt-0.5">Tel: {invoiceBranding['store.phone']}</p>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {(invoiceBranding['store.currency_symbol'] ?? 'د.إ').trim()} · {invoiceBranding['store.currency'] ?? 'AED'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {/* Meta */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>

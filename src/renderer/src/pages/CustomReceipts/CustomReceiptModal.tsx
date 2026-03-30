@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Printer } from 'lucide-react'
 import { useBrandingStore } from '../../store/brandingStore'
-import { getCurrencySymbol } from '../../store/currencyStore'
+import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
 
 interface CustomReceiptForm {
   customerName: string
@@ -110,7 +110,7 @@ export default function CustomReceiptModal({ open, onClose, onCreated }: Props):
 <div class="bold">Services:</div>
 <div class="services">${receipt.services_description || '—'}</div>
 <div class="line"></div>
-<div class="row"><span class="total">Total:</span><span class="total">${getCurrencySymbol() + Number(receipt.amount).toFixed(2)}</span></div>
+<div class="row"><span class="total">Total:</span><span class="total">${getCurrencySymbol() + Number(receipt.amount).toFixed(2)} (${getCurrencyCode()})</span></div>
 <div class="row"><span>Payment:</span><span>${receipt.payment_method}</span></div>
 ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` : ''}
 <div class="line"></div>

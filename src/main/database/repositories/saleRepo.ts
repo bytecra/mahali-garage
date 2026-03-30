@@ -1,4 +1,51 @@
+import type Database from 'better-sqlite3'
 import { getDb } from '../index'
+
+function setting(db: Database.Database, key: string): string | undefined {
+  const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as { value: string } | undefined
+  return row?.value
+}
+
+function invoicePeriodKey(db: Database.Database): string {
+  const reset = setting(db, 'invoice_reset') ?? 'never'
+  const now = new Date()
+  if (reset === 'yearly') return String(now.getFullYear())
+  if (reset === 'monthly') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  return ''
+}
+
+/** When period changes (year/month), reset sequence to starting number. */
+function maybeResetInvoiceCounter(db: Database.Database): void {
+  const reset = setting(db, 'invoice_reset') ?? 'never'
+  if (reset !== 'yearly' && reset !== 'monthly') return
+  const currentKey = invoicePeriodKey(db)
+  const stored = setting(db, 'invoice.period_key') ?? ''
+  if (!stored || stored === currentKey) return
+  const start = parseInt(setting(db, 'invoice_starting_number') ?? '1', 10) || 1
+  db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'invoice.next_number'`).run(String(start))
+  db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'invoice.period_key'`).run(currentKey)
+}
+
+function markInvoicePeriod(db: Database.Database): void {
+  const reset = setting(db, 'invoice_reset') ?? 'never'
+  if (reset !== 'yearly' && reset !== 'monthly') return
+  const currentKey = invoicePeriodKey(db)
+  db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'invoice.period_key'`).run(currentKey)
+}
+
+function buildInvoiceNumber(db: Database.Database): string {
+  maybeResetInvoiceCounter(db)
+  const format = setting(db, 'invoice_number_format') ?? 'prefix_number'
+  const invNextRaw = setting(db, 'invoice.next_number') ?? '1'
+  const invNext = parseInt(invNextRaw, 10) || 1
+  const padded = String(invNext).padStart(5, '0')
+  if (format === 'number_only') return padded
+  const custom = setting(db, 'invoice_prefix')
+  const prefix = (custom != null && custom.trim() !== '')
+    ? custom.trim()
+    : (setting(db, 'invoice.prefix')?.trim() || 'INV')
+  return `${prefix}-${padded}`
+}
 
 export interface SaleFilters {
   search?: string
@@ -109,11 +156,9 @@ export const saleRepo = {
     const db = getDb()
 
     const txn = db.transaction(() => {
-      // Get and validate settings
-      const invPrefix = (db.prepare(`SELECT value FROM settings WHERE key = 'invoice.prefix'`).get() as { value: string } | undefined)?.value ?? 'INV'
-      const invNextRaw = (db.prepare(`SELECT value FROM settings WHERE key = 'invoice.next_number'`).get() as { value: string } | undefined)?.value ?? '1'
-      const invNext = parseInt(invNextRaw, 10)
-      const invoice_number = `${invPrefix}-${String(invNext).padStart(5, '0')}`
+      const invoice_number = buildInvoiceNumber(db)
+      const invNextRaw = setting(db, 'invoice.next_number') ?? '1'
+      const invNext = parseInt(invNextRaw, 10) || 1
 
       const saleNumRaw = (db.prepare(`SELECT value FROM settings WHERE key = 'sale.next_number'`).get() as { value: string } | undefined)?.value ?? '1'
       const saleNext = parseInt(saleNumRaw, 10)
@@ -195,6 +240,7 @@ export const saleRepo = {
 
       // Increment counters
       db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'invoice.next_number'`).run(String(invNext + 1))
+      markInvoicePeriod(db)
       db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'sale.next_number'`).run(String(saleNext + 1))
 
       return { sale_id, invoice_number }

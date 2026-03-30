@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, AlertCircle } from 'lucide-react'
+import { CheckCircle, AlertCircle, Upload } from 'lucide-react'
 import { toast } from '../../store/notificationStore'
 import { useThemeStore } from '../../store/themeStore'
 import { useLangStore } from '../../store/langStore'
@@ -56,6 +56,7 @@ export default function SettingsPage(): JSX.Element {
   const [actFromDate, setActFromDate]     = useState('')
   const [actToDate, setActToDate]         = useState('')
   const ACTIVITY_PAGE_SIZE = 50
+  const MAX_LOGO_BYTES = 1_500_000
 
   const load = async () => {
     const res = await window.electronAPI.settings.getAll()
@@ -104,6 +105,50 @@ export default function SettingsPage(): JSX.Element {
       toast.success(t('common.success'))
       syncCurrency(settings)
     } else toast.error(res.error ?? t('common.error'))
+  }
+
+  const saveInvoiceSettings = async (): Promise<void> => {
+    setSaving(true)
+    const fmt = settings['invoice_number_format'] ?? 'prefix_number'
+    const pfxTrim = (settings['invoice_prefix'] ?? '').trim()
+    const legacyTrim = (settings['invoice.prefix'] ?? 'INV').trim()
+    const prefixCombined = fmt === 'prefix_number' ? (pfxTrim || legacyTrim || 'INV') : pfxTrim
+    const entries: Record<string, string> = {
+      invoice_number_format: settings['invoice_number_format'] ?? 'prefix_number',
+      invoice_prefix: fmt === 'prefix_number' ? prefixCombined : (settings['invoice_prefix'] ?? ''),
+      invoice_starting_number: settings['invoice_starting_number'] ?? '1',
+      invoice_reset: settings['invoice_reset'] ?? 'never',
+      'invoice.next_number': settings['invoice.next_number'] ?? '1',
+      'invoice.footer_text': settings['invoice.footer_text'] ?? '',
+      'invoice.show_tax': settings['invoice.show_tax'] ?? 'true',
+      'invoice.prefix': fmt === 'prefix_number' ? prefixCombined : (settings['invoice.prefix'] ?? 'INV'),
+    }
+    const res = await window.electronAPI.settings.setBulk(entries)
+    setSaving(false)
+    if (res.success) {
+      toast.success(t('common.success'))
+      await load()
+    } else toast.error(res.error ?? t('common.error'))
+  }
+
+  const onLogoFile = (e: ChangeEvent<HTMLInputElement>): void => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    if (!f.type.startsWith('image/')) {
+      toast.error('Please choose an image file')
+      return
+    }
+    if (f.size > MAX_LOGO_BYTES) {
+      toast.error('Image is too large (max ~1.5 MB)')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const data = reader.result
+      if (typeof data === 'string') setSettings(s => ({ ...s, store_logo: data }))
+    }
+    reader.readAsDataURL(f)
   }
 
   const saveBranding = async () => {
@@ -197,6 +242,38 @@ export default function SettingsPage(): JSX.Element {
 
             {/* ── Store Info ── */}
             <h3 className="text-sm font-semibold text-foreground">Store Information</h3>
+            <div>
+              <label className={labelCls}>Garage logo</label>
+              <div className="flex flex-wrap items-start gap-4 mt-1">
+                {settings['store_logo'] ? (
+                  <img
+                    src={settings['store_logo']}
+                    alt="Garage logo preview"
+                    className="h-24 w-auto max-w-[220px] object-contain rounded-lg border border-border bg-muted/30 p-2"
+                  />
+                ) : (
+                  <div className="h-24 w-40 rounded-lg border border-dashed border-border flex items-center justify-center text-xs text-muted-foreground bg-muted/20">
+                    No logo
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-input rounded-md bg-background cursor-pointer hover:bg-muted/60 w-fit">
+                    <Upload className="w-4 h-4" />
+                    Upload image
+                    <input type="file" accept="image/*" className="hidden" onChange={onLogoFile} />
+                  </label>
+                  {!!settings['store_logo'] && (
+                    <button
+                      type="button"
+                      onClick={() => set('store_logo', '')}
+                      className="text-sm text-destructive hover:underline text-start"
+                    >
+                      Remove Logo
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             <div><label className={labelCls}>{t('settings.storeName')}</label><input value={settings['store.name'] ?? ''} onChange={e => set('store.name', e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>{t('settings.storeAddress')}</label><input value={settings['store.address'] ?? ''} onChange={e => set('store.address', e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>{t('settings.storePhone')}</label><input value={settings['store.phone'] ?? ''} onChange={e => set('store.phone', e.target.value)} className={inputCls} /></div>
@@ -205,7 +282,11 @@ export default function SettingsPage(): JSX.Element {
               <div className="flex-1"><label className={labelCls}>{t('settings.currency')}</label><input value={settings['store.currency'] ?? 'AED'} onChange={e => set('store.currency', e.target.value)} className={inputCls} /></div>
               <div className="w-28"><label className={labelCls}>Symbol</label><input value={settings['store.currency_symbol'] ?? 'د.إ'} onChange={e => set('store.currency_symbol', e.target.value)} className={inputCls} /></div>
             </div>
-            <button onClick={() => save(['store.name','store.address','store.phone','store.email','store.currency','store.currency_symbol'])} disabled={saving} className={saveBtnCls}>
+            <button
+              onClick={() => save(['store.name','store.address','store.phone','store.email','store.currency','store.currency_symbol','store_logo'])}
+              disabled={saving}
+              className={saveBtnCls}
+            >
               {saving ? t('common.loading') : t('common.save')}
             </button>
           </div>
@@ -213,11 +294,68 @@ export default function SettingsPage(): JSX.Element {
 
         {tab === 'invoice' && (
           <div className="space-y-4">
-            <div><label className={labelCls}>{t('settings.invoicePrefix')}</label><input value={settings['invoice.prefix'] ?? 'INV'} onChange={e => set('invoice.prefix', e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Next Invoice Number</label><input type="number" min="1" value={settings['invoice.next_number'] ?? '1'} onChange={e => set('invoice.next_number', e.target.value)} className={inputCls} /></div>
+            <div>
+              <label className={labelCls}>Invoice number format</label>
+              <select
+                value={settings['invoice_number_format'] ?? 'prefix_number'}
+                onChange={e => set('invoice_number_format', e.target.value)}
+                className={inputCls}
+              >
+                <option value="prefix_number">Prefix + number</option>
+                <option value="number_only">Number only</option>
+              </select>
+            </div>
+            {(settings['invoice_number_format'] ?? 'prefix_number') === 'prefix_number' && (
+              <div>
+                <label className={labelCls}>Prefix</label>
+                <input
+                  value={
+                    (settings['invoice_prefix'] !== undefined && settings['invoice_prefix'] !== '')
+                      ? settings['invoice_prefix']
+                      : (settings['invoice.prefix'] ?? 'INV')
+                  }
+                  onChange={e => set('invoice_prefix', e.target.value)}
+                  placeholder="e.g. INV"
+                  className={inputCls}
+                />
+              </div>
+            )}
+            <div>
+              <label className={labelCls}>Starting number (after yearly / monthly reset)</label>
+              <input
+                type="number"
+                min={1}
+                value={settings['invoice_starting_number'] ?? '1'}
+                onChange={e => set('invoice_starting_number', e.target.value)}
+                className={inputCls}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Used when the period changes and reset is Yearly or Monthly.</p>
+            </div>
+            <div>
+              <label className={labelCls}>Reset sequence</label>
+              <select
+                value={settings['invoice_reset'] ?? 'never'}
+                onChange={e => set('invoice_reset', e.target.value)}
+                className={inputCls}
+              >
+                <option value="never">Never</option>
+                <option value="yearly">Yearly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Next invoice # (current sequence)</label>
+              <input
+                type="number"
+                min={1}
+                value={settings['invoice.next_number'] ?? '1'}
+                onChange={e => set('invoice.next_number', e.target.value)}
+                className={inputCls}
+              />
+            </div>
             <div><label className={labelCls}>{t('settings.invoiceFooter')}</label><textarea value={settings['invoice.footer_text'] ?? ''} onChange={e => set('invoice.footer_text', e.target.value)} rows={3} className={inputCls} /></div>
             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={settings['invoice.show_tax'] === 'true'} onChange={e => set('invoice.show_tax', String(e.target.checked))} className="w-4 h-4" /><span className="text-sm">Show Tax on Invoice</span></label>
-            <button onClick={() => save(['invoice.prefix','invoice.next_number','invoice.footer_text','invoice.show_tax'])} disabled={saving} className={saveBtnCls}>
+            <button type="button" onClick={() => void saveInvoiceSettings()} disabled={saving} className={saveBtnCls}>
               {saving ? t('common.loading') : t('common.save')}
             </button>
           </div>

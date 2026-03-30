@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
 import { formatCurrency } from '../../lib/utils'
-import { getCurrencySymbol } from '../../store/currencyStore'
+import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
 import { usePermission } from '../../hooks/usePermission'
 
@@ -142,10 +142,11 @@ export default function DashboardPage(): JSX.Element {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard icon={ShoppingCart} label={t('dashboard.todaySales')}
           value={formatCurrency(data?.todayRevenue ?? 0)}
-          sub={`${data?.todaySalesCount ?? 0} transactions`}
+          sub={`${data?.todaySalesCount ?? 0} transactions · ${getCurrencyCode()}`}
           color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />
         <StatCard icon={TrendingUp} label={t('dashboard.monthRevenue')}
           value={formatCurrency(data?.monthRevenue ?? 0)}
+          sub={getCurrencyCode()}
           color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />
         <StatCard icon={Package} label={t('dashboard.lowStock')}
           value={data?.lowStock ?? 0}
@@ -156,15 +157,15 @@ export default function DashboardPage(): JSX.Element {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
         <StatCard icon={TrendingUp} label={t('dashboard.grossProfit')}
           value={formatCurrency(data?.monthGrossProfit ?? 0)}
-          sub={t('dashboard.thisMonth')}
+          sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
           color="bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" />
         <StatCard icon={DollarSign} label={t('dashboard.monthExpenses')}
           value={formatCurrency(data?.monthExpenses ?? 0)}
-          sub={t('dashboard.thisMonth')}
+          sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
           color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />
         <StatCard icon={DollarSign} label={t('dashboard.netProfit')}
           value={formatCurrency(data?.monthNetProfit ?? 0)}
-          sub={t('dashboard.thisMonth')}
+          sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
           color={(data?.monthNetProfit ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'} />
       </div>
 
