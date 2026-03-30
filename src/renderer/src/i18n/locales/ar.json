@@ -70,6 +70,7 @@
     "users": "المستخدمون",
     "settings": "الإعدادات",
     "expenses": "المصروفات",
+    "assets": "الأصول",
     "tasks": "المهام",
     "calendar": "التقويم",
     "invoices": "الفواتير",
@@ -113,7 +114,9 @@
     "activeRepairsLabel": "إصلاحات نشطة",
     "completedJobs": "أعمال مكتملة",
     "inProgress": "قيد التنفيذ",
-    "inSystem": "في النظام"
+    "inSystem": "في النظام",
+    "totalAssets": "إجمالي الأصول",
+    "totalAssetsSub": "مجموع أسعار الشراء · "
   },
   "pos": {
     "title": "نقطة البيع",
@@ -339,7 +342,32 @@
     "cogs": "تكلفة البضاعة",
     "margin": "هامش الربح",
     "expensesCategory": "المصروفات حسب الفئة",
-    "expensesMonthly": "المصروفات الشهرية"
+    "expensesMonthly": "المصروفات الشهرية",
+    "assetsReport": "تقرير الأصول",
+    "assetsTotals": "الإجماليات"
+  },
+  "assets": {
+    "title": "الأصول",
+    "addAsset": "إضافة أصل",
+    "editAsset": "تعديل أصل",
+    "category": "الفئة",
+    "purchaseDate": "تاريخ الشراء",
+    "purchasePrice": "سعر الشراء",
+    "currentValue": "القيمة الحالية",
+    "allCategories": "جميع الفئات",
+    "totalValueFiltered": "إجمالي قيمة الشراء (بعد التصفية)",
+    "items": "عناصر",
+    "otherCategory": "أخرى…",
+    "customCategory": "فئة مخصصة",
+    "categoryPlaceholder": "مثال: الورشة",
+    "optional": "اختياري",
+    "nameRequired": "الاسم مطلوب",
+    "categoryRequired": "الفئة مطلوبة",
+    "priceRequired": "أدخل سعر شراء صالحاً",
+    "dateRequired": "تاريخ الشراء مطلوب",
+    "currentValueInvalid": "يجب أن تكون القيمة الحالية رقماً صالحاً",
+    "deleteTitle": "حذف الأصل؟",
+    "deleteMessage": "لا يمكن التراجع عن هذا."
   },
   "expenses": {
     "title": "المصروفات",
@@ -399,6 +427,7 @@
       "repairs": "الإصلاحات والمهام",
       "reports": "التقارير",
       "expenses": "المصروفات",
+      "assets": "الأصول",
       "admin": "الإدارة"
     },
     "keys": {
@@ -438,6 +467,11 @@
         "add": "إضافة / تعديل المصروفات",
         "delete": "حذف المصروفات",
         "manage_categories": "إدارة الفئات"
+      },
+      "assets": {
+        "view": "عرض الأصول",
+        "add": "إضافة / تعديل الأصول",
+        "delete": "حذف الأصول"
       },
       "users": { "manage": "إدارة المستخدمين" },
       "settings": { "manage": "إدارة الإعدادات" },

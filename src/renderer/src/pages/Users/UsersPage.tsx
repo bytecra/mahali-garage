@@ -68,6 +68,11 @@ const PERM_GROUPS: Array<{ group: string; items: Array<{ key: string; label: str
     { key: 'expenses.delete',            label: 'permissions.keys.expenses.delete' },
     { key: 'expenses.manage_categories', label: 'permissions.keys.expenses.manage_categories' },
   ]},
+  { group: 'permissions.groups.assets', items: [
+    { key: 'assets.view',   label: 'permissions.keys.assets.view' },
+    { key: 'assets.add',    label: 'permissions.keys.assets.add' },
+    { key: 'assets.delete', label: 'permissions.keys.assets.delete' },
+  ]},
   { group: 'permissions.groups.admin', items: [
     { key: 'users.manage',      label: 'permissions.keys.users.manage' },
     { key: 'settings.manage',   label: 'permissions.keys.settings.manage' },

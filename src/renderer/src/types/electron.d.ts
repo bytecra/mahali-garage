@@ -138,6 +138,14 @@ declare global {
           business_date?: string
         }) => Promise<IpcResponse<{ id: number }>>
       }
+      assets: {
+        list: (filters?: unknown) => Promise<IpcResponse<{ rows: unknown[]; total: number; purchaseSumFiltered: number }>>
+        categories: () => Promise<IpcResponse<string[]>>
+        getById: (id: number) => Promise<IpcResponse<unknown>>
+        create: (data: unknown) => Promise<IpcResponse<{ id: number }>>
+        update: (id: number, data: unknown) => Promise<IpcResponse<null>>
+        delete: (id: number) => Promise<IpcResponse<null>>
+      }
       reports: {
         salesDaily: (dateFrom: string, dateTo?: string, department?: string) => Promise<IpcResponse<unknown>>
         salesMonthly: (year: number, month: number) => Promise<IpcResponse<unknown>>
@@ -147,6 +155,21 @@ declare global {
         inventory: () => Promise<IpcResponse<unknown[]>>
         lowStock: () => Promise<IpcResponse<unknown[]>>
         customerDebts: (department?: string) => Promise<IpcResponse<unknown[]>>
+        assets: () => Promise<IpcResponse<{
+          rows: Array<{
+            id: number
+            name: string
+            category: string
+            purchase_date: string
+            purchase_price: number
+            current_value: number | null
+            description: string | null
+            notes: string | null
+            created_at: string
+          }>
+          total_purchase: number
+          total_current: number
+        }>>
         exportCsv: (type: string, params: unknown) => Promise<IpcResponse<string>>
       }
       dashboard: {

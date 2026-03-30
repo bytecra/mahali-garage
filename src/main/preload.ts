@@ -121,6 +121,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => invoke('cashDrawer:addManual', payload),
   },
 
+  assets: {
+    list:        (filters?: unknown)         => invoke('assets:list', filters ?? {}),
+    categories:  ()                          => invoke('assets:categories'),
+    getById:     (id: number)                => invoke('assets:getById', id),
+    create:      (data: unknown)           => invoke('assets:create', data),
+    update:      (id: number, data: unknown) => invoke('assets:update', id, data),
+    delete:      (id: number)               => invoke('assets:delete', id),
+  },
+
   reports: {
     salesDaily:      (dateFrom: string, dateTo?: string, department?: string) =>
                        invoke('reports:salesDaily', dateFrom, dateTo ?? dateFrom, department ?? 'all'),
@@ -132,6 +141,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     inventory:       ()                                  => invoke('reports:inventory'),
     lowStock:        ()                                  => invoke('reports:lowStock'),
     customerDebts:   (department?: string)              => invoke('reports:customerDebts', department ?? 'all'),
+    assets:          ()                               => invoke('reports:assets'),
     exportCsv:       (type: string, params: unknown)     => invoke('reports:exportCsv', type, params),
   },
 

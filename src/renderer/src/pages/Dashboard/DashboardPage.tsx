@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle } from 'lucide-react'
+import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle, Building2 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
 import { formatCurrency, cn } from '../../lib/utils'
 import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
@@ -38,6 +38,7 @@ interface DashboardData {
     owner_name: string | null
     vehicle_make: string | null; vehicle_model: string | null; vehicle_year: number | null; vehicle_plate: string | null
   }>
+  totalAssetsPurchase: number
 }
 
 function DeptBreakdown({ mechanical, programming }: { mechanical: number; programming: number }): JSX.Element {
@@ -636,6 +637,7 @@ export default function DashboardPage(): JSX.Element {
   const { t } = useTranslation()
   const { role } = useAuthStore()
   const canTasks = usePermission('tasks.view')
+  const canAssets = usePermission('assets.view')
   const isPrivileged = ['owner', 'manager'].includes(role ?? '')
   const [data, setData] = useState<DashboardData | null>(null)
   const [taskSummary, setTaskSummary] = useState<TaskSummary | null>(null)
@@ -712,7 +714,7 @@ export default function DashboardPage(): JSX.Element {
       </div>
 
       {/* Stats Row 3 — Financials */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+      <div className={cn('grid grid-cols-1 gap-4 mb-8', canAssets ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
         <StatCard icon={TrendingUp} label={t('dashboard.grossProfit')}
           value={formatCurrency(data?.monthGrossProfit ?? 0)}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
@@ -725,6 +727,12 @@ export default function DashboardPage(): JSX.Element {
           value={formatCurrency(data?.monthNetProfit ?? 0)}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
           color={(data?.monthNetProfit ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'} />
+        {canAssets && (
+          <StatCard icon={Building2} label={t('dashboard.totalAssets', { defaultValue: 'Total assets' })}
+            value={formatCurrency(data?.totalAssetsPurchase ?? 0)}
+            sub={t('dashboard.totalAssetsSub', { defaultValue: 'Sum of purchase prices · ' }) + getCurrencyCode()}
+            color="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300" />
+        )}
       </div>
 
       {/* Cash receipts (POS payments + custom receipts); each widget has its own date range. */}

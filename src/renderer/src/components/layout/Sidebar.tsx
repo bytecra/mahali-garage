@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Wrench,
   BarChart3, UserCog, Settings, Receipt, CheckSquare, CalendarDays, FileText, Lock,
-  Car, Cog, ReceiptText, HardHat, ClipboardList,
+  Car, Cog, ReceiptText, HardHat, ClipboardList, Building2,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/owners',        icon: Users,           labelKey: 'nav.owners',       permission: 'customers.view' },
   { to: '/reports',       icon: BarChart3,       labelKey: 'nav.reports',      permission: 'reports.view',   feature: 'reports.view' },
   { to: '/expenses',      icon: Receipt,         labelKey: 'nav.expenses',     permission: 'expenses.view',  feature: 'expenses.view' },
+  { to: '/assets',        icon: Building2,     labelKey: 'nav.assets',       permission: 'assets.view' },
   { to: '/tasks',         icon: CheckSquare,     labelKey: 'nav.tasks',        permission: 'tasks.view',     feature: 'tasks.view' },
   { to: '/calendar',      icon: CalendarDays,    labelKey: 'nav.calendar',     permission: 'tasks.view',     feature: 'calendar.view' },
   { to: '/invoices',      icon: FileText,        labelKey: 'nav.invoices',     permission: 'sales.view',     feature: 'invoices.view' },

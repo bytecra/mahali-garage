@@ -12,6 +12,7 @@ export const ROLE_DEFAULTS: Record<string, string[]> = {
     'repairs.view', 'repairs.edit', 'repairs.updateStatus', 'repairs.delete',
     'reports.view', 'reports.export', 'reports.financial', 'reports.employee',
     'expenses.view', 'expenses.add', 'expenses.delete', 'expenses.manage_categories',
+    'assets.view', 'assets.add', 'assets.delete',
     'invoices.edit', 'products.update_price',
     'users.manage', 'settings.manage', 'backup.manage', 'activity_log.view',
     'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign',
@@ -24,6 +25,7 @@ export const ROLE_DEFAULTS: Record<string, string[]> = {
     'repairs.view', 'repairs.edit', 'repairs.updateStatus',
     'reports.view', 'reports.export', 'reports.financial',
     'expenses.view', 'expenses.add', 'expenses.manage_categories',
+    'assets.view', 'assets.add', 'assets.delete',
     'invoices.edit',
     'users.manage',
     'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.assign',
@@ -46,6 +48,7 @@ export const ROLE_DEFAULTS: Record<string, string[]> = {
     'reports.view', 'reports.export',
     'customers.view',
     'expenses.view', 'expenses.add',
+    'assets.view', 'assets.add',
     'tasks.view',
   ],
 }

@@ -21,6 +21,7 @@ import { migration018 } from './018_service_catalog'
 import { migration019 } from './019_expense_department'
 import { migration020 } from './020_cash_drawer'
 import { migration021 } from './021_cash_received_and_drawer_fk'
+import { migration022 } from './022_assets'
 
 interface Migration {
   version: number
@@ -52,6 +53,7 @@ const migrations: Migration[] = [
   { version: 19, name: '019_expense_department', up: migration019 },
   { version: 20, name: '020_cash_drawer', up: migration020 },
   { version: 21, name: '021_cash_received_and_drawer_fk', up: migration021 },
+  { version: 22, name: '022_assets', up: migration022 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

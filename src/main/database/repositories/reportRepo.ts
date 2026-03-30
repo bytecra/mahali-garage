@@ -1,5 +1,6 @@
 import { getDb } from '../index'
 import { expenseRepo } from './expenseRepo'
+import { assetRepo } from './assetRepo'
 
 export type ReportDepartmentFilter = 'all' | 'mechanical' | 'programming'
 
@@ -131,6 +132,7 @@ export const reportRepo = {
     const monthExpenses = expenseRepo.monthTotal(monthStart)
     const monthGrossProfit = monthRevenueRow.revenue - monthCogsRow.cogs
     const monthNetProfit   = monthGrossProfit - monthExpenses
+    const totalAssetsPurchase = assetRepo.totalPurchaseValue()
 
     return {
       todaySalesCount: todaySalesRow.count,
@@ -139,6 +141,7 @@ export const reportRepo = {
       monthExpenses,
       monthGrossProfit,
       monthNetProfit,
+      totalAssetsPurchase,
       activeRepairs,
       lowStock,
       salesTrend,

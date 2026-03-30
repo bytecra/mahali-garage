@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { reportRepo, type ReportDepartmentFilter } from '../database/repositories/reportRepo'
+import { assetRepo } from '../database/repositories/assetRepo'
 import { authService } from '../services/authService'
 import { hasFeature } from '../licensing/license-manager'
 import { ok, err } from '../utils/ipcResponse'
@@ -94,5 +95,16 @@ export function registerReportHandlers(): void {
       if (!authService.hasPermission(event.sender.id, 'reports.view')) return err('Forbidden', 'ERR_FORBIDDEN')
       return ok(reportRepo.customerDebts(department ?? 'all'))
     } catch (e) { log.error('reports:customerDebts', e); return err('Failed', 'ERR_REPORTS') }
+  })
+
+  ipcMain.handle('reports:assets', (event) => {
+    try {
+      const licErr = requireLicense('reports.view')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
+      if (!authService.hasPermission(event.sender.id, 'reports.view')) return err('Forbidden', 'ERR_FORBIDDEN')
+      const { rows } = assetRepo.list({ limit: 10000 })
+      const totals = assetRepo.reportTotals()
+      return ok({ rows, total_purchase: totals.total_purchase, total_current: totals.total_current })
+    } catch (e) { log.error('reports:assets', e); return err('Failed', 'ERR_REPORTS') }
   })
 }

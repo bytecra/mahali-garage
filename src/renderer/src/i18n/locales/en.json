@@ -70,6 +70,7 @@
     "users": "Users",
     "settings": "Settings",
     "expenses": "Expenses",
+    "assets": "Assets",
     "tasks": "Tasks",
     "calendar": "Calendar",
     "invoices": "Invoices",
@@ -113,7 +114,9 @@
     "activeRepairsLabel": "Active repairs",
     "completedJobs": "Completed jobs",
     "inProgress": "In progress",
-    "inSystem": "In system"
+    "inSystem": "In system",
+    "totalAssets": "Total assets",
+    "totalAssetsSub": "Sum of purchase prices · "
   },
   "pos": {
     "title": "Point of Sale",
@@ -339,7 +342,32 @@
     "cogs": "Cost of Goods",
     "margin": "Margin",
     "expensesCategory": "Expenses by Category",
-    "expensesMonthly": "Monthly Expenses"
+    "expensesMonthly": "Monthly Expenses",
+    "assetsReport": "Assets Report",
+    "assetsTotals": "Totals"
+  },
+  "assets": {
+    "title": "Assets",
+    "addAsset": "Add asset",
+    "editAsset": "Edit asset",
+    "category": "Category",
+    "purchaseDate": "Purchase date",
+    "purchasePrice": "Purchase price",
+    "currentValue": "Current value",
+    "allCategories": "All categories",
+    "totalValueFiltered": "Total purchase value (filtered)",
+    "items": "items",
+    "otherCategory": "Other…",
+    "customCategory": "Custom category",
+    "categoryPlaceholder": "e.g. Workshop",
+    "optional": "Optional",
+    "nameRequired": "Name is required",
+    "categoryRequired": "Category is required",
+    "priceRequired": "Enter a valid purchase price",
+    "dateRequired": "Purchase date is required",
+    "currentValueInvalid": "Current value must be a valid number",
+    "deleteTitle": "Delete asset?",
+    "deleteMessage": "This cannot be undone."
   },
   "expenses": {
     "title": "Expenses",
@@ -399,6 +427,7 @@
       "repairs": "Repairs & Jobs",
       "reports": "Reports",
       "expenses": "Expenses",
+      "assets": "Assets",
       "admin": "Administration"
     },
     "keys": {
@@ -438,6 +467,11 @@
         "add": "Add / Edit Expenses",
         "delete": "Delete Expenses",
         "manage_categories": "Manage Categories"
+      },
+      "assets": {
+        "view": "View Assets",
+        "add": "Add / Edit Assets",
+        "delete": "Delete Assets"
       },
       "users": { "manage": "Manage Users" },
       "settings": { "manage": "Manage Settings" },

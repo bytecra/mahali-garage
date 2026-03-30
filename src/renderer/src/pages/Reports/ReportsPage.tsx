@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { formatCurrency, formatDate } from '../../lib/utils'
 import { FeatureGate } from '../../components/FeatureGate'
 
-type ReportTab = 'sales' | 'profit' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly'
+type ReportTab = 'sales' | 'profit' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets'
 type ReportDept = 'all' | 'mechanical' | 'programming'
 
 const today = new Date().toISOString().slice(0, 10)
@@ -37,11 +37,13 @@ function ReportsPageInner(): JSX.Element {
   const [dateTo, setDateTo] = useState(today)
   const [reportDept, setReportDept] = useState<ReportDept>('all')
   const [data, setData] = useState<unknown[]>([])
+  const [assetsFooter, setAssetsFooter] = useState<{ total_purchase: number; total_current: number } | null>(null)
   const [loading, setLoading] = useState(false)
 
   const load = async () => {
     setLoading(true)
     setData([])
+    setAssetsFooter(null)
     try {
       let res
       if (tab === 'sales') res = await window.electronAPI.reports.salesDaily(dateFrom, dateTo, reportDept)
@@ -52,6 +54,15 @@ function ReportsPageInner(): JSX.Element {
       else if (tab === 'debts') res = await window.electronAPI.reports.customerDebts(reportDept)
       else if (tab === 'expenses_category') res = await window.electronAPI.expenses.sumByCategory(dateFrom, dateTo, reportDept)
       else if (tab === 'expenses_monthly') res = await window.electronAPI.expenses.sumByMonth(parseInt(dateFrom.slice(0, 4)), reportDept)
+      else if (tab === 'assets') {
+        res = await window.electronAPI.reports.assets()
+        if (res?.success && res.data) {
+          const d = res.data as { rows: unknown[]; total_purchase: number; total_current: number }
+          setData(d.rows)
+          setAssetsFooter({ total_purchase: d.total_purchase, total_current: d.total_current })
+        }
+        return
+      }
       if (res?.success) setData(res.data as unknown[])
     } finally { setLoading(false) }
   }
@@ -67,6 +78,7 @@ function ReportsPageInner(): JSX.Element {
     { key: 'debts',              label: t('reports.customerDebts') },
     { key: 'expenses_category',  label: t('reports.expensesCategory') },
     { key: 'expenses_monthly',   label: t('reports.expensesMonthly') },
+    { key: 'assets',            label: t('reports.assetsReport', { defaultValue: 'Assets' }) },
   ]
 
   const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly'].includes(tab)
@@ -199,15 +211,65 @@ function ReportsPageInner(): JSX.Element {
           )}
 
           {/* Table */}
-          <ReportTable tab={tab} data={data} reportDept={reportDept} />
+          <ReportTable tab={tab} data={data} reportDept={reportDept} assetsFooter={assetsFooter} />
         </>
       )}
     </div>
   )
 }
 
-function ReportTable({ tab, data, reportDept }: { tab: ReportTab; data: unknown[]; reportDept: ReportDept }): JSX.Element {
+function ReportTable({ tab, data, reportDept, assetsFooter }: {
+  tab: ReportTab
+  data: unknown[]
+  reportDept: ReportDept
+  assetsFooter: { total_purchase: number; total_current: number } | null
+}): JSX.Element {
   const { t } = useTranslation()
+  if (tab === 'assets') {
+    type AssetR = { name: string; category: string; purchase_date: string; purchase_price: number; current_value: number | null; description: string | null }
+    const rows = data as AssetR[]
+    if (rows.length === 0 && !assetsFooter) {
+      return <p className="py-8 text-center text-muted-foreground text-sm">{t('common.noData')}</p>
+    }
+    const tp = assetsFooter?.total_purchase ?? rows.reduce((s, r) => s + r.purchase_price, 0)
+    const tc = assetsFooter?.total_current ?? rows.reduce((s, r) => s + (r.current_value ?? 0), 0)
+    return (
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-muted-foreground">
+            <tr>
+              <th className="text-start px-4 py-3 font-medium">{t('common.name')}</th>
+              <th className="text-start px-4 py-3 font-medium">{t('assets.category', { defaultValue: 'Category' })}</th>
+              <th className="text-start px-4 py-3 font-medium">{t('assets.purchaseDate', { defaultValue: 'Purchase date' })}</th>
+              <th className="text-end px-4 py-3 font-medium">{t('assets.purchasePrice', { defaultValue: 'Purchase price' })}</th>
+              <th className="text-end px-4 py-3 font-medium">{t('assets.currentValue', { defaultValue: 'Current value' })}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((r, i) => (
+              <tr key={i} className="hover:bg-muted/30">
+                <td className="px-4 py-3 font-medium">{r.name}</td>
+                <td className="px-4 py-3 text-muted-foreground">{r.category}</td>
+                <td className="px-4 py-3 text-muted-foreground">{formatDate(r.purchase_date)}</td>
+                <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.purchase_price)}</td>
+                <td className="px-4 py-3 text-end tabular-nums">{r.current_value != null ? formatCurrency(r.current_value) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-muted/30 font-bold">
+            <tr>
+              <td colSpan={3} className="px-4 py-3 text-sm">
+                {t('reports.assetsTotals', { defaultValue: 'Totals' })} ({rows.length})
+              </td>
+              <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(tp)}</td>
+              <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(tc)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    )
+  }
+
   if (data.length === 0) return <p className="py-8 text-center text-muted-foreground text-sm">{t('common.noData')}</p>
 
   if (tab === 'sales') {

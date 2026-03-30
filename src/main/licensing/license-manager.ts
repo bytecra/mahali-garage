@@ -322,6 +322,7 @@ export function hasFeature(feature: string): boolean {
     'customers.edit': true,
     'settings.view': true,
     'settings.edit': true,
+    'assets.view': true,
 
     // STANDARD+ (STANDARD and PREMIUM)
     'job_cards.view': stdOrPremium,
