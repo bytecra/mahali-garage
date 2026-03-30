@@ -24,6 +24,7 @@ const TasksPage       = lazy(() => import('./pages/Tasks/TasksPage'))
 const CalendarPage    = lazy(() => import('./pages/Calendar/CalendarPage'))
 const InvoicesPage    = lazy(() => import('./pages/Invoices/InvoicesPage'))
 const VehiclesPage    = lazy(() => import('./pages/Vehicles/VehiclesPage'))
+const ServiceCatalogPage = lazy(() => import('./pages/ServiceCatalog/ServiceCatalogPage'))
 const ServicesPage    = lazy(() => import('./pages/Services/ServicesPage'))
 const CustomReceiptsPage = lazy(() => import('./pages/CustomReceipts/CustomReceiptsPage'))
 const EmployeesPage     = lazy(() => import('./pages/Employees/EmployeesPage'))
@@ -95,6 +96,9 @@ export default function App(): JSX.Element {
             <Route path="/repairs/*" element={<Navigate to="/job-cards" replace />} />
             <Route path="/vehicles/*" element={
               <Suspense fallback={<LoadingFallback />}><VehiclesPage /></Suspense>
+            } />
+            <Route path="/service-catalog" element={
+              <Suspense fallback={<LoadingFallback />}><ServiceCatalogPage /></Suspense>
             } />
             <Route path="/services" element={
               <Suspense fallback={<LoadingFallback />}><ServicesPage /></Suspense>

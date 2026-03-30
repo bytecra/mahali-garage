@@ -220,6 +220,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getForVehicle:  (vehicleId: number)                             => invoke('jobCards:getForVehicle', vehicleId),
   },
 
+  carBrands: {
+    list:   ()                                    => invoke('carBrands:list'),
+    create: (data: unknown)                       => invoke('carBrands:create', data),
+    update: (id: number, data: unknown)          => invoke('carBrands:update', id, data),
+    delete: (id: number)                          => invoke('carBrands:delete', id),
+  },
+
+  serviceCatalog: {
+    list:       (filters?: unknown)              => invoke('serviceCatalog:list', filters),
+    forVehicle: (make: string, model: string)    => invoke('serviceCatalog:forVehicle', make, model),
+    create:     (data: unknown)                  => invoke('serviceCatalog:create', data),
+    update:     (id: number, data: unknown)      => invoke('serviceCatalog:update', id, data),
+    delete:     (id: number)                     => invoke('serviceCatalog:delete', id),
+  },
+
   // ── Services Catalog ────────────────────────────────────────────────────
   services: {
     list:           (filters?: unknown)           => invoke('services:list', filters),

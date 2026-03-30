@@ -9,9 +9,10 @@ import { useCurrencyStore } from '../../store/currencyStore'
 import { usePermission } from '../../hooks/usePermission'
 
 const JobTypesSettings = lazy(() => import('./JobTypesSettings'))
+const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands'
 
 interface ActivityRow {
   id: number; user_id: number | null; full_name: string | null
@@ -184,6 +185,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'appearance', label: t('settings.appearance') },
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
+    { key: 'car-brands', label: t('settings.carBrands', { defaultValue: 'Car Brands' }), guard: canSettings },
     { key: 'backup',     label: t('settings.backup'),         guard: canBackup },
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
     { key: 'license',    label: 'License' },
@@ -206,7 +208,7 @@ export default function SettingsPage(): JSX.Element {
         ))}
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-6 max-w-2xl">
+      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'car-brands' ? 'max-w-5xl' : 'max-w-2xl'}`}>
 
         {tab === 'store' && (
           <div className="space-y-4">
@@ -429,6 +431,12 @@ export default function SettingsPage(): JSX.Element {
         {tab === 'job-types' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
             <JobTypesSettings />
+          </Suspense>
+        )}
+
+        {tab === 'car-brands' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
+            <CarBrandsSettings />
           </Suspense>
         )}
 

@@ -18,7 +18,13 @@ interface VehicleOption {
   license_plate: string | null; vin: string | null; mileage: number
   owner_id: number | null; owner_name: string | null
 }
-interface Part { name: string; qty: number; cost: number }
+interface CatalogSvcRow {
+  id: number
+  service_name: string
+  price: number
+  department: 'mechanical' | 'programming'
+}
+interface Part { name: string; qty: number; cost: number; catalogId?: number }
 interface JobTypeOption { id: number; name: string }
 
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
@@ -41,6 +47,8 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
   const [jobTypes, setJobTypes] = useState<JobTypeOption[]>([])
   const [parts, setParts] = useState<Part[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleOption | null>(null)
+  const [catalogMech, setCatalogMech] = useState<CatalogSvcRow[]>([])
+  const [catalogProg, setCatalogProg] = useState<CatalogSvcRow[]>([])
 
   const [form, setForm] = useState({
     job_type:              'General Service',
@@ -138,8 +146,25 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
     }
   }, [open, repairId, isEdit])
 
+  useEffect(() => {
+    if (!open || !selectedVehicle) {
+      setCatalogMech([])
+      setCatalogProg([])
+      return
+    }
+    let cancelled = false
+    window.electronAPI.serviceCatalog.forVehicle(selectedVehicle.make, selectedVehicle.model).then(res => {
+      if (cancelled || !res.success || !res.data) return
+      const d = res.data as { mechanical: CatalogSvcRow[]; programming: CatalogSvcRow[] }
+      setCatalogMech(d.mechanical ?? [])
+      setCatalogProg(d.programming ?? [])
+    })
+    return () => { cancelled = true }
+  }, [open, selectedVehicle])
+
   const handleVehicleChange = (vehicleIdStr: string) => {
     set('vehicle_id', vehicleIdStr)
+    setParts(p => p.filter(pt => pt.catalogId == null))
     if (!vehicleIdStr) { setSelectedVehicle(null); set('owner_id', ''); set('mileage_in', ''); return }
     const v = vehicles.find(veh => veh.id === Number(vehicleIdStr))
     if (v) {
@@ -152,7 +177,25 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
   const addPart = () => setParts(p => [...p, { ...EMPTY_PART }])
   const removePart = (i: number) => setParts(p => p.filter((_, idx) => idx !== i))
   const setPart = (i: number, key: keyof Part, val: string) =>
-    setParts(p => p.map((pt, idx) => idx !== i ? pt : { ...pt, [key]: key === 'name' ? val : Number(val) || 0 }))
+    setParts(p => p.map((pt, idx) => {
+      if (idx !== i) return pt
+      if (key === 'name') return { ...pt, name: val }
+      if (key === 'cost') return { ...pt, cost: parseFloat(val) || 0 }
+      return { ...pt, qty: Number(val) || 0 }
+    }))
+
+  const isCatalogLineChecked = (catalogId: number) => parts.some(pt => pt.catalogId === catalogId)
+
+  const toggleCatalogLine = (row: CatalogSvcRow, on: boolean) => {
+    if (!on) {
+      setParts(p => p.filter(pt => pt.catalogId !== row.id))
+      return
+    }
+    setParts(p => [
+      ...p.filter(pt => pt.catalogId !== row.id),
+      { name: row.service_name, qty: 1, cost: row.price, catalogId: row.id },
+    ])
+  }
 
   const laborHours = Number(form.labor_hours) || 0
   const laborRate = Number(form.labor_rate) || 0
@@ -327,6 +370,61 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
           )}
         </div>
 
+        {(catalogMech.length > 0 || catalogProg.length > 0) && selectedVehicle && (
+          <div className={sectionCls}>
+            <h3 className="text-sm font-semibold text-foreground mb-2">Catalog services</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Matched {selectedVehicle.make} / {selectedVehicle.model}. Checked items are added to Parts Used; you can change price or quantity there.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {catalogMech.length > 0 && (
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Mechanical</p>
+                  <ul className="space-y-2">
+                    {catalogMech.map(row => (
+                      <li key={row.id} className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          id={`cat-m-${row.id}`}
+                          checked={isCatalogLineChecked(row.id)}
+                          onChange={e => toggleCatalogLine(row, e.target.checked)}
+                          className="mt-1 w-4 h-4 rounded border-input shrink-0"
+                        />
+                        <label htmlFor={`cat-m-${row.id}`} className="flex-1 text-sm cursor-pointer leading-tight">
+                          <span className="font-medium text-foreground">{row.service_name}</span>
+                          <span className="text-muted-foreground ms-2 tabular-nums">{formatCurrency(row.price)}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {catalogProg.length > 0 && (
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Programming</p>
+                  <ul className="space-y-2">
+                    {catalogProg.map(row => (
+                      <li key={row.id} className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          id={`cat-p-${row.id}`}
+                          checked={isCatalogLineChecked(row.id)}
+                          onChange={e => toggleCatalogLine(row, e.target.checked)}
+                          className="mt-1 w-4 h-4 rounded border-input shrink-0"
+                        />
+                        <label htmlFor={`cat-p-${row.id}`} className="flex-1 text-sm cursor-pointer leading-tight">
+                          <span className="font-medium text-foreground">{row.service_name}</span>
+                          <span className="text-muted-foreground ms-2 tabular-nums">{formatCurrency(row.price)}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── Section 3: Service Details ── */}
         <div className={sectionCls}>
           <h3 className="text-sm font-semibold text-foreground mb-3">Service Details</h3>
@@ -402,7 +500,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
               </div>
               <div className="divide-y divide-border">
                 {parts.map((part, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_80px_100px_80px_36px] gap-0 items-center px-3 py-2">
+                  <div key={part.catalogId != null ? `cat-${part.catalogId}` : `p-${i}`} className="grid grid-cols-[1fr_80px_100px_80px_36px] gap-0 items-center px-3 py-2">
                     <input value={part.name} onChange={e => setPart(i, 'name', e.target.value)} placeholder="e.g. Oil Filter"
                       className="px-2 py-1 text-sm border border-input rounded bg-background focus:outline-none focus:ring-1 focus:ring-ring me-2" />
                     <input type="number" min="1" value={part.qty} onChange={e => setPart(i, 'qty', e.target.value)}

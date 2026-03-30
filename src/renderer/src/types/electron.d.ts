@@ -191,6 +191,19 @@ declare global {
         markRead:       (id: number) => Promise<IpcResponse<null>>
         markAllRead:    () => Promise<IpcResponse<null>>
       }
+      carBrands: {
+        list: () => Promise<IpcResponse<unknown[]>>
+        create: (data: unknown) => Promise<IpcResponse<{ id: number }>>
+        update: (id: number, data: unknown) => Promise<IpcResponse<null>>
+        delete: (id: number) => Promise<IpcResponse<null>>
+      }
+      serviceCatalog: {
+        list: (filters?: unknown) => Promise<IpcResponse<unknown[]>>
+        forVehicle: (make: string, model: string) => Promise<IpcResponse<unknown>>
+        create: (data: unknown) => Promise<IpcResponse<{ id: number }>>
+        update: (id: number, data: unknown) => Promise<IpcResponse<null>>
+        delete: (id: number) => Promise<IpcResponse<null>>
+      }
     }
   }
 }
