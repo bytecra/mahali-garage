@@ -31,7 +31,11 @@ export const reportRepo = {
       vehiclesInGarageMechanical = 0,
       vehiclesInGarageProgramming = 0,
       readyForPickup = 0,
-      activeJobCards = 0
+      readyForPickupMechanical = 0,
+      readyForPickupProgramming = 0,
+      activeJobCards = 0,
+      activeJobCardsMechanical = 0,
+      activeJobCardsProgramming = 0
     try {
       totalVehicles = (db.prepare('SELECT COUNT(*) as cnt FROM vehicles').get() as { cnt: number }).cnt
       vehiclesInGarage = (db.prepare(
@@ -50,8 +54,24 @@ export const reportRepo = {
       readyForPickup = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards WHERE status = 'ready'`
       ).get() as { cnt: number }).cnt
+      readyForPickupMechanical = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status = 'ready' AND department IN ('mechanical','both')`
+      ).get() as { cnt: number }).cnt
+      readyForPickupProgramming = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status = 'ready' AND department IN ('programming','both')`
+      ).get() as { cnt: number }).cnt
       activeJobCards = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards WHERE status NOT IN ('delivered','cancelled')`
+      ).get() as { cnt: number }).cnt
+      activeJobCardsMechanical = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status NOT IN ('delivered','cancelled') AND department IN ('mechanical','both')`
+      ).get() as { cnt: number }).cnt
+      activeJobCardsProgramming = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status NOT IN ('delivered','cancelled') AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
     } catch { /* tables not ready yet */ }
 
@@ -118,7 +138,11 @@ export const reportRepo = {
       vehiclesInGarageMechanical,
       vehiclesInGarageProgramming,
       readyForPickup,
+      readyForPickupMechanical,
+      readyForPickupProgramming,
       activeJobCards,
+      activeJobCardsMechanical,
+      activeJobCardsProgramming,
       urgentJobCards,
     }
   },

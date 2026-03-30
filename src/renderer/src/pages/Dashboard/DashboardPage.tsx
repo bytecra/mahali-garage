@@ -26,7 +26,11 @@ interface DashboardData {
   vehiclesInGarageMechanical: number
   vehiclesInGarageProgramming: number
   readyForPickup: number
+  readyForPickupMechanical: number
+  readyForPickupProgramming: number
   activeJobCards: number
+  activeJobCardsMechanical: number
+  activeJobCardsProgramming: number
   salesTrend: Array<{ day: string; revenue: number; count: number }>
   topProducts: Array<{ product_name: string; total_qty: number; total_revenue: number }>
   urgentJobCards: Array<{
@@ -34,6 +38,18 @@ interface DashboardData {
     owner_name: string | null
     vehicle_make: string | null; vehicle_model: string | null; vehicle_year: number | null; vehicle_plate: string | null
   }>
+}
+
+function DeptBreakdown({ mechanical, programming }: { mechanical: number; programming: number }): JSX.Element {
+  return (
+    <p className="text-base font-bold text-foreground mt-0.5 leading-snug">
+      <span className="text-muted-foreground font-normal text-sm">Mechanical:</span>{' '}
+      {mechanical}
+      <span className="text-muted-foreground mx-2">|</span>
+      <span className="text-muted-foreground font-normal text-sm">Programming:</span>{' '}
+      {programming}
+    </p>
+  )
 }
 
 function StatCard({ icon: Icon, label, value, valueContent, sub, color }: {
@@ -91,22 +107,29 @@ export default function DashboardPage(): JSX.Element {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard icon={Car} label={t('dashboard.vehiclesInGarage')}
           valueContent={(
-            <p className="text-base font-bold text-foreground mt-0.5 leading-snug">
-              <span className="text-muted-foreground font-normal text-sm">Mechanical:</span>{' '}
-              {data?.vehiclesInGarageMechanical ?? 0}
-              <span className="text-muted-foreground mx-2">|</span>
-              <span className="text-muted-foreground font-normal text-sm">Programming:</span>{' '}
-              {data?.vehiclesInGarageProgramming ?? 0}
-            </p>
+            <DeptBreakdown
+              mechanical={data?.vehiclesInGarageMechanical ?? 0}
+              programming={data?.vehiclesInGarageProgramming ?? 0}
+            />
           )}
           sub={t('dashboard.activeRepairsLabel')}
           color="bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" />
         <StatCard icon={CheckCircle} label={t('dashboard.readyForPickup')}
-          value={data?.readyForPickup ?? 0}
+          valueContent={(
+            <DeptBreakdown
+              mechanical={data?.readyForPickupMechanical ?? 0}
+              programming={data?.readyForPickupProgramming ?? 0}
+            />
+          )}
           sub={t('dashboard.completedJobs')}
           color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />
         <StatCard icon={Wrench} label={t('dashboard.activeJobCards')}
-          value={data?.activeJobCards ?? 0}
+          valueContent={(
+            <DeptBreakdown
+              mechanical={data?.activeJobCardsMechanical ?? 0}
+              programming={data?.activeJobCardsProgramming ?? 0}
+            />
+          )}
           sub={t('dashboard.inProgress')}
           color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />
         <StatCard icon={DatabaseIcon} label={t('dashboard.totalVehicles')}
