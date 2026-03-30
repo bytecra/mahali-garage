@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { useThemeStore, applyTheme } from './store/themeStore'
 import { useLangStore } from './store/langStore'
@@ -35,6 +35,13 @@ function LoadingFallback(): JSX.Element {
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
     </div>
   )
+}
+
+/** Preserves sub-path when legacy `/customers/...` links are used. */
+function CustomersToOwnersRedirect(): JSX.Element {
+  const loc = useLocation()
+  const to = `${loc.pathname.replace(/^\/customers/, '/owners')}${loc.search}`
+  return <Navigate to={to} replace />
 }
 
 /** `file://` + BrowserRouter breaks on Windows; HashRouter works in packaged builds. Dev uses http://localhost — BrowserRouter is fine. */
@@ -110,7 +117,7 @@ export default function App(): JSX.Element {
             <Route path="/owners/*" element={
               <Suspense fallback={<LoadingFallback />}><CustomersPage /></Suspense>
             } />
-            <Route path="/customers/*" element={<Navigate to="/owners" replace />} />
+            <Route path="/customers/*" element={<CustomersToOwnersRedirect />} />
             <Route path="/reports/*" element={
               <Suspense fallback={<LoadingFallback />}><ReportsPage /></Suspense>
             } />

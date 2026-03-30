@@ -276,14 +276,33 @@ export const jobCardRepo = {
     return true
   },
 
+  /** Job card rows for vehicle history (invoice-style list). */
   getForVehicle(vehicleId: number) {
     return getDb().prepare(`
-      SELECT j.*, u.full_name as technician_name
+      SELECT
+        j.id,
+        j.job_number,
+        j.created_at,
+        j.date_in,
+        j.department,
+        j.status,
+        j.total,
+        j.balance_due,
+        j.deposit,
+        j.job_type,
+        j.work_done,
+        j.complaint,
+        j.diagnosis,
+        u.full_name AS technician_name,
+        (SELECT GROUP_CONCAT(TRIM(jp.description), ', ')
+         FROM job_parts jp
+         WHERE jp.job_card_id = j.id AND jp.description IS NOT NULL AND TRIM(jp.description) != ''
+        ) AS parts_summary
       FROM job_cards j
       LEFT JOIN users u ON j.technician_id = u.id
       WHERE j.vehicle_id = ?
       ORDER BY j.created_at DESC
-      LIMIT 50
+      LIMIT 100
     `).all(vehicleId)
   },
 }

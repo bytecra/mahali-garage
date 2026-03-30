@@ -10,6 +10,7 @@ import { useDebounce } from '../../hooks/useDebounce'
 import { formatCurrency } from '../../lib/utils'
 import CustomerForm from './CustomerForm'
 import CustomerProfile from './CustomerProfile'
+import VehicleHistoryPage from './VehicleHistoryPage'
 
 interface Customer {
   id: number; name: string; phone: string | null; email: string | null
@@ -82,7 +83,7 @@ function CustomerList(): JSX.Element {
               </thead>
               <tbody className="divide-y divide-border">
                 {items.map(item => (
-                  <tr key={item.id} onClick={() => navigate(`/customers/${item.id}`)}
+                  <tr key={item.id} onClick={() => navigate(`/owners/${item.id}`)}
                     className="hover:bg-muted/30 transition-colors cursor-pointer">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -132,6 +133,7 @@ export default function CustomersPage(): JSX.Element {
   return (
     <Routes>
       <Route index element={<CustomerList />} />
+      <Route path=":customerId/vehicles/:vehicleId" element={<VehicleHistoryPage />} />
       <Route path=":id" element={<CustomerProfile />} />
     </Routes>
   )

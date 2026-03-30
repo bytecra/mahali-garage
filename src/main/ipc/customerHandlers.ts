@@ -19,9 +19,10 @@ export function registerCustomerHandlers(): void {
     try {
       const row = customerRepo.findById(id)
       if (!row) return err('Customer not found', 'ERR_NOT_FOUND')
-      const sales   = customerRepo.getSalesHistory(id)
-      const repairs = customerRepo.getRepairHistory(id)
-      return ok({ ...row, sales, repairs })
+      const sales        = customerRepo.getSalesHistory(id)
+      const repairs      = customerRepo.getRepairHistory(id)
+      const summaryStats = customerRepo.getSummaryStats(id)
+      return ok({ ...row, sales, repairs, summaryStats })
     } catch (e) { log.error('customers:getById', e); return err('Failed to get customer') }
   })
 

@@ -1,18 +1,33 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Phone, Mail, MapPin, Pencil, AlertCircle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MapPin, Pencil, AlertCircle, CheckCircle, Car, ChevronRight } from 'lucide-react'
 import { formatCurrency, formatDate } from '../../lib/utils'
 import { usePermission } from '../../hooks/usePermission'
 import { toast } from '../../store/notificationStore'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import CustomerForm from './CustomerForm'
 
+interface SummaryStats {
+  total_spent: number
+  total_visits: number
+  outstanding_balance: number
+}
+
 interface CustomerDetail {
   id: number; name: string; phone: string | null; email: string | null
   address: string | null; notes: string | null; balance: number
   sale_count: number; repair_count: number
   sales: SaleRow[]; repairs: RepairRow[]
+  summaryStats?: SummaryStats
+}
+
+interface OwnerVehicleRow {
+  id: number
+  make: string
+  model: string
+  year: number | null
+  license_plate: string | null
 }
 
 interface SaleRow {
@@ -44,6 +59,7 @@ export default function CustomerProfile(): JSX.Element {
   const canDelete = usePermission('customers.delete')
 
   const [customer, setCustomer] = useState<CustomerDetail | null>(null)
+  const [vehicles, setVehicles] = useState<OwnerVehicleRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -52,8 +68,12 @@ export default function CustomerProfile(): JSX.Element {
   const load = async () => {
     if (!id) return
     setLoading(true)
-    const res = await window.electronAPI.customers.getById(Number(id))
+    const customerId = Number(id)
+    const res = await window.electronAPI.customers.getById(customerId)
     if (res.success) setCustomer(res.data as CustomerDetail)
+    const vehRes = await window.electronAPI.vehicles.getByOwner(customerId)
+    if (vehRes.success) setVehicles((vehRes.data as OwnerVehicleRow[]) ?? [])
+    else setVehicles([])
     setLoading(false)
   }
 
@@ -64,7 +84,7 @@ export default function CustomerProfile(): JSX.Element {
     const res = await window.electronAPI.customers.delete(customer.id)
     if (!res.success) { toast.error(res.error ?? t('common.error')); return }
     toast.success(t('common.success'))
-    navigate('/customers')
+    navigate('/owners')
   }
 
   if (loading) return (
@@ -74,10 +94,20 @@ export default function CustomerProfile(): JSX.Element {
     <div className="text-center py-16 text-muted-foreground">Customer not found</div>
   )
 
+  const stats = customer.summaryStats
+
   return (
     <div>
+      <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground mb-4">
+        <Link to="/owners" className="hover:text-foreground transition-colors">
+          {t('nav.owners')}
+        </Link>
+        <ChevronRight className="w-4 h-4 shrink-0" />
+        <span className="text-foreground font-medium">{customer.name}</span>
+      </nav>
+
       {/* Back */}
-      <button onClick={() => navigate('/customers')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
+      <button onClick={() => navigate('/owners')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4" />{t('common.back')}
       </button>
 
@@ -113,28 +143,34 @@ export default function CustomerProfile(): JSX.Element {
         </div>
 
         {/* Balance & stats */}
-        <div className="flex gap-6 mt-6 pt-5 border-t border-border">
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Balance</p>
+        <div className="flex flex-wrap gap-6 mt-6 pt-5 border-t border-border">
+          <div className="text-center min-w-[100px]">
+            <p className="text-sm text-muted-foreground">{t('customers.balance')}</p>
             {customer.balance < 0 ? (
-              <p className="font-bold text-lg text-destructive flex items-center gap-1">
+              <p className="font-bold text-lg text-destructive flex items-center justify-center gap-1">
                 <AlertCircle className="w-4 h-4" />{formatCurrency(Math.abs(customer.balance))}
               </p>
             ) : customer.balance > 0 ? (
-              <p className="font-bold text-lg text-green-600 flex items-center gap-1">
+              <p className="font-bold text-lg text-green-600 flex items-center justify-center gap-1">
                 <CheckCircle className="w-4 h-4" />{formatCurrency(customer.balance)}
               </p>
             ) : (
               <p className="font-bold text-lg text-foreground">—</p>
             )}
           </div>
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Total Sales</p>
-            <p className="font-bold text-lg text-foreground">{customer.sale_count}</p>
+          <div className="text-center min-w-[100px]">
+            <p className="text-sm text-muted-foreground">{t('customers.totalSpent', { defaultValue: 'Total spent' })}</p>
+            <p className="font-bold text-lg text-foreground tabular-nums">{formatCurrency(stats?.total_spent ?? 0)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Total Repairs</p>
-            <p className="font-bold text-lg text-foreground">{customer.repair_count}</p>
+          <div className="text-center min-w-[100px]">
+            <p className="text-sm text-muted-foreground">{t('customers.totalVisits', { defaultValue: 'Total visits' })}</p>
+            <p className="font-bold text-lg text-foreground tabular-nums">{stats?.total_visits ?? 0}</p>
+          </div>
+          <div className="text-center min-w-[100px]">
+            <p className="text-sm text-muted-foreground">{t('customers.outstanding', { defaultValue: 'Outstanding' })}</p>
+            <p className="font-bold text-lg text-destructive tabular-nums">
+              {(stats?.outstanding_balance ?? 0) > 0 ? formatCurrency(stats!.outstanding_balance) : '—'}
+            </p>
           </div>
         </div>
 
@@ -143,6 +179,37 @@ export default function CustomerProfile(): JSX.Element {
             <p className="text-sm text-muted-foreground">{t('common.notes')}</p>
             <p className="text-sm text-foreground mt-1">{customer.notes}</p>
           </div>
+        )}
+      </div>
+
+      {/* Vehicles */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden mb-6">
+        <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center gap-2">
+          <Car className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">{t('customers.theirVehicles', { defaultValue: 'Vehicles' })}</h2>
+        </div>
+        {vehicles.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">{t('customers.noVehicles', { defaultValue: 'No vehicles linked to this customer.' })}</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {vehicles.map(v => (
+              <li key={v.id}>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/owners/${customer.id}/vehicles/${v.id}`)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-start hover:bg-muted/40 transition-colors"
+                >
+                  <span className="text-sm font-medium text-foreground">
+                    {v.make} {v.model}
+                    {v.year != null ? ` · ${v.year}` : ''}
+                  </span>
+                  <span className="text-sm text-muted-foreground font-mono shrink-0">
+                    {v.license_plate ?? '—'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 

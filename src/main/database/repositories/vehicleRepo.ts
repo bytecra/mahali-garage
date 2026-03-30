@@ -106,6 +106,7 @@ export const vehicleRepo = {
     return true
   },
 
+  /** Vehicles for a customer (owner). */
   getByOwner(ownerId: number): VehicleRow[] {
     return getDb().prepare(`
       SELECT v.*, c.name as owner_name
@@ -114,5 +115,10 @@ export const vehicleRepo = {
       WHERE v.owner_id = ?
       ORDER BY v.updated_at DESC
     `).all(ownerId) as VehicleRow[]
+  },
+
+  /** Alias for clarity in customer-profile flows. */
+  listForCustomer(customerId: number): VehicleRow[] {
+    return this.getByOwner(customerId)
   },
 }

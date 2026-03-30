@@ -21,6 +21,16 @@ export interface CustomerFilters {
   pageSize?: number
 }
 
+/** Lifetime stats for customer profile (no extra tables). */
+export interface CustomerSummaryStats {
+  /** Completed/partial POS sales + delivered job card totals. */
+  total_spent: number
+  /** Count of non-void sales (excl. draft) + non-cancelled job cards for this owner. */
+  total_visits: number
+  /** Amount customer owes (positive number); mirrors UI when balance is negative. */
+  outstanding_balance: number
+}
+
 export const customerRepo = {
   list(filters: CustomerFilters = {}): { items: CustomerRow[]; total: number } {
     const { search = '', with_debt = false, page = 1, pageSize = 25 } = filters
@@ -102,6 +112,33 @@ export const customerRepo = {
       ORDER BY r.created_at DESC
       LIMIT 20
     `).all(customerId)
+  },
+
+  getSummaryStats(customerId: number): CustomerSummaryStats {
+    const db = getDb()
+    const row = db.prepare('SELECT balance FROM customers WHERE id = ?').get(customerId) as { balance: number } | undefined
+    const balance = row?.balance ?? 0
+    const outstanding_balance = balance < 0 ? Math.abs(balance) : 0
+
+    const sales = db.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status IN ('completed', 'partial') THEN total_amount ELSE 0 END), 0) AS spent,
+        COALESCE(SUM(CASE WHEN status NOT IN ('draft', 'voided') THEN 1 ELSE 0 END), 0) AS visits
+      FROM sales WHERE customer_id = ?
+    `).get(customerId) as { spent: number; visits: number } | undefined
+
+    const jobs = db.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status = 'delivered' THEN total ELSE 0 END), 0) AS spent,
+        COALESCE(SUM(CASE WHEN status != 'cancelled' THEN 1 ELSE 0 END), 0) AS visits
+      FROM job_cards WHERE owner_id = ?
+    `).get(customerId) as { spent: number; visits: number } | undefined
+
+    return {
+      total_spent: (sales?.spent ?? 0) + (jobs?.spent ?? 0),
+      total_visits: (sales?.visits ?? 0) + (jobs?.visits ?? 0),
+      outstanding_balance,
+    }
   },
 
   create(data: Omit<CustomerRow, 'id' | 'created_at' | 'updated_at' | 'sale_count' | 'repair_count'>): number {
