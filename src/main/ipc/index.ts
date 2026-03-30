@@ -24,6 +24,7 @@ import { registerCustomReceiptHandlers } from './customReceiptHandlers'
 import { registerEmployeeHandlers }      from './employeeHandlers'
 import { registerCarBrandHandlers }        from './carBrandHandlers'
 import { registerServiceCatalogHandlers } from './serviceCatalogHandlers'
+import { registerCashDrawerHandlers } from './cashDrawerHandlers'
 
 export function registerAllHandlers(): void {
   registerAuthHandlers()
@@ -52,4 +53,5 @@ export function registerAllHandlers(): void {
   registerEmployeeHandlers()
   registerCarBrandHandlers()
   registerServiceCatalogHandlers()
+  registerCashDrawerHandlers()
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma } from 'lucide-react'
+import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
 import { formatCurrency, cn } from '../../lib/utils'
 import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
@@ -52,7 +52,8 @@ function DeptBreakdown({ mechanical, programming }: { mechanical: number; progra
   )
 }
 
-type CashDatePreset = 'today' | 'week' | 'month' | 'custom'
+type CashDatePreset = 'today' | 'week' | 'month' | 'all_time' | 'custom'
+type CashWidgetPreset = 'today' | 'week' | 'month' | 'custom'
 
 function toYMD(d: Date): string {
   const y = d.getFullYear()
@@ -61,8 +62,9 @@ function toYMD(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function rangeForCashPreset(preset: CashDatePreset, customFrom: string, customTo: string): { from: string; to: string } {
+function rangeForCashPreset(preset: CashDatePreset, customFrom: string, customTo: string): { from?: string; to?: string } {
   const now = new Date()
+  if (preset === 'all_time') return {}
   if (preset === 'custom' && customFrom && customTo) return { from: customFrom, to: customTo }
   if (preset === 'today') {
     const s = toYMD(now)
@@ -82,11 +84,446 @@ function rangeForCashPreset(preset: CashDatePreset, customFrom: string, customTo
   return { from: toYMD(mon), to: toYMD(sun) }
 }
 
+function rangeForCashWidgetPreset(preset: CashWidgetPreset, customFrom: string, customTo: string): { from: string; to: string } {
+  const r = rangeForCashPreset(preset, customFrom, customTo)
+  if (r.from && r.to) return { from: r.from, to: r.to }
+  const s = toYMD(new Date())
+  return { from: s, to: s }
+}
+
 /** Explicit AED display for cash widgets (د.إ). */
 function formatAed(amount: number): string {
   const n = Number(amount ?? 0)
   const x = (Number.isNaN(n) ? 0 : n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
   return `${x} د.إ`
+}
+
+type DrawerSummary = {
+  total_in: number
+  total_out: number
+  drawer_balance: number
+  opening_total: number
+  cash_sales_total: number
+  other_in_total: number
+}
+
+type DrawerRow = {
+  id: number
+  business_date: string
+  created_at: string
+  direction: 'in' | 'out'
+  amount: number
+  entry_type: string
+  note: string | null
+  payment_id: number | null
+}
+
+function entryTypeLabel(t: (k: string, o?: { defaultValue: string }) => string, entryType: string): string {
+  const key = `dashboard.cashDrawerEntry.${entryType}`
+  const fallbacks: Record<string, string> = {
+    opening_balance: 'Opening balance',
+    sale_payment: 'Sale (cash)',
+    manual_in: 'Cash in (manual)',
+    withdrawal: 'Withdrawal',
+    change_given: 'Change given',
+    manual_out: 'Cash out (manual)',
+  }
+  return t(key, { defaultValue: fallbacks[entryType] ?? entryType })
+}
+
+function CashInHandWidget(): JSX.Element {
+  const { t } = useTranslation()
+  const canManage = usePermission('sales.create')
+  const [preset, setPreset] = useState<CashDatePreset>('today')
+  const [customFrom, setCustomFrom] = useState(() => toYMD(new Date()))
+  const [customTo, setCustomTo] = useState(() => toYMD(new Date()))
+  const [allLedger, setAllLedger] = useState<DrawerSummary | null>(null)
+  const [periodLedger, setPeriodLedger] = useState<DrawerSummary | null>(null)
+  const [logOpen, setLogOpen] = useState(false)
+  const [logRows, setLogRows] = useState<DrawerRow[]>([])
+  const [openingDate, setOpeningDate] = useState(() => toYMD(new Date()))
+  const [openingAmount, setOpeningAmount] = useState('')
+  const [outAmount, setOutAmount] = useState('')
+  const [outType, setOutType] = useState<'withdrawal' | 'change_given' | 'manual_out'>('withdrawal')
+  const [outNote, setOutNote] = useState('')
+  const [inAmount, setInAmount] = useState('')
+  const [inNote, setInNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const range = useMemo(() => rangeForCashPreset(preset, customFrom, customTo), [preset, customFrom, customTo])
+
+  const reload = useCallback(async (): Promise<void> => {
+    const rangeFilters = preset === 'all_time' || !range.from || !range.to ? {} : { from: range.from, to: range.to }
+    const [allRes, periodRes] = await Promise.all([
+      window.electronAPI.cashDrawer.summary({}),
+      window.electronAPI.cashDrawer.summary(rangeFilters),
+    ])
+    if (allRes.success && allRes.data) setAllLedger(allRes.data)
+    if (periodRes.success && periodRes.data) setPeriodLedger(periodRes.data)
+  }, [preset, range.from, range.to])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  useEffect(() => {
+    if (!logOpen) return
+    let cancel = false
+    void (async () => {
+      const res = await window.electronAPI.cashDrawer.list({
+        ...(preset === 'all_time' || !range.from || !range.to ? {} : { from: range.from, to: range.to }),
+        limit: 300,
+      })
+      if (!cancel && res.success && res.data) setLogRows(res.data as DrawerRow[])
+    })()
+    return () => { cancel = true }
+  }, [logOpen, preset, customFrom, customTo, range.from, range.to])
+
+  const presetBtn = (p: CashDatePreset, label: string) => (
+    <button
+      key={p}
+      type="button"
+      onClick={() => setPreset(p)}
+      className={cn(
+        'px-2 py-1 text-xs font-medium rounded-md border transition-colors',
+        preset === p
+          ? 'border-primary bg-primary/10 text-primary'
+          : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted/60',
+      )}
+    >
+      {label}
+    </button>
+  )
+
+  const periodLabel =
+    preset === 'all_time'
+      ? t('dashboard.cashAllTime', { defaultValue: 'All time' })
+      : range.from && range.to
+        ? range.from === range.to
+          ? range.from
+          : `${range.from} → ${range.to}`
+        : ''
+
+  const onSetOpening = async (): Promise<void> => {
+    const amt = parseFloat(openingAmount.replace(',', '.'))
+    if (Number.isNaN(amt) || amt < 0) {
+      setMsg(t('dashboard.cashDrawerInvalidAmount', { defaultValue: 'Enter a valid amount (0 or more).' }))
+      return
+    }
+    setBusy(true)
+    setMsg(null)
+    const res = await window.electronAPI.cashDrawer.setOpening({ businessDate: openingDate, amount: amt })
+    setBusy(false)
+    if (!res.success) {
+      setMsg(res.error ?? t('dashboard.cashDrawerError', { defaultValue: 'Could not save.' }))
+      return
+    }
+    setOpeningAmount('')
+    await reload()
+  }
+
+  const onAddOut = async (): Promise<void> => {
+    const amt = parseFloat(outAmount.replace(',', '.'))
+    if (Number.isNaN(amt) || amt <= 0) {
+      setMsg(t('dashboard.cashDrawerInvalidAmount', { defaultValue: 'Enter a valid amount (0 or more).' }))
+      return
+    }
+    setBusy(true)
+    setMsg(null)
+    const res = await window.electronAPI.cashDrawer.addManual({
+      direction: 'out',
+      amount: amt,
+      entry_type: outType,
+      note: outNote.trim() || undefined,
+      business_date: toYMD(new Date()),
+    })
+    setBusy(false)
+    if (!res.success) {
+      setMsg(res.error ?? t('dashboard.cashDrawerError', { defaultValue: 'Could not save.' }))
+      return
+    }
+    setOutAmount('')
+    setOutNote('')
+    await reload()
+    if (logOpen) {
+      const lr = await window.electronAPI.cashDrawer.list({
+        ...(preset === 'all_time' || !range.from || !range.to ? {} : { from: range.from, to: range.to }),
+        limit: 300,
+      })
+      if (lr.success && lr.data) setLogRows(lr.data as DrawerRow[])
+    }
+  }
+
+  const onAddIn = async (): Promise<void> => {
+    const amt = parseFloat(inAmount.replace(',', '.'))
+    if (Number.isNaN(amt) || amt <= 0) {
+      setMsg(t('dashboard.cashDrawerInvalidAmount', { defaultValue: 'Enter a valid amount (0 or more).' }))
+      return
+    }
+    setBusy(true)
+    setMsg(null)
+    const res = await window.electronAPI.cashDrawer.addManual({
+      direction: 'in',
+      amount: amt,
+      entry_type: 'manual_in',
+      note: inNote.trim() || undefined,
+      business_date: toYMD(new Date()),
+    })
+    setBusy(false)
+    if (!res.success) {
+      setMsg(res.error ?? t('dashboard.cashDrawerError', { defaultValue: 'Could not save.' }))
+      return
+    }
+    setInAmount('')
+    setInNote('')
+    await reload()
+    if (logOpen) {
+      const lr = await window.electronAPI.cashDrawer.list({
+        ...(preset === 'all_time' || !range.from || !range.to ? {} : { from: range.from, to: range.to }),
+        limit: 300,
+      })
+      if (lr.success && lr.data) setLogRows(lr.data as DrawerRow[])
+    }
+  }
+
+  const period = periodLedger
+  const drawerAllTime = allLedger?.drawer_balance ?? 0
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-4 flex flex-col h-full">
+      <div className="flex items-start gap-3">
+        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 shrink-0">
+          <Banknote className="w-5 h-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-foreground leading-tight">
+            {t('dashboard.cashInHand', { defaultValue: 'Cash in hand' })}
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {t('dashboard.cashInHandDrawerSub', { defaultValue: 'Drawer balance (all recorded cash ledger)' })}
+          </p>
+          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight">{formatAed(drawerAllTime)}</p>
+          {period && preset !== 'all_time' && (
+            <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
+              <span className="font-medium text-foreground/80">{periodLabel}</span>
+              {': '}
+              {t('dashboard.cashDrawerInShort', { defaultValue: 'In' })} {formatAed(period.total_in)}
+              {' · '}
+              {t('dashboard.cashDrawerOutShort', { defaultValue: 'Out' })} {formatAed(period.total_out)}
+              {' · '}
+              {t('dashboard.cashDrawerNetShort', { defaultValue: 'Net' })} {formatAed(period.drawer_balance)}
+            </p>
+          )}
+          {period && preset === 'today' && (
+            <p className="text-[11px] text-foreground/90 mt-1 font-medium">
+              {t('dashboard.cashDrawerTodayRegister', { defaultValue: "Today's register" })}
+              {': '}
+              {t('dashboard.cashDrawerOpeningShort', { defaultValue: 'Opening' })} {formatAed(period.opening_total)}
+              {' · '}
+              {t('dashboard.cashDrawerRunningShort', { defaultValue: 'Running total' })} {formatAed(period.drawer_balance)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {presetBtn('today', t('dashboard.cashToday', { defaultValue: 'Today' }))}
+        {presetBtn('week', t('dashboard.cashThisWeek', { defaultValue: 'This Week' }))}
+        {presetBtn('month', t('dashboard.cashThisMonth', { defaultValue: 'This Month' }))}
+        {presetBtn('all_time', t('dashboard.cashAllTime', { defaultValue: 'All time' }))}
+        {presetBtn('custom', t('dashboard.cashCustom', { defaultValue: 'Custom' }))}
+      </div>
+      {preset === 'custom' && (
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border">
+          <input
+            type="date"
+            value={customFrom}
+            onChange={e => setCustomFrom(e.target.value)}
+            className="flex-1 min-w-[8rem] px-2 py-1 text-xs border border-input rounded-md bg-background"
+          />
+          <input
+            type="date"
+            value={customTo}
+            onChange={e => setCustomTo(e.target.value)}
+            className="flex-1 min-w-[8rem] px-2 py-1 text-xs border border-input rounded-md bg-background"
+          />
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setLogOpen(true)}
+          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border border-border bg-background hover:bg-muted/60"
+        >
+          <ScrollText className="w-3.5 h-3.5" />
+          {t('dashboard.cashDrawerLog', { defaultValue: 'Transaction log' })}
+        </button>
+      </div>
+
+      {canManage && (
+        <div className="mt-3 pt-3 border-t border-border space-y-3">
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+            {t('dashboard.cashDrawerRegister', { defaultValue: 'Cash register' })}
+          </p>
+          {msg && <p className="text-xs text-destructive">{msg}</p>}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-md border border-border p-2 space-y-1.5">
+              <p className="text-xs font-medium text-foreground">{t('dashboard.cashDrawerOpening', { defaultValue: 'Opening balance (start of day)' })}</p>
+              <div className="flex flex-wrap gap-1">
+                <input
+                  type="date"
+                  value={openingDate}
+                  onChange={e => setOpeningDate(e.target.value)}
+                  className="flex-1 min-w-[7rem] px-2 py-1 text-xs border border-input rounded-md bg-background"
+                  disabled={busy}
+                />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={t('dashboard.cashDrawerAmount', { defaultValue: 'Amount' })}
+                  value={openingAmount}
+                  onChange={e => setOpeningAmount(e.target.value)}
+                  className="w-24 px-2 py-1 text-xs border border-input rounded-md bg-background"
+                  disabled={busy}
+                />
+                <button
+                  type="button"
+                  onClick={() => void onSetOpening()}
+                  disabled={busy}
+                  className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+                >
+                  {t('dashboard.cashDrawerSaveOpening', { defaultValue: 'Set' })}
+                </button>
+              </div>
+            </div>
+            <div className="rounded-md border border-border p-2 space-y-1.5">
+              <p className="text-xs font-medium text-foreground">{t('dashboard.cashDrawerCashOut', { defaultValue: 'Cash out' })}</p>
+              <div className="flex flex-wrap gap-1 items-center">
+                <select
+                  value={outType}
+                  onChange={e => setOutType(e.target.value as typeof outType)}
+                  className="px-2 py-1 text-xs border border-input rounded-md bg-background max-w-[11rem]"
+                  disabled={busy}
+                >
+                  <option value="withdrawal">{t('dashboard.cashDrawerWithdrawal', { defaultValue: 'Withdrawal' })}</option>
+                  <option value="change_given">{t('dashboard.cashDrawerChangeGiven', { defaultValue: 'Change given' })}</option>
+                  <option value="manual_out">{t('dashboard.cashDrawerManualOut', { defaultValue: 'Other out' })}</option>
+                </select>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={t('dashboard.cashDrawerAmount', { defaultValue: 'Amount' })}
+                  value={outAmount}
+                  onChange={e => setOutAmount(e.target.value)}
+                  className="w-20 px-2 py-1 text-xs border border-input rounded-md bg-background"
+                  disabled={busy}
+                />
+                <input
+                  type="text"
+                  placeholder={t('dashboard.cashDrawerNotePh', { defaultValue: 'Note' })}
+                  value={outNote}
+                  onChange={e => setOutNote(e.target.value)}
+                  className="flex-1 min-w-[6rem] px-2 py-1 text-xs border border-input rounded-md bg-background"
+                  disabled={busy}
+                />
+                <button
+                  type="button"
+                  onClick={() => void onAddOut()}
+                  disabled={busy}
+                  className="inline-flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+                >
+                  <PlusCircle className="w-3 h-3" />
+                  {t('dashboard.cashDrawerAdd', { defaultValue: 'Add' })}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-md border border-border p-2 space-y-1.5">
+            <p className="text-xs font-medium text-foreground">{t('dashboard.cashDrawerManualIn', { defaultValue: 'Cash in (manual)' })}</p>
+            <div className="flex flex-wrap gap-1 items-center">
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder={t('dashboard.cashDrawerAmount', { defaultValue: 'Amount' })}
+                value={inAmount}
+                onChange={e => setInAmount(e.target.value)}
+                className="w-24 px-2 py-1 text-xs border border-input rounded-md bg-background"
+                disabled={busy}
+              />
+              <input
+                type="text"
+                placeholder={t('dashboard.cashDrawerNotePh', { defaultValue: 'Note' })}
+                value={inNote}
+                onChange={e => setInNote(e.target.value)}
+                className="flex-1 min-w-[8rem] px-2 py-1 text-xs border border-input rounded-md bg-background"
+                disabled={busy}
+              />
+              <button
+                type="button"
+                onClick={() => void onAddIn()}
+                disabled={busy}
+                className="inline-flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+              >
+                <PlusCircle className="w-3 h-3" />
+                {t('dashboard.cashDrawerAdd', { defaultValue: 'Add' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {logOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true">
+          <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h4 className="text-sm font-semibold">{t('dashboard.cashDrawerLogTitle', { defaultValue: 'Cash ledger' })}</h4>
+              <button type="button" onClick={() => setLogOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">
+                {t('common.close', { defaultValue: 'Close' })}
+              </button>
+            </div>
+            <div className="overflow-auto flex-1 p-2">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-muted-foreground border-b border-border">
+                    <th className="py-1.5 pr-2">{t('dashboard.cashDrawerColWhen', { defaultValue: 'When' })}</th>
+                    <th className="py-1.5 pr-2">{t('dashboard.cashDrawerColType', { defaultValue: 'Type' })}</th>
+                    <th className="py-1.5 pr-2 text-right">{t('dashboard.cashDrawerColAmount', { defaultValue: 'Amount' })}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logRows.map(row => (
+                    <tr key={row.id} className="border-b border-border/60">
+                      <td className="py-1.5 pr-2 whitespace-nowrap text-muted-foreground">
+                        {row.created_at?.replace('T', ' ').slice(0, 19) ?? row.business_date}
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <span className={row.direction === 'in' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                          {row.direction === 'in' ? 'In' : 'Out'}
+                        </span>
+                        {' · '}
+                        {entryTypeLabel(t, row.entry_type)}
+                        {row.note ? (
+                          <span className="block text-[10px] text-muted-foreground truncate max-w-[14rem]" title={row.note}>
+                            {row.note}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">{formatAed(row.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {logRows.length === 0 && (
+                <p className="text-xs text-muted-foreground py-6 text-center">{t('dashboard.cashDrawerLogEmpty', { defaultValue: 'No entries in this range.' })}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function CashFlowWidget({
@@ -101,12 +538,12 @@ function CashFlowWidget({
   valueKey: 'cash' | 'non_cash' | 'total'
 }): JSX.Element {
   const { t } = useTranslation()
-  const [preset, setPreset] = useState<CashDatePreset>('today')
+  const [preset, setPreset] = useState<CashWidgetPreset>('today')
   const [customFrom, setCustomFrom] = useState(() => toYMD(new Date()))
   const [customTo, setCustomTo] = useState(() => toYMD(new Date()))
   const [totals, setTotals] = useState({ cash: 0, non_cash: 0, total: 0 })
 
-  const { from, to } = useMemo(() => rangeForCashPreset(preset, customFrom, customTo), [preset, customFrom, customTo])
+  const { from, to } = useMemo(() => rangeForCashWidgetPreset(preset, customFrom, customTo), [preset, customFrom, customTo])
 
   useEffect(() => {
     let cancelled = false
@@ -119,7 +556,7 @@ function CashFlowWidget({
 
   const value = valueKey === 'cash' ? totals.cash : valueKey === 'non_cash' ? totals.non_cash : totals.total
 
-  const presetBtn = (p: CashDatePreset, label: string) => (
+  const presetBtn = (p: CashWidgetPreset, label: string) => (
     <button
       key={p}
       type="button"
@@ -296,12 +733,7 @@ export default function DashboardPage(): JSX.Element {
         <h2 className="text-base font-semibold text-foreground mb-3">{t('dashboard.cashWidgetsTitle', { defaultValue: 'Cash & receipts' })}</h2>
         <p className="text-xs text-muted-foreground mb-3">{t('dashboard.cashWidgetsHint', { defaultValue: 'Totals from recorded payment methods (Quick Invoice). Job-card-only deposits are not split by method until recorded as payments.' })}</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <CashFlowWidget
-            icon={Banknote}
-            title={t('dashboard.cashInHand', { defaultValue: 'Cash in hand' })}
-            subtitle={t('dashboard.cashInHandSub', { defaultValue: 'Cash payments' })}
-            valueKey="cash"
-          />
+          <CashInHandWidget />
           <CashFlowWidget
             icon={Landmark}
             title={t('dashboard.bankTransfer', { defaultValue: 'Bank transfer' })}

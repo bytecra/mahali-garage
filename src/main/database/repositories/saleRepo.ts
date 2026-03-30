@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { getDb } from '../index'
+import { insertSalePaymentInTx, removeLedgerForSaleInTx } from './cashDrawerRepo'
 
 function setting(db: Database.Database, key: string): string | undefined {
   const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as { value: string } | undefined
@@ -219,28 +220,28 @@ export const saleRepo = {
         }
       }
 
-      // Insert payments
-      for (const p of input.payments) {
-        db.prepare(`
-          INSERT INTO payments (sale_id, customer_id, amount, method, reference, notes)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).run(sale_id, input.customer_id ?? null, p.amount, p.method, p.reference ?? null, p.notes ?? null)
-      }
-
-      // Update customer balance (negative = owes money)
-      if (input.customer_id && input.balance_due > 0) {
-        db.prepare(`UPDATE customers SET balance = balance - ?, updated_at = datetime('now') WHERE id = ?`)
-          .run(input.balance_due, input.customer_id)
-      }
-
       const invDept = input.department === 'programming' || input.department === 'both' || input.department === 'mechanical'
         ? input.department
         : 'mechanical'
       db.prepare(`INSERT INTO invoices (sale_id, invoice_number, department) VALUES (?, ?, ?)`).run(sale_id, invoice_number, invDept)
 
-      // Increment counters
       db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'invoice.next_number'`).run(String(invNext + 1))
       markInvoicePeriod(db)
+
+      // Payments after invoice so cash-drawer notes can use invoice #
+      for (const p of input.payments) {
+        const payRes = db.prepare(`
+          INSERT INTO payments (sale_id, customer_id, amount, method, reference, notes)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(sale_id, input.customer_id ?? null, p.amount, p.method, p.reference ?? null, p.notes ?? null)
+        insertSalePaymentInTx(db, payRes.lastInsertRowid as number, sale_id)
+      }
+
+      if (input.customer_id && input.balance_due > 0) {
+        db.prepare(`UPDATE customers SET balance = balance - ?, updated_at = datetime('now') WHERE id = ?`)
+          .run(input.balance_due, input.customer_id)
+      }
+
       db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'sale.next_number'`).run(String(saleNext + 1))
 
       return { sale_id, invoice_number }
@@ -254,6 +255,8 @@ export const saleRepo = {
     const txn = db.transaction(() => {
       const sale = db.prepare(`SELECT * FROM sales WHERE id = ?`).get(id) as { status: string; customer_id: number | null; balance_due: number } | undefined
       if (!sale || sale.status === 'voided') throw new Error('Cannot void this sale')
+
+      removeLedgerForSaleInTx(db, id)
 
       // Restore stock
       const items = db.prepare(`SELECT * FROM sale_items WHERE sale_id = ?`).all(id) as Array<{ product_id: number | null; quantity: number }>
@@ -289,8 +292,9 @@ export const saleRepo = {
       } | undefined
       if (!sale || sale.status === 'voided') throw new Error('Cannot add payment to this sale')
 
-      db.prepare(`INSERT INTO payments (sale_id, customer_id, amount, method, reference, notes) VALUES (?, ?, ?, ?, ?, ?)`)
+      const payIns = db.prepare(`INSERT INTO payments (sale_id, customer_id, amount, method, reference, notes) VALUES (?, ?, ?, ?, ?, ?)`)
         .run(saleId, sale.customer_id, payment.amount, payment.method, payment.reference ?? null, payment.notes ?? null)
+      insertSalePaymentInTx(db, payIns.lastInsertRowid as number, saleId)
 
       const new_paid = sale.amount_paid + payment.amount
       const new_balance = Math.max(0, sale.total_amount - new_paid)

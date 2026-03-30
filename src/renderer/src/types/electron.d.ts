@@ -110,6 +110,34 @@ declare global {
         updateStatus: (id: number, status: string, notes?: string) => Promise<IpcResponse<null>>
         delete: (id: number) => Promise<IpcResponse<null>>
       }
+      cashDrawer: {
+        summary: (filters?: { from?: string | null; to?: string | null }) => Promise<IpcResponse<{
+          total_in: number
+          total_out: number
+          drawer_balance: number
+          opening_total: number
+          cash_sales_total: number
+          other_in_total: number
+        }>>
+        list: (filters?: { from?: string | null; to?: string | null; limit?: number }) => Promise<IpcResponse<Array<{
+          id: number
+          business_date: string
+          created_at: string
+          direction: 'in' | 'out'
+          amount: number
+          entry_type: string
+          note: string | null
+          payment_id: number | null
+        }>>>
+        setOpening: (payload: { businessDate: string; amount: number }) => Promise<IpcResponse<null>>
+        addManual: (payload: {
+          direction: 'in' | 'out'
+          amount: number
+          entry_type: string
+          note?: string | null
+          business_date?: string
+        }) => Promise<IpcResponse<{ id: number }>>
+      }
       reports: {
         salesDaily: (dateFrom: string, dateTo?: string, department?: string) => Promise<IpcResponse<unknown>>
         salesMonthly: (year: number, month: number) => Promise<IpcResponse<unknown>>

@@ -105,6 +105,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // ── Reports ───────────────────────────────────────────────────────────────
+  cashDrawer: {
+    summary: (filters?: { from?: string | null; to?: string | null }) =>
+      invoke('cashDrawer:summary', filters ?? {}),
+    list: (filters?: { from?: string | null; to?: string | null; limit?: number }) =>
+      invoke('cashDrawer:list', filters ?? {}),
+    setOpening: (payload: { businessDate: string; amount: number }) =>
+      invoke('cashDrawer:setOpening', payload),
+    addManual: (payload: {
+      direction: 'in' | 'out'
+      amount: number
+      entry_type: string
+      note?: string | null
+      business_date?: string
+    }) => invoke('cashDrawer:addManual', payload),
+  },
+
   reports: {
     salesDaily:      (dateFrom: string, dateTo?: string, department?: string) =>
                        invoke('reports:salesDaily', dateFrom, dateTo ?? dateFrom, department ?? 'all'),
