@@ -859,6 +859,13 @@ function SmartCustomServiceSection({
   return (
     <section className="rounded-lg border border-border bg-card p-4 space-y-3">
       <h3 className="font-semibold">Custom services</h3>
+      <div className="hidden md:grid md:grid-cols-12 gap-2 text-xs text-muted-foreground px-1">
+        <div className="md:col-span-4">Service Name</div>
+        <div className="md:col-span-2">Department</div>
+        <div className="md:col-span-2">Cost (Internal)</div>
+        <div className="md:col-span-2">Sell Price</div>
+        <div className="md:col-span-1" />
+      </div>
       {lines.map(line => (
         <div key={line.id} className="grid grid-cols-1 md:grid-cols-12 gap-2">
           <input className={`${inputCls} md:col-span-4`} placeholder="Service name" value={line.service_name} onChange={e => onUpdate(line.id, 'service_name', e.target.value)} />
