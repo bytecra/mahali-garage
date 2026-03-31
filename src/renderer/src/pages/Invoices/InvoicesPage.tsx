@@ -4,6 +4,7 @@ import { Search, Eye, ChevronLeft, ChevronRight, FileText, CalendarDays, X, Tras
 import { cn, formatCurrency, formatDateTime } from '../../lib/utils'
 import { FeatureGate } from '../../components/FeatureGate'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { toast } from '../../store/notificationStore'
 
 type SourceType = 'invoice' | 'custom' | 'smart'
@@ -196,7 +197,7 @@ function InvoicesPageInner(): JSX.Element {
                   <td className="px-4 py-3">{row.customer_name || t('pos.walkIn')}</td>
                   <td className="px-4 py-3">{row.car || '—'}</td>
                   <td className="px-4 py-3">{row.department || '—'}</td>
-                  <td className="px-4 py-3 text-end font-medium">{formatCurrency(row.amount)}</td>
+                  <td className="px-4 py-3 text-end font-medium"><CurrencyText amount={row.amount} /></td>
                   <td className="px-4 py-3 text-center text-xs">{row.payment_method || '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={cn(
@@ -262,7 +263,7 @@ function InvoicesPageInner(): JSX.Element {
             <p className="text-sm">{viewRow.customer_name || t('pos.walkIn')}</p>
             <p className="text-sm">{viewRow.car || '—'}</p>
             <p className="text-sm">{viewRow.department || '—'}</p>
-            <p className="text-sm font-semibold">{formatCurrency(viewRow.amount)}</p>
+            <p className="text-sm font-semibold"><CurrencyText amount={viewRow.amount} /></p>
           </div>
         </div>
       )}

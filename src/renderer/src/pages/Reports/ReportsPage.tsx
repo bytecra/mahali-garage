@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts'
 import { formatCurrency, formatDate } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { FeatureGate } from '../../components/FeatureGate'
 
 type ReportTab = 'sales' | 'profit' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets'
@@ -251,8 +252,8 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
                 <td className="px-4 py-3 font-medium">{r.name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{r.category}</td>
                 <td className="px-4 py-3 text-muted-foreground">{formatDate(r.purchase_date)}</td>
-                <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.purchase_price)}</td>
-                <td className="px-4 py-3 text-end tabular-nums">{r.current_value != null ? formatCurrency(r.current_value) : '—'}</td>
+                <td className="px-4 py-3 text-end tabular-nums"><CurrencyText amount={r.purchase_price} /></td>
+                <td className="px-4 py-3 text-end tabular-nums">{r.current_value != null ? <CurrencyText amount={r.current_value} /> : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -261,8 +262,8 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
               <td colSpan={3} className="px-4 py-3 text-sm">
                 {t('reports.assetsTotals', { defaultValue: 'Totals' })} ({rows.length})
               </td>
-              <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(tp)}</td>
-              <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(tc)}</td>
+              <td className="px-4 py-3 text-end tabular-nums"><CurrencyText amount={tp} /></td>
+              <td className="px-4 py-3 text-end tabular-nums"><CurrencyText amount={tc} /></td>
             </tr>
           </tfoot>
         </table>
@@ -294,9 +295,9 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
               <tr key={i} className="hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{r.invoice_number ?? r.sale_number}</td>
                 <td className="px-4 py-3 text-muted-foreground">{r.customer_name ?? '—'}</td>
-                <td className="px-4 py-3 text-end font-medium">{formatCurrency(r.total_amount)}</td>
-                <td className="px-4 py-3 text-end text-green-600">{formatCurrency(r.amount_paid)}</td>
-                <td className="px-4 py-3 text-end">{r.balance_due > 0 ? <span className="text-destructive">{formatCurrency(r.balance_due)}</span> : '—'}</td>
+                <td className="px-4 py-3 text-end font-medium"><CurrencyText amount={r.total_amount} /></td>
+                <td className="px-4 py-3 text-end text-green-600"><CurrencyText amount={r.amount_paid} /></td>
+                <td className="px-4 py-3 text-end">{r.balance_due > 0 ? <CurrencyText amount={r.balance_due} className="text-destructive" /> : '—'}</td>
                 <td className="px-4 py-3 text-center text-xs">{r.status}</td>
               </tr>
             ))}
@@ -304,7 +305,7 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
           <tfoot className="bg-muted/30 font-bold">
             <tr>
               <td colSpan={2} className="px-4 py-3 text-sm">Total ({rows.length} sales)</td>
-              <td className="px-4 py-3 text-end">{formatCurrency(total)}</td>
+              <td className="px-4 py-3 text-end"><CurrencyText amount={total} /></td>
               <td colSpan={3} />
             </tr>
           </tfoot>
@@ -332,9 +333,9 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
             {rows.map((r, i) => (
               <tr key={i} className="hover:bg-muted/30">
                 <td className="px-4 py-3 text-muted-foreground">{formatDate(r.day)}</td>
-                <td className="px-4 py-3 text-end">{formatCurrency(r.revenue)}</td>
-                <td className="px-4 py-3 text-end text-muted-foreground">{formatCurrency(r.cogs)}</td>
-                <td className="px-4 py-3 text-end text-green-600 font-medium">{formatCurrency(r.gross_profit)}</td>
+                <td className="px-4 py-3 text-end"><CurrencyText amount={r.revenue} /></td>
+                <td className="px-4 py-3 text-end text-muted-foreground"><CurrencyText amount={r.cogs} /></td>
+                <td className="px-4 py-3 text-end text-green-600 font-medium"><CurrencyText amount={r.gross_profit} /></td>
                 <td className="px-4 py-3 text-end text-muted-foreground">{r.revenue > 0 ? `${((r.gross_profit / r.revenue) * 100).toFixed(1)}%` : '—'}</td>
               </tr>
             ))}
@@ -366,9 +367,9 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
                 <td className="px-4 py-3">{r.name}</td>
                 <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{r.sku ?? '—'}</td>
                 <td className="px-4 py-3 text-end">{r.stock_quantity} {r.unit}</td>
-                <td className="px-4 py-3 text-end text-muted-foreground">{formatCurrency(r.cost_price)}</td>
-                <td className="px-4 py-3 text-end">{formatCurrency(r.sell_price)}</td>
-                <td className="px-4 py-3 text-end font-medium">{formatCurrency(r.stock_value)}</td>
+                <td className="px-4 py-3 text-end text-muted-foreground"><CurrencyText amount={r.cost_price} /></td>
+                <td className="px-4 py-3 text-end"><CurrencyText amount={r.sell_price} /></td>
+                <td className="px-4 py-3 text-end font-medium"><CurrencyText amount={r.stock_value} /></td>
               </tr>
             ))}
           </tbody>
@@ -428,9 +429,9 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
               <tr key={i} className="hover:bg-muted/30">
                 <td className="px-4 py-3">{r.product_name}</td>
                 <td className="px-4 py-3 text-end font-bold">{r.total_qty}</td>
-                <td className="px-4 py-3 text-end">{formatCurrency(r.total_revenue)}</td>
-                <td className="px-4 py-3 text-end text-muted-foreground">{formatCurrency(r.total_cost)}</td>
-                <td className="px-4 py-3 text-end text-green-600 font-medium">{formatCurrency(r.profit)}</td>
+                <td className="px-4 py-3 text-end"><CurrencyText amount={r.total_revenue} /></td>
+                <td className="px-4 py-3 text-end text-muted-foreground"><CurrencyText amount={r.total_cost} /></td>
+                <td className="px-4 py-3 text-end text-green-600 font-medium"><CurrencyText amount={r.profit} /></td>
               </tr>
             ))}
           </tbody>
@@ -460,7 +461,7 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
                 <td className="px-4 py-3 text-muted-foreground">{r.phone ?? '—'}</td>
                 <td className="px-4 py-3 text-end">{r.sale_count}</td>
                 <td className="px-4 py-3 text-end font-bold text-destructive">
-                  {formatCurrency(reportDept !== 'all' ? r.total_due : Math.abs(r.balance))}
+                  <CurrencyText amount={reportDept !== 'all' ? r.total_due : Math.abs(r.balance)} />
                 </td>
               </tr>
             ))}
@@ -493,7 +494,7 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
                     {r.category_name ?? t('expenses.noCategory')}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-end font-medium text-destructive">{formatCurrency(r.total)}</td>
+                <td className="px-4 py-3 text-end font-medium text-destructive"><CurrencyText amount={r.total} className="text-destructive" /></td>
                 <td className="px-4 py-3 text-end text-muted-foreground">{grandTotal > 0 ? `${((r.total / grandTotal) * 100).toFixed(1)}%` : '—'}</td>
               </tr>
             ))}
@@ -501,7 +502,7 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
           <tfoot className="bg-muted/30 font-bold">
             <tr>
               <td className="px-4 py-3 text-sm">{t('common.total')}</td>
-              <td className="px-4 py-3 text-end text-destructive">{formatCurrency(grandTotal)}</td>
+              <td className="px-4 py-3 text-end text-destructive"><CurrencyText amount={grandTotal} className="text-destructive" /></td>
               <td />
             </tr>
           </tfoot>
@@ -527,14 +528,14 @@ function ReportTable({ tab, data, reportDept, assetsFooter }: {
             {rows.map((r, i) => (
               <tr key={i} className="hover:bg-muted/30">
                 <td className="px-4 py-3 text-muted-foreground">{r.month}</td>
-                <td className="px-4 py-3 text-end font-medium text-destructive">{formatCurrency(r.total)}</td>
+                <td className="px-4 py-3 text-end font-medium text-destructive"><CurrencyText amount={r.total} className="text-destructive" /></td>
               </tr>
             ))}
           </tbody>
           <tfoot className="bg-muted/30 font-bold">
             <tr>
               <td className="px-4 py-3 text-sm">{t('common.total')}</td>
-              <td className="px-4 py-3 text-end text-destructive">{formatCurrency(grandTotal)}</td>
+              <td className="px-4 py-3 text-end text-destructive"><CurrencyText amount={grandTotal} className="text-destructive" /></td>
             </tr>
           </tfoot>
         </table>

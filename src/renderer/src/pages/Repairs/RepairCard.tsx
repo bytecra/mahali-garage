@@ -1,5 +1,6 @@
 import { User, Car, Clock, AlertCircle, Wrench } from 'lucide-react'
 import { formatDate, formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
@@ -69,8 +70,8 @@ export default function RepairCard({ repair, onClick }: Props): JSX.Element {
       </div>
       {(repair.total > 0 || repair.balance_due > 0) && (
         <div className="mt-2 pt-2 border-t border-border flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Total: {formatCurrency(repair.total)}</span>
-          {repair.balance_due > 0 && <span className="text-destructive font-medium">Due: {formatCurrency(repair.balance_due)}</span>}
+          <span className="text-muted-foreground">Total: <CurrencyText amount={repair.total} /></span>
+          {repair.balance_due > 0 && <span className="text-destructive font-medium">Due: <CurrencyText amount={repair.balance_due} className="text-destructive" /></span>}
         </div>
       )}
       {repair.technician_name && (

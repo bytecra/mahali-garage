@@ -5,6 +5,7 @@ import Modal from '../../components/shared/Modal'
 import { toast } from '../../store/notificationStore'
 import { usePermission } from '../../hooks/usePermission'
 import { formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { useAuthStore } from '../../store/authStore'
 import { FeatureGate } from '../../components/FeatureGate'
 
@@ -242,7 +243,7 @@ function ExpensesPageInner(): JSX.Element {
           {/* Summary bar */}
           <div className="flex items-center justify-between bg-muted/40 border border-border rounded-lg px-4 py-2.5 mb-4 text-sm">
             <span className="text-muted-foreground">{total} {t('expenses.records')}</span>
-            <span className="font-bold text-destructive">{t('expenses.total')}: {formatCurrency(periodTotal)}</span>
+            <span className="font-bold text-destructive">{t('expenses.total')}: <CurrencyText amount={periodTotal} className="text-destructive" /></span>
           </div>
 
           {/* Table */}
@@ -294,7 +295,7 @@ function ExpensesPageInner(): JSX.Element {
                         ) : <span className="text-muted-foreground text-xs">—</span>}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{e.branch ?? '—'}</td>
-                      <td className="px-4 py-3 text-end font-bold text-destructive">{formatCurrency(e.amount)}</td>
+                      <td className="px-4 py-3 text-end font-bold text-destructive"><CurrencyText amount={e.amount} className="text-destructive" /></td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
                         <div>{e.full_name ?? '—'}</div>
                         {e.receipt_path && (

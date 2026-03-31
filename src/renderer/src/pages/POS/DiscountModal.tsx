@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../../components/shared/Modal'
 import { formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { getCurrencySymbol } from '../../store/currencyStore'
 import { useCartStore } from '../../store/cartStore'
 
@@ -54,7 +55,7 @@ export default function DiscountModal({ onClose }: Props): JSX.Element {
         {Number(value) > 0 && (
           <div className="flex justify-between text-sm bg-muted/30 rounded-md px-3 py-2">
             <span className="text-muted-foreground">{t('pos.discountAmount')}</span>
-            <span className="font-bold text-destructive">{formatCurrency(-preview())}</span>
+            <span className="font-bold text-destructive"><CurrencyText amount={-preview()} className="text-destructive" /></span>
           </div>
         )}
       </div>

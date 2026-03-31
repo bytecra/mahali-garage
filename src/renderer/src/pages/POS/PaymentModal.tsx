@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import { CartPayment } from '../../store/cartStore'
 import { formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 
 interface Props {
   total: number
@@ -127,7 +128,7 @@ export default function PaymentModal({ total, onConfirm, onClose }: Props): JSX.
       <div className="space-y-4">
         <div className="bg-muted/50 rounded-lg px-4 py-3 flex justify-between items-center">
           <span className="text-sm text-muted-foreground">{t('common.total')}</span>
-          <span className="text-xl font-bold text-foreground">{formatCurrency(total)}</span>
+          <span className="text-xl font-bold text-foreground"><CurrencyText amount={total} /></span>
         </div>
 
         <div className="space-y-3">
@@ -181,7 +182,7 @@ export default function PaymentModal({ total, onConfirm, onClose }: Props): JSX.
                 {p.method === 'cash' && rowChange > 0 && (
                   <div className="flex justify-between items-center text-sm rounded-md bg-emerald-500/10 dark:bg-emerald-950/40 px-2 py-1.5 border border-emerald-500/20">
                     <span className="text-muted-foreground">{t('pos.change', { defaultValue: 'Change due' })}</span>
-                    <span className="font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">{formatCurrency(rowChange)}</span>
+                    <span className="font-bold text-emerald-700 dark:text-emerald-400 tabular-nums"><CurrencyText amount={rowChange} /></span>
                   </div>
                 )}
                 {p.method === 'cash' && rowInvalid && (
@@ -199,18 +200,18 @@ export default function PaymentModal({ total, onConfirm, onClose }: Props): JSX.
         <div className="border-t border-border pt-3 space-y-1.5">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">{t('pos.amountPaid')}</span>
-            <span className="font-medium">{formatCurrency(totalPaid)}</span>
+            <span className="font-medium"><CurrencyText amount={totalPaid} /></span>
           </div>
           {totalCashChange > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t('pos.changeTotal', { defaultValue: 'Total change (cash)' })}</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalCashChange)}</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400"><CurrencyText amount={totalCashChange} /></span>
             </div>
           )}
           {remaining > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t('pos.balanceDue')}</span>
-              <span className="font-bold text-destructive">{formatCurrency(remaining)}</span>
+              <span className="font-bold text-destructive"><CurrencyText amount={remaining} className="text-destructive" /></span>
             </div>
           )}
         </div>

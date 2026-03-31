@@ -9,6 +9,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { usePermission } from '../../hooks/usePermission'
 import { toast } from '../../store/notificationStore'
 import { formatCurrency, formatDate } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import RepairCard, { RepairRow } from './RepairCard'
 import RepairForm from './RepairForm'
 import { FeatureGate } from '../../components/FeatureGate'
@@ -271,10 +272,10 @@ function RepairsPageInner(): JSX.Element {
                       <td className="px-4 py-3 text-muted-foreground">{r.bay_number ?? '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(r.created_at)}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{r.expected_completion ? formatDate(r.expected_completion) : '—'}</td>
-                      <td className="px-4 py-3 text-end font-medium">{formatCurrency(r.total)}</td>
+                      <td className="px-4 py-3 text-end font-medium"><CurrencyText amount={r.total} /></td>
                       <td className="px-4 py-3 text-end">
                         {r.balance_due > 0 ? (
-                          <span className="text-destructive font-medium">{formatCurrency(r.balance_due)}</span>
+                          <span className="text-destructive font-medium"><CurrencyText amount={r.balance_due} className="text-destructive" /></span>
                         ) : (
                           <span className="text-green-600 text-xs">Paid</span>
                         )}

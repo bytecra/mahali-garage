@@ -10,6 +10,7 @@ import { toast } from '../../store/notificationStore'
 import { usePermission } from '../../hooks/usePermission'
 import { useDebounce } from '../../hooks/useDebounce'
 import { formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import ProductForm from './ProductForm'
 import StockAdjustmentModal from './StockAdjustmentModal'
 
@@ -135,8 +136,8 @@ export default function ProductsPage(): JSX.Element {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{item.sku || '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{item.category_name || '—'}</td>
-                    <td className="px-4 py-3 text-end font-medium text-foreground">{formatCurrency(item.sell_price)}</td>
-                    <td className="px-4 py-3 text-end text-muted-foreground">{formatCurrency(item.cost_price)}</td>
+                    <td className="px-4 py-3 text-end font-medium text-foreground"><CurrencyText amount={item.sell_price} /></td>
+                    <td className="px-4 py-3 text-end text-muted-foreground"><CurrencyText amount={item.cost_price} /></td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center justify-center min-w-8 h-6 px-2 rounded-full text-xs font-medium ${
                         isLow(item)

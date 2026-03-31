@@ -9,6 +9,7 @@ import { FeatureGate } from '../../components/FeatureGate'
 import { usePermission } from '../../hooks/usePermission'
 import { useDebounce } from '../../hooks/useDebounce'
 import { formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { toast } from '../../store/notificationStore'
 
 interface Service {
@@ -134,7 +135,7 @@ function ServicesInner(): JSX.Element {
                     </div>
                     {s.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{s.description}</p>}
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-bold text-primary">{formatCurrency(s.price)}</span>
+                      <span className="font-bold text-primary"><CurrencyText amount={s.price} /></span>
                       {s.estimated_time != null && <span className="text-xs text-muted-foreground">{s.estimated_time} min</span>}
                     </div>
                   </div>

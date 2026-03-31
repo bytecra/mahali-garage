@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Phone, Mail, MapPin, Pencil, AlertCircle, CheckCircle, Car, ChevronRight } from 'lucide-react'
-import { formatCurrency, formatDate } from '../../lib/utils'
+import { formatDate } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { usePermission } from '../../hooks/usePermission'
 import { toast } from '../../store/notificationStore'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
@@ -148,11 +149,11 @@ export default function CustomerProfile(): JSX.Element {
             <p className="text-sm text-muted-foreground">{t('customers.balance')}</p>
             {customer.balance < 0 ? (
               <p className="font-bold text-lg text-destructive flex items-center justify-center gap-1">
-                <AlertCircle className="w-4 h-4" />{formatCurrency(Math.abs(customer.balance))}
+                <AlertCircle className="w-4 h-4" /><CurrencyText amount={Math.abs(customer.balance)} />
               </p>
             ) : customer.balance > 0 ? (
               <p className="font-bold text-lg text-green-600 flex items-center justify-center gap-1">
-                <CheckCircle className="w-4 h-4" />{formatCurrency(customer.balance)}
+                <CheckCircle className="w-4 h-4" /><CurrencyText amount={customer.balance} />
               </p>
             ) : (
               <p className="font-bold text-lg text-foreground">—</p>
@@ -160,7 +161,7 @@ export default function CustomerProfile(): JSX.Element {
           </div>
           <div className="text-center min-w-[100px]">
             <p className="text-sm text-muted-foreground">{t('customers.totalSpent', { defaultValue: 'Total spent' })}</p>
-            <p className="font-bold text-lg text-foreground tabular-nums">{formatCurrency(stats?.total_spent ?? 0)}</p>
+            <p className="font-bold text-lg text-foreground tabular-nums"><CurrencyText amount={stats?.total_spent ?? 0} /></p>
           </div>
           <div className="text-center min-w-[100px]">
             <p className="text-sm text-muted-foreground">{t('customers.totalVisits', { defaultValue: 'Total visits' })}</p>
@@ -169,7 +170,7 @@ export default function CustomerProfile(): JSX.Element {
           <div className="text-center min-w-[100px]">
             <p className="text-sm text-muted-foreground">{t('customers.outstanding', { defaultValue: 'Outstanding' })}</p>
             <p className="font-bold text-lg text-destructive tabular-nums">
-              {(stats?.outstanding_balance ?? 0) > 0 ? formatCurrency(stats!.outstanding_balance) : '—'}
+              {(stats?.outstanding_balance ?? 0) > 0 ? <CurrencyText amount={stats!.outstanding_balance} className="text-destructive" /> : '—'}
             </p>
           </div>
         </div>
@@ -244,8 +245,8 @@ export default function CustomerProfile(): JSX.Element {
                 {customer.sales.map(s => (
                   <tr key={s.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3 font-mono text-xs text-foreground">{s.invoice_number ?? s.sale_number}</td>
-                    <td className="px-4 py-3 text-end font-medium">{formatCurrency(s.total_amount)}</td>
-                    <td className="px-4 py-3 text-end">{s.balance_due > 0 ? <span className="text-destructive">{formatCurrency(s.balance_due)}</span> : '—'}</td>
+                    <td className="px-4 py-3 text-end font-medium"><CurrencyText amount={s.total_amount} /></td>
+                    <td className="px-4 py-3 text-end">{s.balance_due > 0 ? <CurrencyText amount={s.balance_due} className="text-destructive" /> : '—'}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] ?? 'bg-muted text-muted-foreground'}`}>
                         {s.status}
@@ -285,7 +286,7 @@ export default function CustomerProfile(): JSX.Element {
                         {r.status.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-end">{formatCurrency(r.final_cost)}</td>
+                    <td className="px-4 py-3 text-end"><CurrencyText amount={r.final_cost} /></td>
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(r.created_at)}</td>
                   </tr>
                 ))}

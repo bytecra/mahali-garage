@@ -10,7 +10,7 @@ import { pdf } from '@react-pdf/renderer'
 import { useCartStore } from '../../store/cartStore'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useBarcode } from '../../hooks/useBarcode'
-import { formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { toast } from '../../store/notificationStore'
 import CustomerSelector from './CustomerSelector'
 import DiscountModal from './DiscountModal'
@@ -301,7 +301,7 @@ export default function POSPage(): JSX.Element {
 
                     {/* Bottom row: price + add */}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-primary">{formatCurrency(p.sell_price)}</span>
+                      <span className="text-sm font-bold text-primary"><CurrencyText amount={p.sell_price} /></span>
                       {inCart ? (
                         <span className="text-xs text-primary font-medium">×{inCart.quantity}</span>
                       ) : (
@@ -438,7 +438,7 @@ export default function POSPage(): JSX.Element {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{item.product_name}</p>
-                      <p className="text-xs text-muted-foreground">{formatCurrency(item.unit_price)} each</p>
+                      <p className="text-xs text-muted-foreground"><CurrencyText amount={item.unit_price} /> each</p>
                     </div>
                     <button onClick={() => cart.removeItem(item.product_id)} className="text-muted-foreground hover:text-destructive shrink-0 mt-0.5">
                       <Trash2 className="w-3.5 h-3.5" />
@@ -459,7 +459,7 @@ export default function POSPage(): JSX.Element {
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>
-                    <span className="text-sm font-bold">{formatCurrency(item.line_total)}</span>
+                    <span className="text-sm font-bold"><CurrencyText amount={item.line_total} /></span>
                   </div>
                 </div>
               ))}
@@ -470,23 +470,23 @@ export default function POSPage(): JSX.Element {
         <div className="border-t border-border px-4 py-3 space-y-1.5">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">{t('common.subtotal')}</span>
-            <span>{formatCurrency(cart.subtotal())}</span>
+            <span><CurrencyText amount={cart.subtotal()} /></span>
           </div>
           {cart.discountAmount() > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{t('common.discount')}</span>
-              <span className="text-destructive">-{formatCurrency(cart.discountAmount())}</span>
+              <span className="text-destructive">-<CurrencyText amount={cart.discountAmount()} className="text-destructive" /></span>
             </div>
           )}
           {cart.taxEnabled && cart.taxAmount() > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Tax ({cart.taxRate}%)</span>
-              <span>{formatCurrency(cart.taxAmount())}</span>
+              <span><CurrencyText amount={cart.taxAmount()} /></span>
             </div>
           )}
           <div className="flex justify-between font-bold text-lg pt-1 border-t border-border">
             <span>{t('common.total')}</span>
-            <span>{formatCurrency(cart.total())}</span>
+            <span><CurrencyText amount={cart.total()} /></span>
           </div>
         </div>
 
@@ -495,7 +495,7 @@ export default function POSPage(): JSX.Element {
             <button onClick={() => setDiscountOpen(true)}
               className="w-full flex items-center justify-center gap-2 py-2 text-sm border border-border rounded-md hover:bg-muted">
               <Tag className="w-3.5 h-3.5" />{t('pos.applyDiscount')}
-              {cart.discountValue > 0 && <span className="text-xs text-primary">({cart.discountType === 'percent' ? `${cart.discountValue}%` : formatCurrency(cart.discountValue)})</span>}
+              {cart.discountValue > 0 && <span className="text-xs text-primary">({cart.discountType === 'percent' ? `${cart.discountValue}%` : <CurrencyText amount={cart.discountValue} />})</span>}
             </button>
           )}
           <button
@@ -506,7 +506,13 @@ export default function POSPage(): JSX.Element {
             disabled={cart.items.length === 0}
             className="w-full py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {t('pos.checkout')}{cart.items.length > 0 ? ` — ${formatCurrency(cart.total())}` : ''}
+            {t('pos.checkout')}
+            {cart.items.length > 0 && (
+              <>
+                {' — '}
+                <CurrencyText amount={cart.total()} />
+              </>
+            )}
           </button>
         </div>
       </div>

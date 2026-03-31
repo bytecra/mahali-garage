@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import { toast } from '../../store/notificationStore'
 import { cn, formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 
 interface Props {
   open: boolean
@@ -392,7 +393,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
                         />
                         <label htmlFor={`cat-m-${row.id}`} className="flex-1 text-sm cursor-pointer leading-tight">
                           <span className="font-medium text-foreground">{row.service_name}</span>
-                          <span className="text-muted-foreground ms-2 tabular-nums">{formatCurrency(row.price)}</span>
+                          <span className="text-muted-foreground ms-2 tabular-nums"><CurrencyText amount={row.price} /></span>
                         </label>
                       </li>
                     ))}
@@ -414,7 +415,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
                         />
                         <label htmlFor={`cat-p-${row.id}`} className="flex-1 text-sm cursor-pointer leading-tight">
                           <span className="font-medium text-foreground">{row.service_name}</span>
-                          <span className="text-muted-foreground ms-2 tabular-nums">{formatCurrency(row.price)}</span>
+                          <span className="text-muted-foreground ms-2 tabular-nums"><CurrencyText amount={row.price} /></span>
                         </label>
                       </li>
                     ))}
@@ -507,7 +508,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
                       className="w-full px-2 py-1 text-sm border border-input rounded bg-background text-center mx-1" />
                     <input type="number" min="0" step="0.01" value={part.cost} onChange={e => setPart(i, 'cost', e.target.value)}
                       className="w-full px-2 py-1 text-sm border border-input rounded bg-background text-center mx-1" />
-                    <span className="text-sm font-medium text-end pe-1">{formatCurrency(part.qty * part.cost)}</span>
+                    <span className="text-sm font-medium text-end pe-1"><CurrencyText amount={part.qty * part.cost} /></span>
                     <button type="button" onClick={() => removePart(i)}
                       className="flex items-center justify-center w-7 h-7 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive ms-auto">
                       <Trash2 className="w-3.5 h-3.5" />
@@ -517,7 +518,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
               </div>
               <div className="flex items-center justify-end gap-3 px-3 py-2 bg-muted/30 border-t border-border">
                 <span className="text-xs text-muted-foreground">Parts Total</span>
-                <span className="text-sm font-bold text-primary">{formatCurrency(partsTotal)}</span>
+                <span className="text-sm font-bold text-primary"><CurrencyText amount={partsTotal} /></span>
               </div>
             </div>
           )}
@@ -552,13 +553,13 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
             <div />
           </div>
           <div className="mt-4 bg-muted/30 border border-border rounded-lg p-4 space-y-1.5">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Parts Total</span><span>{formatCurrency(partsTotal)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Labor Total</span><span>{formatCurrency(laborTotal)}</span></div>
-            <div className="flex justify-between text-sm border-t border-border pt-1.5"><span className="text-muted-foreground">Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
-            {taxRate > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax ({taxRate}%)</span><span>{formatCurrency(taxAmount)}</span></div>}
-            <div className="flex justify-between text-sm font-bold border-t border-border pt-1.5"><span>Total</span><span className="text-primary">{formatCurrency(total)}</span></div>
-            {deposit > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Deposit</span><span>-{formatCurrency(deposit)}</span></div>}
-            <div className="flex justify-between text-sm font-bold"><span>Balance Due</span><span className={balanceDue > 0 ? 'text-destructive' : 'text-green-600'}>{formatCurrency(balanceDue)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Parts Total</span><span><CurrencyText amount={partsTotal} /></span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Labor Total</span><span><CurrencyText amount={laborTotal} /></span></div>
+            <div className="flex justify-between text-sm border-t border-border pt-1.5"><span className="text-muted-foreground">Subtotal</span><span><CurrencyText amount={subtotal} /></span></div>
+            {taxRate > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax ({taxRate}%)</span><span><CurrencyText amount={taxAmount} /></span></div>}
+            <div className="flex justify-between text-sm font-bold border-t border-border pt-1.5"><span>Total</span><span className="text-primary"><CurrencyText amount={total} /></span></div>
+            {deposit > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Deposit</span><span>-<CurrencyText amount={deposit} /></span></div>}
+            <div className="flex justify-between text-sm font-bold"><span>Balance Due</span><span className={balanceDue > 0 ? 'text-destructive' : 'text-green-600'}><CurrencyText amount={balanceDue} className={balanceDue > 0 ? 'text-destructive' : undefined} /></span></div>
           </div>
         </div>
 

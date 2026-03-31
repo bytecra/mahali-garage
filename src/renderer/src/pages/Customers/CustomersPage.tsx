@@ -7,7 +7,7 @@ import Pagination from '../../components/shared/Pagination'
 import EmptyState from '../../components/shared/EmptyState'
 import { usePermission } from '../../hooks/usePermission'
 import { useDebounce } from '../../hooks/useDebounce'
-import { formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import CustomerForm from './CustomerForm'
 import CustomerProfile from './CustomerProfile'
 import VehicleHistoryPage from './VehicleHistoryPage'
@@ -102,10 +102,10 @@ function CustomerList(): JSX.Element {
                       {item.balance < 0 ? (
                         <span className="flex items-center justify-end gap-1 font-medium text-destructive">
                           <AlertCircle className="w-3.5 h-3.5" />
-                          {formatCurrency(Math.abs(item.balance))} owes
+                          <CurrencyText amount={Math.abs(item.balance)} /> owes
                         </span>
                       ) : item.balance > 0 ? (
-                        <span className="font-medium text-green-600">{formatCurrency(item.balance)} credit</span>
+                        <span className="font-medium text-green-600"><CurrencyText amount={item.balance} /> credit</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}

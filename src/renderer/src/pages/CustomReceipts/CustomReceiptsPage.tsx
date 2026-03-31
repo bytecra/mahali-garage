@@ -5,6 +5,7 @@ import { ArrowLeft, Check, ChevronRight, Code2, Eye, Plus, Printer, Trash2, Wren
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Modal from '../../components/shared/Modal'
 import { formatCurrency, formatDate } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
 import { useBrandingStore } from '../../store/brandingStore'
@@ -417,7 +418,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
                               {prettyDepartment(r.department)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right font-medium">{formatCurrency(r.amount)}</td>
+                          <td className="px-4 py-3 text-right font-medium"><CurrencyText amount={r.amount} /></td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-center gap-1">
                               <button
@@ -567,7 +568,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
                 </div>
                 <div className="flex items-center justify-between text-sm font-semibold">
                   <span>{t('customReceipts.subtotal', { defaultValue: 'Subtotal' })}</span>
-                  <span>{formatCurrency(subtotal)}</span>
+                  <CurrencyText amount={subtotal} />
                 </div>
                 <button onClick={() => void saveReceipt(true)} disabled={saving} className="w-full px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
                   {t('customReceipts.createAndPrint', { defaultValue: 'Save & Print' })}
@@ -788,14 +789,14 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
                 {parseLines(viewReceipt).map((line, idx) => (
                   <div key={idx} className="px-3 py-2 border-b border-border last:border-b-0 flex items-center justify-between">
                     <span>{line.service_name}</span>
-                    <span>{formatCurrency(line.sell_price)}</span>
+                    <CurrencyText amount={line.sell_price} />
                   </div>
                 ))}
               </div>
             </div>
             <div className="flex justify-between font-semibold">
               <span>{t('customReceipts.subtotal', { defaultValue: 'Subtotal' })}</span>
-              <span>{formatCurrency(viewReceipt.amount)}</span>
+              <CurrencyText amount={viewReceipt.amount} />
             </div>
           </div>
         )}
@@ -1118,13 +1119,13 @@ function SmartRecipeWizard(props: {
               {selectedLines.map((s, i) => (
                 <div key={`${s.service_name}-${i}`} className="flex items-center justify-between">
                   <span className="truncate">{s.service_name}</span>
-                  <span>{formatCurrency(s.sell_price)}</span>
+                  <CurrencyText amount={s.sell_price} />
                 </div>
               ))}
             </div>
             <div className="flex items-center justify-between font-semibold">
               <span>Subtotal</span>
-              <span>{formatCurrency(subtotal)}</span>
+              <CurrencyText amount={subtotal} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Payment method</label>

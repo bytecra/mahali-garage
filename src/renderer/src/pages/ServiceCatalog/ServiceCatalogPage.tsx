@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, Filter } from 'lucide-react'
 import { formatCurrency } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { usePermission } from '../../hooks/usePermission'
 import { toast } from '../../store/notificationStore'
 import Modal from '../../components/shared/Modal'
@@ -243,7 +244,7 @@ export default function ServiceCatalogPage(): JSX.Element {
                         {!r.active && <span className="ms-2 text-amber-600 dark:text-amber-400">({t('common.inactive')})</span>}
                       </p>
                     </div>
-                    <div className="text-sm font-medium tabular-nums">{formatCurrency(r.price)}</div>
+                    <div className="text-sm font-medium tabular-nums"><CurrencyText amount={r.price} /></div>
                     {canManage && (
                       <div className="flex items-center gap-1 shrink-0">
                         <button type="button" onClick={() => openEdit(r)} className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" title={t('common.edit')}>

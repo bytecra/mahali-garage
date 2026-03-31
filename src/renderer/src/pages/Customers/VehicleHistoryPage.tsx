@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Car, ChevronRight } from 'lucide-react'
-import { formatCurrency, formatDate } from '../../lib/utils'
+import { formatDate } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { usePermission } from '../../hooks/usePermission'
 
 interface VehicleRow {
@@ -190,11 +191,11 @@ export default function VehicleHistoryPage(): JSX.Element {
           <div className="mt-6 pt-6 border-t border-border grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">{t('customers.totalBilled', { defaultValue: 'Total billed' })}</p>
-              <p className="text-lg font-semibold tabular-nums">{formatCurrency(totals.billed)}</p>
+              <p className="text-lg font-semibold tabular-nums"><CurrencyText amount={totals.billed} /></p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">{t('customers.totalPaid', { defaultValue: 'Total paid' })}</p>
-              <p className="text-lg font-semibold tabular-nums text-green-600 dark:text-green-400">{formatCurrency(totals.paid)}</p>
+              <p className="text-lg font-semibold tabular-nums text-green-600 dark:text-green-400"><CurrencyText amount={totals.paid} /></p>
             </div>
           </div>
         )}
@@ -231,7 +232,7 @@ export default function VehicleHistoryPage(): JSX.Element {
                     </p>
                   </div>
                   <div className="text-end">
-                    <p className="font-medium tabular-nums">{formatCurrency(j.total)}</p>
+                    <p className="font-medium tabular-nums"><CurrencyText amount={j.total} /></p>
                     <p className="text-xs mt-0.5">
                       <span className={`inline-flex px-2 py-0.5 rounded-full font-medium ${
                         paymentLabel(j.total, j.balance_due, j.status) === 'Paid'
@@ -248,7 +249,7 @@ export default function VehicleHistoryPage(): JSX.Element {
                 <p className="text-sm text-foreground mt-2">{servicesLine(j)}</p>
                 {j.balance_due > 0.01 && j.status !== 'cancelled' && (
                   <p className="text-xs text-destructive mt-1">
-                    {t('customers.balanceDue', { defaultValue: 'Balance due' })}: {formatCurrency(j.balance_due)}
+                    {t('customers.balanceDue', { defaultValue: 'Balance due' })}: <CurrencyText amount={j.balance_due} className="text-destructive" />
                   </p>
                 )}
               </div>

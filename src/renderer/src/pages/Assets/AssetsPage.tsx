@@ -4,6 +4,7 @@ import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import { usePermission } from '../../hooks/usePermission'
 import { formatCurrency, formatDate } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { toast } from '../../store/notificationStore'
 import { Plus, Trash2, Edit2, Search, Building2 } from 'lucide-react'
 
@@ -209,7 +210,7 @@ function AssetsPageInner(): JSX.Element {
             <p className="text-xs text-muted-foreground uppercase tracking-wide">
               {t('assets.totalValueFiltered', { defaultValue: 'Total purchase value (filtered)' })}
             </p>
-            <p className="text-lg font-bold text-foreground tabular-nums">{formatCurrency(purchaseSumFiltered)}</p>
+            <p className="text-lg font-bold text-foreground tabular-nums"><CurrencyText amount={purchaseSumFiltered} /></p>
             <p className="text-xs text-muted-foreground">
               {totalCount}{' '}
               {t('assets.items', { defaultValue: 'items' })}
@@ -273,9 +274,9 @@ function AssetsPageInner(): JSX.Element {
                     <td className="px-4 py-3 font-medium">{a.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.category}</td>
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(a.purchase_date)}</td>
-                    <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(a.purchase_price)}</td>
+                    <td className="px-4 py-3 text-end tabular-nums"><CurrencyText amount={a.purchase_price} /></td>
                     <td className="px-4 py-3 text-end tabular-nums">
-                      {a.current_value != null ? formatCurrency(a.current_value) : '—'}
+                      {a.current_value != null ? <CurrencyText amount={a.current_value} /> : '—'}
                     </td>
                     {(canAdd || canDelete) && (
                       <td className="px-4 py-3 text-end">

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle, Building2 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
 import { formatCurrency, cn } from '../../lib/utils'
+import CurrencyText from '../../components/shared/CurrencyText'
 import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
 import { usePermission } from '../../hooks/usePermission'
@@ -90,13 +91,6 @@ function rangeForCashWidgetPreset(preset: CashWidgetPreset, customFrom: string, 
   if (r.from && r.to) return { from: r.from, to: r.to }
   const s = toYMD(new Date())
   return { from: s, to: s }
-}
-
-/** Explicit AED display for cash widgets (د.إ). */
-function formatAed(amount: number): string {
-  const n = Number(amount ?? 0)
-  const x = (Number.isNaN(n) ? 0 : n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${x} د.إ`
 }
 
 type DrawerSummary = {
@@ -304,25 +298,25 @@ function CashInHandWidget(): JSX.Element {
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('dashboard.cashInHandDrawerSub', { defaultValue: 'Drawer balance (all recorded cash ledger)' })}
           </p>
-          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight">{formatAed(drawerAllTime)}</p>
+          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight"><CurrencyText amount={drawerAllTime} symbol=" د.إ" /></p>
           {period && preset !== 'all_time' && (
             <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
               <span className="font-medium text-foreground/80">{periodLabel}</span>
               {': '}
-              {t('dashboard.cashDrawerInShort', { defaultValue: 'In' })} {formatAed(period.total_in)}
+              {t('dashboard.cashDrawerInShort', { defaultValue: 'In' })} <CurrencyText amount={period.total_in} symbol=" د.إ" />
               {' · '}
-              {t('dashboard.cashDrawerOutShort', { defaultValue: 'Out' })} {formatAed(period.total_out)}
+              {t('dashboard.cashDrawerOutShort', { defaultValue: 'Out' })} <CurrencyText amount={period.total_out} symbol=" د.إ" />
               {' · '}
-              {t('dashboard.cashDrawerNetShort', { defaultValue: 'Net' })} {formatAed(period.drawer_balance)}
+              {t('dashboard.cashDrawerNetShort', { defaultValue: 'Net' })} <CurrencyText amount={period.drawer_balance} symbol=" د.إ" />
             </p>
           )}
           {period && preset === 'today' && (
             <p className="text-[11px] text-foreground/90 mt-1 font-medium">
               {t('dashboard.cashDrawerTodayRegister', { defaultValue: "Today's register" })}
               {': '}
-              {t('dashboard.cashDrawerOpeningShort', { defaultValue: 'Opening' })} {formatAed(period.opening_total)}
+              {t('dashboard.cashDrawerOpeningShort', { defaultValue: 'Opening' })} <CurrencyText amount={period.opening_total} symbol=" د.إ" />
               {' · '}
-              {t('dashboard.cashDrawerRunningShort', { defaultValue: 'Running total' })} {formatAed(period.drawer_balance)}
+              {t('dashboard.cashDrawerRunningShort', { defaultValue: 'Running total' })} <CurrencyText amount={period.drawer_balance} symbol=" د.إ" />
             </p>
           )}
         </div>
@@ -510,7 +504,7 @@ function CashInHandWidget(): JSX.Element {
                           </span>
                         ) : null}
                       </td>
-                      <td className="py-1.5 text-right tabular-nums">{formatAed(row.amount)}</td>
+                      <td className="py-1.5 text-right tabular-nums"><CurrencyText amount={row.amount} symbol=" د.إ" /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -581,7 +575,7 @@ function CashFlowWidget({
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-foreground leading-tight">{title}</h3>
           {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
-          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight">{formatAed(value)}</p>
+          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight"><CurrencyText amount={value} symbol=" د.إ" /></p>
           <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wide">AED · {from === to ? from : `${from} → ${to}`}</p>
         </div>
       </div>
@@ -701,11 +695,11 @@ export default function DashboardPage(): JSX.Element {
       {/* Stats Row 2 — Sales & Stock */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard icon={ShoppingCart} label={t('dashboard.todaySales')}
-          value={formatCurrency(data?.todayRevenue ?? 0)}
+          valueContent={<CurrencyText amount={data?.todayRevenue ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={`${data?.todaySalesCount ?? 0} transactions · ${getCurrencyCode()}`}
           color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />
         <StatCard icon={TrendingUp} label={t('dashboard.monthRevenue')}
-          value={formatCurrency(data?.monthRevenue ?? 0)}
+          valueContent={<CurrencyText amount={data?.monthRevenue ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={getCurrencyCode()}
           color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />
         <StatCard icon={Package} label={t('dashboard.lowStock')}
@@ -716,20 +710,20 @@ export default function DashboardPage(): JSX.Element {
       {/* Stats Row 3 — Financials */}
       <div className={cn('grid grid-cols-1 gap-4 mb-8', canAssets ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
         <StatCard icon={TrendingUp} label={t('dashboard.grossProfit')}
-          value={formatCurrency(data?.monthGrossProfit ?? 0)}
+          valueContent={<CurrencyText amount={data?.monthGrossProfit ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
           color="bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" />
         <StatCard icon={DollarSign} label={t('dashboard.monthExpenses')}
-          value={formatCurrency(data?.monthExpenses ?? 0)}
+          valueContent={<CurrencyText amount={data?.monthExpenses ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
           color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />
         <StatCard icon={DollarSign} label={t('dashboard.netProfit')}
-          value={formatCurrency(data?.monthNetProfit ?? 0)}
+          valueContent={<CurrencyText amount={data?.monthNetProfit ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
           color={(data?.monthNetProfit ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'} />
         {canAssets && (
           <StatCard icon={Building2} label={t('dashboard.totalAssets', { defaultValue: 'Total assets' })}
-            value={formatCurrency(data?.totalAssetsPurchase ?? 0)}
+            valueContent={<CurrencyText amount={data?.totalAssetsPurchase ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
             sub={t('dashboard.totalAssetsSub', { defaultValue: 'Sum of purchase prices · ' }) + getCurrencyCode()}
             color="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300" />
         )}
