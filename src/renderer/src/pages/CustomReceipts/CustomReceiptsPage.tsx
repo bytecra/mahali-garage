@@ -56,6 +56,7 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [department, setDepartment] = useState<Department>('both')
   const [walkInCustomer, setWalkInCustomer] = useState(false)
   const [walkInCar, setWalkInCar] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Bank Transfer'>('Cash')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
@@ -96,6 +97,7 @@ export default function CustomReceiptsPage(): JSX.Element {
     setDepartment('both')
     setWalkInCustomer(false)
     setWalkInCar(false)
+    setPaymentMethod('Cash')
     setCustomerName('')
     setCustomerPhone('')
     setCustomerEmail('')
@@ -180,6 +182,10 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
       toast.error(t('customReceipts.errorServiceRequired', { defaultValue: 'Add at least one service line' }))
       return
     }
+    if (!paymentMethod) {
+      toast.error(t('customReceipts.paymentMethodRequired', { defaultValue: 'Payment method is required' }))
+      return
+    }
     setSaving(true)
     try {
       const payload = {
@@ -195,7 +201,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
         mechanical_services: effectiveMechanical,
         programming_services: effectiveProgramming,
         amount: subtotal,
-        payment_method: 'Cash',
+        payment_method: paymentMethod,
         notes: null,
       }
       const createRes = await window.electronAPI.customReceipts.create(payload) as {
@@ -416,6 +422,14 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">{t('customReceipts.department', { defaultValue: 'Department' })}</span>
                   <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{prettyDepartment(department)}</span>
+                </div>
+                <div>
+                  <label className={labelCls}>{t('customReceipts.paymentMethod', { defaultValue: 'Payment Method' })}</label>
+                  <select className={inputCls} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'Cash' | 'Card' | 'Bank Transfer')}>
+                    <option value="Cash">{t('customReceipts.cash', { defaultValue: 'Cash' })}</option>
+                    <option value="Card">{t('customReceipts.card', { defaultValue: 'Card' })}</option>
+                    <option value="Bank Transfer">{t('customReceipts.transfer', { defaultValue: 'Bank Transfer' })}</option>
+                  </select>
                 </div>
                 <div className="flex items-center justify-between text-sm font-semibold">
                   <span>{t('customReceipts.subtotal', { defaultValue: 'Subtotal' })}</span>

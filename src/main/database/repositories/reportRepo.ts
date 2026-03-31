@@ -12,21 +12,44 @@ function invoiceDeptPredicate(dept: ReportDepartmentFilter, invoiceAlias = 'i'):
   return `COALESCE(${invoiceAlias}.department, 'mechanical') IN ('programming','both')`
 }
 
+function customReceiptDeptPredicate(dept: ReportDepartmentFilter, alias = 'cr'): string {
+  if (dept === 'all') return '1=1'
+  if (dept === 'mechanical') {
+    return `COALESCE(${alias}.department, 'both') IN ('mechanical','both')`
+  }
+  return `COALESCE(${alias}.department, 'both') IN ('programming','both')`
+}
+
 export const reportRepo = {
   dashboard() {
     const db = getDb()
     const today = new Date().toISOString().slice(0, 10)
     const monthStart = today.slice(0, 7) + '-01'
 
-    const todaySalesRow = db.prepare(`
+    const todaySalesBase = db.prepare(`
       SELECT COUNT(*) as count, COALESCE(SUM(total_amount),0) as revenue
       FROM sales WHERE date(created_at) = ? AND status != 'voided'
     `).get(today) as { count: number; revenue: number }
+    const todayCustom = db.prepare(`
+      SELECT COUNT(*) as count, COALESCE(SUM(amount),0) as revenue
+      FROM custom_receipts WHERE date(created_at) = ?
+    `).get(today) as { count: number; revenue: number }
+    const todaySalesRow = {
+      count: (todaySalesBase?.count ?? 0) + (todayCustom?.count ?? 0),
+      revenue: (todaySalesBase?.revenue ?? 0) + (todayCustom?.revenue ?? 0),
+    }
 
-    const monthRevenueRow = db.prepare(`
+    const monthRevenueBase = db.prepare(`
       SELECT COALESCE(SUM(total_amount),0) as revenue
       FROM sales WHERE date(created_at) >= ? AND status != 'voided'
     `).get(monthStart) as { revenue: number }
+    const monthRevenueCustom = db.prepare(`
+      SELECT COALESCE(SUM(amount),0) as revenue
+      FROM custom_receipts WHERE date(created_at) >= ?
+    `).get(monthStart) as { revenue: number }
+    const monthRevenueRow = {
+      revenue: (monthRevenueBase?.revenue ?? 0) + (monthRevenueCustom?.revenue ?? 0),
+    }
 
     const activeRepairs = (db.prepare(`
       SELECT COUNT(*) as cnt FROM repairs WHERE status NOT IN ('delivered','cancelled','completed')
@@ -88,10 +111,20 @@ export const reportRepo = {
 
     // 7-day sales trend
     const salesTrend = db.prepare(`
-      SELECT date(created_at) as day, COALESCE(SUM(total_amount),0) as revenue, COUNT(*) as count
-      FROM sales
-      WHERE date(created_at) >= date('now', '-6 days') AND status != 'voided'
-      GROUP BY day ORDER BY day
+      SELECT day, COALESCE(SUM(revenue),0) as revenue, COALESCE(SUM(count),0) as count
+      FROM (
+        SELECT date(created_at) as day, COALESCE(SUM(total_amount),0) as revenue, COUNT(*) as count
+        FROM sales
+        WHERE date(created_at) >= date('now', '-6 days') AND status != 'voided'
+        GROUP BY date(created_at)
+        UNION ALL
+        SELECT date(created_at) as day, COALESCE(SUM(amount),0) as revenue, COUNT(*) as count
+        FROM custom_receipts
+        WHERE date(created_at) >= date('now', '-6 days')
+        GROUP BY date(created_at)
+      )
+      GROUP BY day
+      ORDER BY day
     `).all()
 
     // Top 5 products today (by qty sold)
@@ -196,50 +229,116 @@ export const reportRepo = {
   salesDaily(dateFrom: string, dateTo: string, department: ReportDepartmentFilter = 'all') {
     const db = getDb()
     const deptPred = invoiceDeptPredicate(department, 'i')
+    const customDeptPred = customReceiptDeptPredicate(department, 'cr')
     return db.prepare(`
-      SELECT s.sale_number, i.invoice_number, s.total_amount, s.amount_paid, s.balance_due,
-             s.status, s.created_at, c.name as customer_name, u.full_name as cashier_name
-      FROM sales s
-      LEFT JOIN customers c ON s.customer_id = c.id
-      LEFT JOIN users u ON s.user_id = u.id
-      LEFT JOIN invoices i ON i.sale_id = s.id
-      WHERE date(s.created_at) BETWEEN date(?) AND date(?)
-        AND s.status != 'voided'
-        AND (${deptPred})
-      ORDER BY s.created_at
-    `).all(dateFrom, dateTo)
+      SELECT * FROM (
+        SELECT s.sale_number, i.invoice_number, s.total_amount, s.amount_paid, s.balance_due,
+               s.status, s.created_at, c.name as customer_name, u.full_name as cashier_name
+        FROM sales s
+        LEFT JOIN customers c ON s.customer_id = c.id
+        LEFT JOIN users u ON s.user_id = u.id
+        LEFT JOIN invoices i ON i.sale_id = s.id
+        WHERE date(s.created_at) BETWEEN date(?) AND date(?)
+          AND s.status != 'voided'
+          AND (${deptPred})
+
+        UNION ALL
+
+        SELECT
+          cr.receipt_number as sale_number,
+          cr.receipt_number as invoice_number,
+          cr.amount as total_amount,
+          cr.amount as amount_paid,
+          0 as balance_due,
+          'completed' as status,
+          cr.created_at,
+          cr.customer_name as customer_name,
+          u.full_name as cashier_name
+        FROM custom_receipts cr
+        LEFT JOIN users u ON u.id = cr.created_by
+        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+          AND (${customDeptPred})
+      )
+      ORDER BY created_at
+    `).all(dateFrom, dateTo, dateFrom, dateTo)
   },
 
   salesMonthly(year: number, month: number) {
     const db = getDb()
     const prefix = `${year}-${String(month).padStart(2, '0')}`
     return db.prepare(`
-      SELECT date(created_at) as day,
-             COUNT(*) as count,
-             COALESCE(SUM(total_amount),0) as revenue,
-             COALESCE(SUM(amount_paid),0) as collected,
-             COALESCE(SUM(balance_due),0) as outstanding
-      FROM sales WHERE strftime('%Y-%m', created_at) = ? AND status != 'voided'
-      GROUP BY day ORDER BY day
-    `).all(prefix)
+      SELECT day,
+             COALESCE(SUM(count),0) as count,
+             COALESCE(SUM(revenue),0) as revenue,
+             COALESCE(SUM(collected),0) as collected,
+             COALESCE(SUM(outstanding),0) as outstanding
+      FROM (
+        SELECT date(created_at) as day,
+               COUNT(*) as count,
+               COALESCE(SUM(total_amount),0) as revenue,
+               COALESCE(SUM(amount_paid),0) as collected,
+               COALESCE(SUM(balance_due),0) as outstanding
+        FROM sales WHERE strftime('%Y-%m', created_at) = ? AND status != 'voided'
+        GROUP BY date(created_at)
+        UNION ALL
+        SELECT date(created_at) as day,
+               COUNT(*) as count,
+               COALESCE(SUM(amount),0) as revenue,
+               COALESCE(SUM(amount),0) as collected,
+               0 as outstanding
+        FROM custom_receipts WHERE strftime('%Y-%m', created_at) = ?
+        GROUP BY date(created_at)
+      )
+      GROUP BY day
+      ORDER BY day
+    `).all(prefix, prefix)
   },
 
   profit(dateFrom: string, dateTo: string, department: ReportDepartmentFilter = 'all') {
     const db = getDb()
     const deptPred = invoiceDeptPredicate(department, 'i')
+    const customDeptPred = customReceiptDeptPredicate(department, 'cr')
     return db.prepare(`
       SELECT
-        date(s.created_at) as day,
-        COALESCE(SUM(s.total_amount),0) as revenue,
-        COALESCE(SUM(si.cost_price * si.quantity),0) as cogs,
-        COALESCE(SUM(s.total_amount),0) - COALESCE(SUM(si.cost_price * si.quantity),0) as gross_profit
-      FROM sales s
-      JOIN sale_items si ON si.sale_id = s.id
-      LEFT JOIN invoices i ON i.sale_id = s.id
-      WHERE date(s.created_at) BETWEEN ? AND ? AND s.status != 'voided'
-        AND (${deptPred})
-      GROUP BY day ORDER BY day
-    `).all(dateFrom, dateTo)
+        day,
+        COALESCE(SUM(revenue),0) as revenue,
+        COALESCE(SUM(cogs),0) as cogs,
+        COALESCE(SUM(revenue),0) - COALESCE(SUM(cogs),0) as gross_profit
+      FROM (
+        SELECT
+          date(s.created_at) as day,
+          COALESCE(SUM(s.total_amount),0) as revenue,
+          COALESCE(SUM(si.cost_price * si.quantity),0) as cogs
+        FROM sales s
+        JOIN sale_items si ON si.sale_id = s.id
+        LEFT JOIN invoices i ON i.sale_id = s.id
+        WHERE date(s.created_at) BETWEEN ? AND ? AND s.status != 'voided'
+          AND (${deptPred})
+        GROUP BY date(s.created_at)
+
+        UNION ALL
+
+        SELECT
+          date(cr.created_at) as day,
+          COALESCE(SUM(cr.amount),0) as revenue,
+          COALESCE(SUM(
+            COALESCE(
+              (SELECT SUM(CAST(json_extract(j.value, '$.cost') AS REAL)) FROM json_each(cr.mechanical_services_json) j),
+              0
+            ) +
+            COALESCE(
+              (SELECT SUM(CAST(json_extract(j2.value, '$.cost') AS REAL)) FROM json_each(cr.programming_services_json) j2),
+              0
+            )
+          ), 0) as cogs
+        FROM custom_receipts cr
+        WHERE date(cr.created_at) BETWEEN ? AND ?
+          AND (${customDeptPred})
+        GROUP BY date(cr.created_at)
+      )
+      GROUP BY day
+      ORDER BY day
+    `).all(dateFrom, dateTo, dateFrom, dateTo)
   },
 
   inventory() {
