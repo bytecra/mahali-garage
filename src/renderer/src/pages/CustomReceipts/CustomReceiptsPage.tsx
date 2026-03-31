@@ -756,7 +756,12 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
       <ConfirmDialog
         open={deleteId != null}
         title={t('common.delete')}
-        message={t('assets.deleteMessage', { defaultValue: 'This cannot be undone.' })}
+        message={
+          deleteId != null
+            ? `Are you sure you want to delete invoice ${receipts.find(r => r.id === deleteId)?.receipt_number ?? ''}? This action cannot be undone.`
+            : ''
+        }
+        cancelLabel={t('common.cancel')}
         confirmLabel={t('common.delete')}
         variant="danger"
         onConfirm={() => void handleDelete()}

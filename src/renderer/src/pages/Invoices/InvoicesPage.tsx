@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Search, Eye, ChevronLeft, ChevronRight, FileText, CalendarDays, X, Trash2, Printer } from 'lucide-react'
 import { cn, formatCurrency, formatDateTime } from '../../lib/utils'
 import { FeatureGate } from '../../components/FeatureGate'
+import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import { toast } from '../../store/notificationStore'
 
 type SourceType = 'invoice' | 'custom' | 'smart'
@@ -41,6 +42,7 @@ function InvoicesPageInner(): JSX.Element {
   const [dateTo, setDateTo] = useState('')
   const [viewOpen, setViewOpen] = useState(false)
   const [viewRow, setViewRow] = useState<InvoiceRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<InvoiceRow | null>(null)
 
   const loadData = useCallback(async (p = 1) => {
     setLoading(true)
@@ -195,7 +197,7 @@ function InvoicesPageInner(): JSX.Element {
                     <div className="flex items-center justify-center gap-1.5">
                       <button onClick={() => { setViewRow(row); setViewOpen(true) }} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"><Eye className="w-4 h-4" /></button>
                       <button onClick={() => void handlePrint(row)} className="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10"><Printer className="w-4 h-4" /></button>
-                      <button onClick={() => void handleDelete(row)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => setDeleteTarget(row)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -230,6 +232,25 @@ function InvoicesPageInner(): JSX.Element {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title={t('common.delete')}
+        message={
+          deleteTarget
+            ? `Are you sure you want to delete invoice ${deleteTarget.invoice_number}? This action cannot be undone.`
+            : ''
+        }
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        variant="danger"
+        onConfirm={() => {
+          if (!deleteTarget) return
+          void handleDelete(deleteTarget)
+          setDeleteTarget(null)
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }
