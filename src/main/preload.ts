@@ -136,6 +136,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     salesMonthly:    (year: number, month: number)       => invoke('reports:salesMonthly', year, month),
     profit:          (from: string, to: string, department?: string) =>
                        invoke('reports:profit', from, to, department ?? 'all'),
+    departmentSummary: (from: string, to: string)        => invoke('reports:departmentSummary', from, to),
     cashByMethod:    (from: string, to?: string)         => invoke('reports:cashByMethod', from, to ?? from),
     topProducts:     (from: string, to: string)          => invoke('reports:topProducts', from, to),
     inventory:       ()                                  => invoke('reports:inventory'),

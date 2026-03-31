@@ -6,8 +6,9 @@ import { formatCurrency, formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { FeatureGate } from '../../components/FeatureGate'
 
-type ReportTab = 'sales' | 'profit' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets'
+type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets'
 type ReportDept = 'all' | 'mechanical' | 'programming'
+type DepartmentPreset = 'today' | 'week' | 'month' | 'custom'
 
 const today = new Date().toISOString().slice(0, 10)
 const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -38,12 +39,43 @@ function ReportsPageInner(): JSX.Element {
   const [dateTo, setDateTo] = useState(today)
   const [reportDept, setReportDept] = useState<ReportDept>('all')
   const [data, setData] = useState<unknown[]>([])
+  const [departmentData, setDepartmentData] = useState<{
+    mechanical: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+    programming: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+  } | null>(null)
+  const [departmentPreset, setDepartmentPreset] = useState<DepartmentPreset>('month')
   const [assetsFooter, setAssetsFooter] = useState<{ total_purchase: number; total_current: number } | null>(null)
   const [loading, setLoading] = useState(false)
+
+  const applyDepartmentPreset = (preset: DepartmentPreset): void => {
+    const now = new Date()
+    const toYmd = (d: Date): string => d.toISOString().slice(0, 10)
+    if (preset === 'today') {
+      const d = toYmd(now)
+      setDateFrom(d); setDateTo(d)
+      return
+    }
+    if (preset === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      setDateFrom(toYmd(start)); setDateTo(toYmd(end))
+      return
+    }
+    if (preset === 'week') {
+      const day = now.getDay()
+      const diff = day === 0 ? -6 : 1 - day
+      const start = new Date(now)
+      start.setDate(now.getDate() + diff)
+      const end = new Date(start)
+      end.setDate(start.getDate() + 6)
+      setDateFrom(toYmd(start)); setDateTo(toYmd(end))
+    }
+  }
 
   const load = async () => {
     setLoading(true)
     setData([])
+    setDepartmentData(null)
     setAssetsFooter(null)
     try {
       let res
@@ -55,6 +87,16 @@ function ReportsPageInner(): JSX.Element {
       else if (tab === 'debts') res = await window.electronAPI.reports.customerDebts(reportDept)
       else if (tab === 'expenses_category') res = await window.electronAPI.expenses.sumByCategory(dateFrom, dateTo, reportDept)
       else if (tab === 'expenses_monthly') res = await window.electronAPI.expenses.sumByMonth(parseInt(dateFrom.slice(0, 4)), reportDept)
+      else if (tab === 'department_reports') {
+        res = await window.electronAPI.reports.departmentSummary(dateFrom, dateTo)
+        if (res?.success && res.data) {
+          setDepartmentData(res.data as {
+            mechanical: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+            programming: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+          })
+        }
+        return
+      }
       else if (tab === 'assets') {
         res = await window.electronAPI.reports.assets()
         if (res?.success && res.data) {
@@ -73,6 +115,7 @@ function ReportsPageInner(): JSX.Element {
   const TABS: Array<{ key: ReportTab; label: string }> = [
     { key: 'sales',       label: t('reports.salesDaily') },
     { key: 'profit',      label: t('reports.profit') },
+    { key: 'department_reports', label: t('reports.departmentReports', { defaultValue: 'Department Reports' }) },
     { key: 'inventory',   label: t('reports.inventory') },
     { key: 'lowstock',    label: t('reports.lowStock') },
     { key: 'topproducts', label: t('reports.topProducts') },
@@ -82,7 +125,7 @@ function ReportsPageInner(): JSX.Element {
     { key: 'assets',            label: t('reports.assetsReport', { defaultValue: 'Assets' }) },
   ]
 
-  const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly'].includes(tab)
+  const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly', 'department_reports'].includes(tab)
   const showDeptFilter = ['sales', 'profit', 'debts', 'expenses_category', 'expenses_monthly'].includes(tab)
 
   return (
@@ -108,6 +151,24 @@ function ReportsPageInner(): JSX.Element {
       {/* Date range */}
       {showDateRange && (
         <div className="flex flex-wrap items-center gap-3 mb-4">
+          {tab === 'department_reports' && (
+            <div className="flex items-center gap-1 rounded-md border border-border p-1">
+              {([
+                ['today', t('reports.today', { defaultValue: 'Today' })],
+                ['week', t('reports.thisWeek', { defaultValue: 'This Week' })],
+                ['month', t('reports.thisMonth', { defaultValue: 'This Month' })],
+                ['custom', t('reports.customRange', { defaultValue: 'Custom Range' })],
+              ] as Array<[DepartmentPreset, string]>).map(([preset, label]) => (
+                <button
+                  key={preset}
+                  onClick={() => { setDepartmentPreset(preset); if (preset !== 'custom') applyDepartmentPreset(preset) }}
+                  className={`px-2.5 py-1 text-xs rounded ${departmentPreset === preset ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">{t('common.from')}</label>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
@@ -211,10 +272,91 @@ function ReportsPageInner(): JSX.Element {
             </div>
           )}
 
-          {/* Table */}
-          <ReportTable tab={tab} data={data} reportDept={reportDept} assetsFooter={assetsFooter} />
+          {tab === 'department_reports' && departmentData ? (
+            <DepartmentReportsPanel
+              mechanical={departmentData.mechanical}
+              programming={departmentData.programming}
+            />
+          ) : (
+            <ReportTable tab={tab} data={data} reportDept={reportDept} assetsFooter={assetsFooter} />
+          )}
         </>
       )}
+    </div>
+  )
+}
+
+function DepartmentReportsPanel({
+  mechanical,
+  programming,
+}: {
+  mechanical: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+  programming: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+}): JSX.Element {
+  const { t } = useTranslation()
+  const panel = (
+    title: string,
+    tone: string,
+    data: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> },
+  ) => (
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className={`px-4 py-3 border-b border-border ${tone}`}>
+        <h3 className="font-semibold">{title}</h3>
+      </div>
+      <div className="p-4 space-y-3">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="rounded border border-border p-3">
+            <p className="text-muted-foreground">{t('reports.revenue')}</p>
+            <p className="font-bold"><CurrencyText amount={data.revenue} /></p>
+          </div>
+          <div className="rounded border border-border p-3">
+            <p className="text-muted-foreground">{t('reports.cogs', { defaultValue: 'Total Cost' })}</p>
+            <p className="font-bold"><CurrencyText amount={data.cost} /></p>
+          </div>
+          <div className="rounded border border-border p-3">
+            <p className="text-muted-foreground">{t('reports.grossProfit')}</p>
+            <p className="font-bold"><CurrencyText amount={data.gross_profit} /></p>
+          </div>
+          <div className="rounded border border-border p-3">
+            <p className="text-muted-foreground">{t('reports.jobsCount', { defaultValue: 'Jobs/Receipts' })}</p>
+            <p className="font-bold">{data.jobs_count}</p>
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-medium mb-2">{t('reports.topServices', { defaultValue: 'Top Services' })}</p>
+          <div className="rounded border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-muted-foreground">
+                <tr>
+                  <th className="text-start px-3 py-2 font-medium">{t('common.name')}</th>
+                  <th className="text-end px-3 py-2 font-medium">Qty</th>
+                  <th className="text-end px-3 py-2 font-medium">{t('reports.revenue')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {data.top_services.length === 0 ? (
+                  <tr><td colSpan={3} className="px-3 py-4 text-center text-muted-foreground">No data</td></tr>
+                ) : (
+                  data.top_services.map((s, idx) => (
+                    <tr key={`${s.service_name}-${idx}`}>
+                      <td className="px-3 py-2">{s.service_name}</td>
+                      <td className="px-3 py-2 text-end">{s.total_qty}</td>
+                      <td className="px-3 py-2 text-end"><CurrencyText amount={s.total_revenue} /></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {panel(t('reports.dept.mechanical', { defaultValue: 'Mechanical' }), 'bg-amber-50 dark:bg-amber-950/20', mechanical)}
+      {panel(t('reports.dept.programming', { defaultValue: 'Programming' }), 'bg-violet-50 dark:bg-violet-950/20', programming)}
     </div>
   )
 }

@@ -21,6 +21,164 @@ function customReceiptDeptPredicate(dept: ReportDepartmentFilter, alias = 'cr'):
 }
 
 export const reportRepo = {
+  departmentSummary(dateFrom: string, dateTo: string) {
+    const db = getDb()
+
+    const customByDept = db.prepare(`
+      WITH lines AS (
+        SELECT
+          'mechanical' as dept,
+          date(cr.created_at) as d,
+          CAST(json_extract(j.value, '$.sell_price') AS REAL) as sell_price,
+          CAST(json_extract(j.value, '$.cost') AS REAL) as cost,
+          TRIM(COALESCE(json_extract(j.value, '$.service_name'), '')) as service_name,
+          cr.id as receipt_id
+        FROM custom_receipts cr
+        JOIN json_each(CASE WHEN json_valid(cr.mechanical_services_json) THEN cr.mechanical_services_json ELSE '[]' END) j
+        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+        UNION ALL
+        SELECT
+          'programming' as dept,
+          date(cr.created_at) as d,
+          CAST(json_extract(j.value, '$.sell_price') AS REAL) as sell_price,
+          CAST(json_extract(j.value, '$.cost') AS REAL) as cost,
+          TRIM(COALESCE(json_extract(j.value, '$.service_name'), '')) as service_name,
+          cr.id as receipt_id
+        FROM custom_receipts cr
+        JOIN json_each(CASE WHEN json_valid(cr.programming_services_json) THEN cr.programming_services_json ELSE '[]' END) j
+        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+      )
+      SELECT
+        dept,
+        COALESCE(SUM(CASE WHEN sell_price IS NOT NULL THEN sell_price ELSE 0 END), 0) as revenue,
+        COALESCE(SUM(CASE WHEN cost IS NOT NULL THEN cost ELSE 0 END), 0) as cost,
+        COUNT(DISTINCT receipt_id) as receipts_count
+      FROM lines
+      GROUP BY dept
+    `).all(dateFrom, dateTo, dateFrom, dateTo) as Array<{
+      dept: 'mechanical' | 'programming'
+      revenue: number
+      cost: number
+      receipts_count: number
+    }>
+
+    const jobsByDept = db.prepare(`
+      SELECT
+        dept,
+        COUNT(*) as jobs_count,
+        COALESCE(SUM(COALESCE(labor_total,0) + COALESCE(parts_total,0)),0) as jobs_revenue
+      FROM (
+        SELECT 'mechanical' as dept, labor_total, parts_total
+        FROM job_cards
+        WHERE date(created_at) BETWEEN date(?) AND date(?)
+          AND COALESCE(department, 'mechanical') IN ('mechanical','both')
+          AND status != 'cancelled'
+        UNION ALL
+        SELECT 'programming' as dept, labor_total, parts_total
+        FROM job_cards
+        WHERE date(created_at) BETWEEN date(?) AND date(?)
+          AND COALESCE(department, 'mechanical') IN ('programming','both')
+          AND status != 'cancelled'
+      )
+      GROUP BY dept
+    `).all(dateFrom, dateTo, dateFrom, dateTo) as Array<{
+      dept: 'mechanical' | 'programming'
+      jobs_count: number
+      jobs_revenue: number
+    }>
+
+    const topServicesRaw = db.prepare(`
+      SELECT dept, service_name, SUM(qty) as total_qty, SUM(revenue) as total_revenue
+      FROM (
+        SELECT
+          'mechanical' as dept,
+          TRIM(COALESCE(json_extract(j.value, '$.service_name'), '')) as service_name,
+          1 as qty,
+          CAST(json_extract(j.value, '$.sell_price') AS REAL) as revenue
+        FROM custom_receipts cr
+        JOIN json_each(CASE WHEN json_valid(cr.mechanical_services_json) THEN cr.mechanical_services_json ELSE '[]' END) j
+        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+
+        UNION ALL
+
+        SELECT
+          'programming' as dept,
+          TRIM(COALESCE(json_extract(j.value, '$.service_name'), '')) as service_name,
+          1 as qty,
+          CAST(json_extract(j.value, '$.sell_price') AS REAL) as revenue
+        FROM custom_receipts cr
+        JOIN json_each(CASE WHEN json_valid(cr.programming_services_json) THEN cr.programming_services_json ELSE '[]' END) j
+        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+
+        UNION ALL
+
+        SELECT
+          'mechanical' as dept,
+          TRIM(COALESCE(job_type, 'Job Card')) as service_name,
+          1 as qty,
+          COALESCE(labor_total,0) + COALESCE(parts_total,0) as revenue
+        FROM job_cards
+        WHERE date(created_at) BETWEEN date(?) AND date(?)
+          AND COALESCE(department, 'mechanical') IN ('mechanical','both')
+          AND status != 'cancelled'
+
+        UNION ALL
+
+        SELECT
+          'programming' as dept,
+          TRIM(COALESCE(job_type, 'Job Card')) as service_name,
+          1 as qty,
+          COALESCE(labor_total,0) + COALESCE(parts_total,0) as revenue
+        FROM job_cards
+        WHERE date(created_at) BETWEEN date(?) AND date(?)
+          AND COALESCE(department, 'mechanical') IN ('programming','both')
+          AND status != 'cancelled'
+      )
+      WHERE service_name != ''
+      GROUP BY dept, service_name
+      ORDER BY dept, total_qty DESC, total_revenue DESC
+    `).all(
+      dateFrom, dateTo,
+      dateFrom, dateTo,
+      dateFrom, dateTo,
+      dateFrom, dateTo,
+    ) as Array<{
+      dept: 'mechanical' | 'programming'
+      service_name: string
+      total_qty: number
+      total_revenue: number
+    }>
+
+    const byDept = {
+      mechanical: { revenue: 0, cost: 0, gross_profit: 0, jobs_count: 0, top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }> },
+      programming: { revenue: 0, cost: 0, gross_profit: 0, jobs_count: 0, top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }> },
+    }
+
+    for (const row of customByDept) {
+      byDept[row.dept].revenue += row.revenue ?? 0
+      byDept[row.dept].cost += row.cost ?? 0
+      byDept[row.dept].jobs_count += row.receipts_count ?? 0
+    }
+    for (const row of jobsByDept) {
+      byDept[row.dept].revenue += row.jobs_revenue ?? 0
+      byDept[row.dept].jobs_count += row.jobs_count ?? 0
+    }
+    for (const row of topServicesRaw) {
+      byDept[row.dept].top_services.push({
+        service_name: row.service_name,
+        total_qty: row.total_qty ?? 0,
+        total_revenue: row.total_revenue ?? 0,
+      })
+    }
+
+    byDept.mechanical.gross_profit = byDept.mechanical.revenue - byDept.mechanical.cost
+    byDept.programming.gross_profit = byDept.programming.revenue - byDept.programming.cost
+    byDept.mechanical.top_services = byDept.mechanical.top_services.slice(0, 5)
+    byDept.programming.top_services = byDept.programming.top_services.slice(0, 5)
+
+    return byDept
+  },
+
   dashboard() {
     const db = getDb()
     const today = new Date().toISOString().slice(0, 10)

@@ -53,6 +53,15 @@ export function registerReportHandlers(): void {
     } catch (e) { log.error('reports:profit', e); return err('Failed', 'ERR_REPORTS') }
   })
 
+  ipcMain.handle('reports:departmentSummary', (event, dateFrom: string, dateTo: string) => {
+    try {
+      const licErr = requireLicense('reports.view')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
+      if (!authService.hasPermission(event.sender.id, 'reports.view')) return err('Forbidden', 'ERR_FORBIDDEN')
+      return ok(reportRepo.departmentSummary(dateFrom, dateTo))
+    } catch (e) { log.error('reports:departmentSummary', e); return err('Failed', 'ERR_REPORTS') }
+  })
+
   ipcMain.handle('reports:cashByMethod', (event, dateFrom: string, dateTo?: string) => {
     try {
       if (!authService.getSession(event.sender.id)) return err('Forbidden', 'ERR_FORBIDDEN')

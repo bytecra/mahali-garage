@@ -150,6 +150,7 @@ declare global {
         salesDaily: (dateFrom: string, dateTo?: string, department?: string) => Promise<IpcResponse<unknown>>
         salesMonthly: (year: number, month: number) => Promise<IpcResponse<unknown>>
         profit: (from: string, to: string, department?: string) => Promise<IpcResponse<unknown>>
+        departmentSummary: (from: string, to: string) => Promise<IpcResponse<unknown>>
         cashByMethod: (from: string, to?: string) => Promise<IpcResponse<{ cash: number; non_cash: number; total: number }>>
         topProducts: (from: string, to: string) => Promise<IpcResponse<unknown[]>>
         inventory: () => Promise<IpcResponse<unknown[]>>
