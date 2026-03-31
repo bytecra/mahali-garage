@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, LayoutGrid, List, Pencil } from 'lucide-react'
 import {
-  DndContext, DragEndEvent, PointerSensor, useSensor, useSensors,
-  closestCenter,
+  DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors,
+  closestCorners, DragOverlay, useDroppable,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { usePermission } from '../../hooks/usePermission'
 import { toast } from '../../store/notificationStore'
-import { formatCurrency, formatDate } from '../../lib/utils'
+import { formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import RepairCard, { RepairRow } from './RepairCard'
 import RepairForm from './RepairForm'
@@ -16,20 +16,26 @@ import { FeatureGate } from '../../components/FeatureGate'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import SearchInput from '../../components/shared/SearchInput'
 
-const KANBAN_COLS: Array<{ status: string; label: string; color: string }> = [
-  { status: 'pending',       label: 'Pending',           color: 'bg-slate-50 dark:bg-slate-950/30' },
-  { status: 'in_progress',   label: 'In Progress',       color: 'bg-blue-50 dark:bg-blue-950/30' },
-  { status: 'waiting_parts', label: 'Waiting for Parts', color: 'bg-yellow-50 dark:bg-yellow-950/30' },
-  { status: 'ready',         label: 'Ready for Pickup',  color: 'bg-green-50 dark:bg-green-950/30' },
-]
+const KANBAN_COLS = [
+  { status: 'pending',             label: 'Pending',                 color: 'bg-slate-50 dark:bg-slate-950/30',     ring: 'ring-slate-400 dark:ring-slate-500' },
+  { status: 'in_progress',         label: 'In Progress',             color: 'bg-blue-50 dark:bg-blue-950/30',       ring: 'ring-blue-400 dark:ring-blue-500' },
+  { status: 'waiting_parts',       label: 'Waiting for Parts',       color: 'bg-yellow-50 dark:bg-yellow-950/30',   ring: 'ring-yellow-400 dark:ring-yellow-500' },
+  { status: 'waiting_programming', label: 'Waiting for Programming', color: 'bg-violet-50 dark:bg-violet-950/30',   ring: 'ring-violet-400 dark:ring-violet-500' },
+  { status: 'ready',               label: 'Ready for Pickup',        color: 'bg-green-50 dark:bg-green-950/30',     ring: 'ring-green-400 dark:ring-green-500' },
+  { status: 'completed_delivered', label: 'Completed / Delivered',   color: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-400 dark:ring-emerald-500' },
+] as const
+
+type KanbanStatus = typeof KANBAN_COLS[number]['status']
 
 const STATUS_COLORS: Record<string, string> = {
-  pending:       'bg-slate-100 text-slate-700 dark:bg-slate-950 dark:text-slate-400',
-  in_progress:   'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400',
-  waiting_parts: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400',
-  ready:         'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
-  delivered:     'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400',
-  cancelled:     'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+  pending:             'bg-slate-100 text-slate-700 dark:bg-slate-950 dark:text-slate-400',
+  in_progress:         'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400',
+  waiting_parts:       'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400',
+  waiting_programming: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
+  ready:               'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
+  completed_delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+  delivered:           'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400',
+  cancelled:           'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -53,6 +59,54 @@ function listDeptLabel(d: string | undefined): string {
 
 const BAYS = ['Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Bay 6']
 
+const ALL_STATUS_OPTIONS = [
+  'pending', 'in_progress', 'waiting_parts', 'waiting_programming',
+  'ready', 'completed_delivered', 'delivered', 'cancelled',
+]
+
+function statusLabel(s: string): string {
+  const map: Record<string, string> = {
+    pending:             'Pending',
+    in_progress:         'In Progress',
+    waiting_parts:       'Waiting for Parts',
+    waiting_programming: 'Waiting for Programming',
+    ready:               'Ready for Pickup',
+    completed_delivered: 'Completed / Delivered',
+    delivered:           'Delivered (legacy)',
+    cancelled:           'Cancelled',
+  }
+  return map[s] ?? s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
+// ── Droppable column wrapper ────────────────────────────────────────────────
+function DroppableColumn({
+  col, count, children,
+}: {
+  col: typeof KANBAN_COLS[number]
+  count: number
+  children: React.ReactNode
+}): JSX.Element {
+  const { setNodeRef, isOver } = useDroppable({ id: col.status })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-shrink-0 w-72 rounded-xl ${col.color} p-3 transition-all duration-150 ${
+        isOver ? `ring-2 ${col.ring}` : ''
+      }`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-sm text-foreground">{col.label}</h3>
+        <span className="text-xs bg-background border border-border rounded-full px-2 py-0.5 text-muted-foreground">
+          {count}
+        </span>
+      </div>
+      <div className="space-y-2 min-h-[60px]">
+        {children}
+      </div>
+    </div>
+  )
+}
+
 export default function RepairsPage(): JSX.Element {
   return (
     <FeatureGate feature="job_cards.view">
@@ -67,17 +121,18 @@ function RepairsPageInner(): JSX.Element {
   const canDelete = usePermission('repairs.delete')
   const canStatus = usePermission('repairs.updateStatus')
 
-  const [view, setView] = useState<'kanban' | 'list'>('kanban')
-  const [repairs, setRepairs] = useState<RepairRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [view, setView]               = useState<'kanban' | 'list'>('kanban')
+  const [repairs, setRepairs]         = useState<RepairRow[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [search, setSearch]           = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [deptFilter, setDeptFilter] = useState<'' | 'mechanical' | 'programming'>('')
-  const [techFilter, setTechFilter] = useState('')
-  const [bayFilter, setBayFilter] = useState('')
-  const [formOpen, setFormOpen] = useState(false)
-  const [editId, setEditId] = useState<number | undefined>()
+  const [deptFilter, setDeptFilter]   = useState<'' | 'mechanical' | 'programming'>('')
+  const [techFilter, setTechFilter]   = useState('')
+  const [bayFilter, setBayFilter]     = useState('')
+  const [formOpen, setFormOpen]       = useState(false)
+  const [editId, setEditId]           = useState<number | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<RepairRow | null>(null)
+  const [activeRepair, setActiveRepair] = useState<RepairRow | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -91,26 +146,49 @@ function RepairsPageInner(): JSX.Element {
         search,
         status: statusFilter || undefined,
         department: deptFilter || undefined,
-        pageSize: 100,
+        pageSize: 200,
       })
       if (res.success) setRepairs((res.data as { rows: RepairRow[] }).rows)
     }
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [view, search, statusFilter, deptFilter])
+  useEffect(() => { void load() }, [view, search, statusFilter, deptFilter])
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const repair = repairs.find(r => r.id === Number(event.active.id))
+    setActiveRepair(repair ?? null)
+  }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
+    setActiveRepair(null)
     if (!over || !canStatus) return
+
     const repairId = Number(active.id)
-    const newStatus = String(over.id)
-    if (!KANBAN_COLS.find(c => c.status === newStatus)) return
+
+    // over.id is either a column status string or a card id (number)
+    let newStatus: string
+    const overId = over.id
+    if (typeof overId === 'string' && KANBAN_COLS.find(c => c.status === overId)) {
+      newStatus = overId
+    } else {
+      const targetCard = repairs.find(r => r.id === Number(overId))
+      if (!targetCard) return
+      newStatus = targetCard.status
+    }
+
     const repair = repairs.find(r => r.id === repairId)
     if (!repair || repair.status === newStatus) return
+
+    // Optimistic update
+    setRepairs(prev => prev.map(r => r.id === repairId ? { ...r, status: newStatus } : r))
+
     const res = await window.electronAPI.jobCards.updateStatus(repairId, newStatus)
-    if (res.success) { toast.success(t('common.success')); load() }
-    else toast.error(res.error ?? t('common.error'))
+    if (!res.success) {
+      toast.error(res.error ?? t('common.error'))
+      void load()
+    }
   }
 
   const handleDelete = async () => {
@@ -119,13 +197,13 @@ function RepairsPageInner(): JSX.Element {
     if (!res.success) { toast.error(res.error ?? t('common.error')); return }
     toast.success(t('common.success'))
     setDeleteTarget(null)
-    load()
+    void load()
   }
 
   const openEdit = (id: number) => { setEditId(id); setFormOpen(true) }
 
   const technicians = Array.from(new Set(repairs.filter(r => r.technician_name).map(r => r.technician_name as string)))
-  const activeBays = Array.from(new Set(repairs.filter(r => r.bay_number).map(r => r.bay_number as string)))
+  const activeBays  = Array.from(new Set(repairs.filter(r => r.bay_number).map(r => r.bay_number as string)))
 
   const filtered = repairs.filter(r => {
     if (search && !(
@@ -148,14 +226,18 @@ function RepairsPageInner(): JSX.Element {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-foreground">Job Cards</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => setView(v => v === 'kanban' ? 'list' : 'kanban')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
+          <button
+            onClick={() => setView(v => v === 'kanban' ? 'list' : 'kanban')}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
+          >
             {view === 'kanban' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
             {view === 'kanban' ? 'List View' : 'Board View'}
           </button>
           {canEdit && (
-            <button onClick={() => { setEditId(undefined); setFormOpen(true) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90">
+            <button
+              onClick={() => { setEditId(undefined); setFormOpen(true) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
               <Plus className="w-4 h-4" />New Job
             </button>
           )}
@@ -170,8 +252,8 @@ function RepairsPageInner(): JSX.Element {
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
             className="px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="">All Statuses</option>
-            {['pending','in_progress','waiting_parts','ready','delivered','cancelled'].map(s => (
-              <option key={s} value={s}>{s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
+            {ALL_STATUS_OPTIONS.map(s => (
+              <option key={s} value={s}>{statusLabel(s)}</option>
             ))}
           </select>
         )}
@@ -198,27 +280,34 @@ function RepairsPageInner(): JSX.Element {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       ) : view === 'kanban' ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={event => void handleDragEnd(event)}
+        >
           <div className="flex gap-4 overflow-x-auto pb-4">
             {KANBAN_COLS.map(col => {
-              const colRepairs = filtered.filter(r => r.status === col.status)
+              const colRepairs = filtered.filter(r => r.status === (col.status as string))
               return (
-                <div key={col.status} id={col.status} className={`flex-shrink-0 w-72 rounded-xl ${col.color} p-3`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-sm text-foreground">{col.label}</h3>
-                    <span className="text-xs bg-background border border-border rounded-full px-2 py-0.5 text-muted-foreground">{colRepairs.length}</span>
-                  </div>
+                <DroppableColumn key={col.status} col={col} count={colRepairs.length}>
                   <SortableContext items={colRepairs.map(r => r.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-2 min-h-[60px]">
-                      {colRepairs.map(r => (
-                        <RepairCard key={r.id} repair={r} onClick={() => openEdit(r.id)} />
-                      ))}
-                    </div>
+                    {colRepairs.map(r => (
+                      <RepairCard key={r.id} repair={r} onClick={() => openEdit(r.id)} />
+                    ))}
                   </SortableContext>
-                </div>
+                </DroppableColumn>
               )
             })}
           </div>
+
+          <DragOverlay dropAnimation={null}>
+            {activeRepair && (
+              <div className="opacity-80 rotate-1 shadow-xl">
+                <RepairCard repair={activeRepair} onClick={() => {}} />
+              </div>
+            )}
+          </DragOverlay>
         </DndContext>
       ) : (
         <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -265,7 +354,7 @@ function RepairsPageInner(): JSX.Element {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.status] ?? 'bg-muted text-muted-foreground'}`}>
-                          {r.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          {statusLabel(r.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{r.technician_name ?? '—'}</td>
@@ -303,10 +392,15 @@ function RepairsPageInner(): JSX.Element {
         </div>
       )}
 
-      <RepairForm open={formOpen} repairId={editId} onClose={() => setFormOpen(false)} onSaved={() => { setFormOpen(false); load() }} />
-      <ConfirmDialog open={!!deleteTarget} title={t('common.delete')}
+      <RepairForm open={formOpen} repairId={editId} onClose={() => setFormOpen(false)} onSaved={() => { setFormOpen(false); void load() }} />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={t('common.delete')}
         message={`Delete job ${deleteTarget?.job_number}? This cannot be undone.`}
-        confirmLabel={t('common.delete')} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+        confirmLabel={t('common.delete')}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

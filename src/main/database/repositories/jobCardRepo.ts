@@ -138,6 +138,8 @@ export const jobCardRepo = {
         CASE j.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
         j.created_at DESC
     `).all()
+    // Note: 'delivered' (legacy) is excluded from the board; 'completed_delivered' (new) IS included.
+    // 'waiting_programming' is also included via the catch-all NOT IN list above.
   },
 
   getById(id: number) {
@@ -226,7 +228,7 @@ export const jobCardRepo = {
   updateStatus(id: number, status: string): boolean {
     const db = getDb()
     const extras: string[] = []
-    if (status === 'delivered') extras.push("date_out = datetime('now')")
+    if (status === 'delivered' || status === 'completed_delivered') extras.push("date_out = datetime('now')")
     const extraSql = extras.length ? ', ' + extras.join(', ') : ''
     db.prepare(`UPDATE job_cards SET status = ?, updated_at = datetime('now')${extraSql} WHERE id = ?`).run(status, id)
     return true

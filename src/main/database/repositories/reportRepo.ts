@@ -220,20 +220,23 @@ export const reportRepo = {
       readyForPickupProgramming = 0,
       activeJobCards = 0,
       activeJobCardsMechanical = 0,
-      activeJobCardsProgramming = 0
+      activeJobCardsProgramming = 0,
+      todayDelivered = 0,
+      todayDeliveredMechanical = 0,
+      todayDeliveredProgramming = 0
     try {
       totalVehicles = (db.prepare('SELECT COUNT(*) as cnt FROM vehicles').get() as { cnt: number }).cnt
       vehiclesInGarage = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards WHERE status IN ('pending','in_progress','waiting_parts')`
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE status IN ('pending','in_progress','waiting_parts','waiting_programming')`
       ).get() as { cnt: number }).cnt
       vehiclesInGarageMechanical = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('pending','in_progress','waiting_parts')
+         WHERE status IN ('pending','in_progress','waiting_parts','waiting_programming')
            AND department IN ('mechanical','both')`
       ).get() as { cnt: number }).cnt
       vehiclesInGarageProgramming = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('pending','in_progress','waiting_parts')
+         WHERE status IN ('pending','in_progress','waiting_parts','waiting_programming')
            AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
       readyForPickup = (db.prepare(
@@ -248,17 +251,37 @@ export const reportRepo = {
          WHERE status = 'ready' AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
       activeJobCards = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards WHERE status NOT IN ('delivered','cancelled')`
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE status NOT IN ('delivered','completed_delivered','cancelled')`
       ).get() as { cnt: number }).cnt
       activeJobCardsMechanical = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status NOT IN ('delivered','cancelled') AND department IN ('mechanical','both')`
+         WHERE status NOT IN ('delivered','completed_delivered','cancelled') AND department IN ('mechanical','both')`
       ).get() as { cnt: number }).cnt
       activeJobCardsProgramming = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status NOT IN ('delivered','cancelled') AND department IN ('programming','both')`
+         WHERE status NOT IN ('delivered','completed_delivered','cancelled') AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
+      todayDelivered = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status IN ('delivered','completed_delivered')
+           AND date(COALESCE(date_out, updated_at)) = ?`
+      ).get(today) as { cnt: number }).cnt
     } catch { /* tables not ready yet */ }
+    // dept breakdown for today's delivered — separate try so total still shows if dept column missing
+    try {
+      todayDeliveredMechanical = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status IN ('delivered','completed_delivered')
+           AND date(COALESCE(date_out, updated_at)) = ?
+           AND department IN ('mechanical','both')`
+      ).get(today) as { cnt: number }).cnt
+      todayDeliveredProgramming = (db.prepare(
+        `SELECT COUNT(*) as cnt FROM job_cards
+         WHERE status IN ('delivered','completed_delivered')
+           AND date(COALESCE(date_out, updated_at)) = ?
+           AND department IN ('programming','both')`
+      ).get(today) as { cnt: number }).cnt
+    } catch { /* department column not available */ }
 
     // 7-day sales trend
     const salesTrend = db.prepare(`
@@ -357,6 +380,9 @@ export const reportRepo = {
       activeJobCards,
       activeJobCardsMechanical,
       activeJobCardsProgramming,
+      todayDelivered,
+      todayDeliveredMechanical,
+      todayDeliveredProgramming,
       urgentJobCards,
     }
   },

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle, Building2 } from 'lucide-react'
+import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle, Building2, PackageCheck } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
 import { formatCurrency, cn } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
@@ -32,6 +32,9 @@ interface DashboardData {
   activeJobCards: number
   activeJobCardsMechanical: number
   activeJobCardsProgramming: number
+  todayDelivered: number
+  todayDeliveredMechanical: number
+  todayDeliveredProgramming: number
   salesTrend: Array<{ day: string; revenue: number; count: number }>
   topProducts: Array<{ product_name: string; total_qty: number; total_revenue: number }>
   urgentJobCards: Array<{
@@ -658,7 +661,7 @@ export default function DashboardPage(): JSX.Element {
       <h1 className="text-2xl font-bold text-foreground mb-6">{t('dashboard.title')}</h1>
 
       {/* Stats Row 1 — Garage Overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
         <StatCard icon={Car} label={t('dashboard.vehiclesInGarage')}
           valueContent={(
             <DeptBreakdown
@@ -686,6 +689,15 @@ export default function DashboardPage(): JSX.Element {
           )}
           sub={t('dashboard.inProgress')}
           color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />
+        <StatCard icon={PackageCheck} label="Today's Delivered"
+          valueContent={(
+            <DeptBreakdown
+              mechanical={data?.todayDeliveredMechanical ?? 0}
+              programming={data?.todayDeliveredProgramming ?? 0}
+            />
+          )}
+          sub="Completed & delivered today"
+          color="bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" />
         <StatCard icon={DatabaseIcon} label={t('dashboard.totalVehicles')}
           value={data?.totalVehicles ?? 0}
           sub={t('dashboard.inSystem')}
