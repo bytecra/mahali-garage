@@ -1,50 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  Search, FileDown, Eye, ChevronLeft, ChevronRight,
-  FileText, CalendarDays, X,
-} from 'lucide-react'
-import { pdf } from '@react-pdf/renderer'
+import { Search, Eye, ChevronLeft, ChevronRight, FileText, CalendarDays, X, Trash2, Printer } from 'lucide-react'
 import { cn, formatCurrency, formatDateTime } from '../../lib/utils'
 import { FeatureGate } from '../../components/FeatureGate'
 import { toast } from '../../store/notificationStore'
-import { InvoicePDF, type InvoiceData } from '../../components/pdf/InvoicePDF'
 
-interface SaleRow {
+type SourceType = 'invoice' | 'custom' | 'smart'
+
+interface InvoiceRow {
   id: number
-  sale_number: string
-  invoice_number: string | null
-  customer_name: string | null
-  total_amount: number
-  amount_paid: number
-  balance_due: number
-  status: string
+  invoice_number: string
   created_at: string
-}
-
-interface SaleDetail extends SaleRow {
-  subtotal: number
-  discount_amount: number
-  tax_enabled: number
-  tax_rate: number
-  tax_amount: number
-  notes: string | null
-  items: {
-    product_name: string
-    product_sku: string | null
-    quantity: number
-    unit_price: number
-    discount: number
-    line_total: number
-  }[]
-  payments: { method: string; amount: number }[]
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  partial:   'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  voided:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  pending:   'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+  customer_name: string | null
+  car: string | null
+  department: string | null
+  amount: number
+  payment_method: string | null
+  source_type: SourceType
+  invoice_id?: number | null
 }
 
 const PAGE_SIZE = 20
@@ -59,302 +32,170 @@ export default function InvoicesPage(): JSX.Element {
 
 function InvoicesPageInner(): JSX.Element {
   const { t } = useTranslation()
-
-  // List state
-  const [rows, setRows] = useState<SaleRow[]>([])
+  const [rows, setRows] = useState<InvoiceRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
-
-  // Filters
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [viewOpen, setViewOpen] = useState(false)
+  const [viewRow, setViewRow] = useState<InvoiceRow | null>(null)
 
-  // Detail modal
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [detailSale, setDetailSale] = useState<SaleDetail | null>(null)
-
-  // PDF generation tracker
-  const [generatingId, setGeneratingId] = useState<number | null>(null)
-  const [invoiceBranding, setInvoiceBranding] = useState<Record<string, string> | null>(null)
-
-  // ── Load list ─────────────────────────────────────────────────────────────
-  const loadSales = useCallback(async (p = 1) => {
+  const loadData = useCallback(async (p = 1) => {
     setLoading(true)
     try {
-      const res = await window.electronAPI.sales.list({
-        search: search || undefined,
-        status: status || undefined,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-        page: p,
-        pageSize: PAGE_SIZE,
-      })
-      if (res.success && res.data) {
-        const d = res.data as { rows: SaleRow[]; total: number }
-        setRows(d.rows ?? [])
-        setTotal(d.total ?? 0)
-        setPage(p)
-      }
+      const [salesRes, customRes] = await Promise.all([
+        window.electronAPI.sales.list({
+          search: search || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          page: 1,
+          pageSize: 5000,
+        }),
+        window.electronAPI.customReceipts.list({
+          search: search || undefined,
+          startDate: dateFrom || undefined,
+          endDate: dateTo || undefined,
+          page: 1,
+          pageSize: 5000,
+        }),
+      ])
+
+      const salesRows = salesRes.success && salesRes.data ? (salesRes.data as { rows: Array<Record<string, unknown>> }).rows : []
+      const customRows = customRes.success && customRes.data ? (customRes.data as { rows: Array<Record<string, unknown>> }).rows : []
+
+      const mappedSales: InvoiceRow[] = salesRows.map(s => ({
+        id: Number(s.id),
+        invoice_number: String(s.invoice_number || s.sale_number || ''),
+        created_at: String(s.created_at || ''),
+        customer_name: (s.customer_name as string | null) ?? null,
+        car: null,
+        department: (s.department as string | null) ?? null,
+        amount: Number(s.total_amount || 0),
+        payment_method: (s.payment_method as string | null) ?? null,
+        source_type: 'invoice',
+        invoice_id: (s.invoice_id as number | null) ?? null,
+      }))
+
+      const mappedCustom: InvoiceRow[] = customRows.map(r => ({
+        id: Number(r.id),
+        invoice_number: String(r.receipt_number || ''),
+        created_at: String(r.created_at || ''),
+        customer_name: (r.customer_name as string | null) ?? null,
+        car: [r.plate_number, r.car_company, r.car_model].filter(Boolean).join(' • ') || null,
+        department: (r.department as string | null) ?? null,
+        amount: Number(r.amount || 0),
+        payment_method: (r.payment_method as string | null) ?? null,
+        source_type: Number(r.smart_recipe || 0) === 1 ? 'smart' : 'custom',
+      }))
+
+      const merged = [...mappedSales, ...mappedCustom]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      const start = (p - 1) * PAGE_SIZE
+      setRows(merged.slice(start, start + PAGE_SIZE))
+      setTotal(merged.length)
+      setPage(p)
     } finally {
       setLoading(false)
     }
-  }, [search, status, dateFrom, dateTo])
+  }, [search, dateFrom, dateTo])
 
-  useEffect(() => { loadSales(1) }, [loadSales])
+  useEffect(() => { void loadData(1) }, [loadData])
 
-  useEffect(() => {
-    if (!detailOpen) {
-      setInvoiceBranding(null)
-      return
-    }
-    void window.electronAPI.settings.getAll().then(res => {
-      if (res.success && res.data) setInvoiceBranding(res.data as Record<string, string>)
-    })
-  }, [detailOpen])
-
-  // ── Download PDF ──────────────────────────────────────────────────────────
-  const downloadPDF = async (saleId: number, invoiceNumber: string) => {
-    setGeneratingId(saleId)
-    try {
-      const [saleRes, settingsRes] = await Promise.all([
-        window.electronAPI.sales.getById(saleId),
-        window.electronAPI.settings.getAll(),
-      ])
-      if (!saleRes.success || !saleRes.data) { toast.error(t('common.error')); return }
-
-      const s = saleRes.data as Record<string, unknown>
-      const settings = (settingsRes.success && settingsRes.data)
-        ? settingsRes.data as Record<string, string>
-        : {}
-
-      const inv: InvoiceData = {
-        invoice_number:  invoiceNumber,
-        sale_number:     s.sale_number as string,
-        created_at:      s.created_at as string,
-        customer_name:   s.customer_name as string | null,
-        cashier_name:    s.cashier_name as string | null,
-        items:           s.items as InvoiceData['items'],
-        subtotal:        s.subtotal as number,
-        discount_amount: s.discount_amount as number,
-        tax_enabled:     !!(s.tax_enabled),
-        tax_rate:        s.tax_rate as number,
-        tax_amount:      s.tax_amount as number,
-        total_amount:    s.total_amount as number,
-        amount_paid:     s.amount_paid as number,
-        balance_due:     s.balance_due as number,
-        notes:           s.notes as string | null,
-        store_name:      settings['store.name'],
-        store_address:   settings['store.address'],
-        store_phone:     settings['store.phone'],
-        invoice_footer:  settings['invoice.footer_text'],
-        currency_symbol: settings['store.currency_symbol'] ?? 'د.إ',
-        currency_code:   settings['store.currency'] ?? 'AED',
-        store_logo:      settings['store_logo'] || undefined,
-      }
-
-      const blob = await pdf(<InvoicePDF inv={inv} />).toBlob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${invoiceNumber || `sale-${saleId}`}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast.success(t('invoices.downloaded'))
-    } catch (e) {
-      console.error('PDF generation failed', e)
-      toast.error(t('common.error'))
-    } finally {
-      setGeneratingId(null)
-    }
-  }
-
-  // ── View detail ───────────────────────────────────────────────────────────
-  const openDetail = async (saleId: number) => {
-    setDetailLoading(true)
-    setDetailOpen(true)
-    try {
-      const res = await window.electronAPI.sales.getById(saleId)
-      if (res.success && res.data) {
-        setDetailSale(res.data as SaleDetail)
-      }
-    } finally {
-      setDetailLoading(false)
-    }
-  }
-
-  // ── Pagination ────────────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  async function handleDelete(row: InvoiceRow): Promise<void> {
+    if (row.source_type === 'invoice') {
+      await window.electronAPI.sales.void(row.id, 'Deleted from Invoices page')
+    } else {
+      await window.electronAPI.customReceipts.delete(row.id)
+    }
+    toast.success(t('common.deleted'))
+    await loadData(page)
+  }
+
+  async function handlePrint(row: InvoiceRow): Promise<void> {
+    if (row.source_type === 'invoice') {
+      if (row.invoice_id) await window.electronAPI.invoices.print(row.invoice_id)
+      return
+    }
+    const res = await window.electronAPI.customReceipts.getById(row.id)
+    if (!res.success || !res.data) return
+    const receipt = res.data as Record<string, unknown>
+    const html = `<html><body><h3>${String(receipt.receipt_number || '')}</h3><p>${String(receipt.customer_name || '')}</p><p>${formatCurrency(Number(receipt.amount || 0))}</p></body></html>`
+    const win = window.open('', '_blank', 'width=320,height=600')
+    if (win) { win.document.write(html); win.document.close(); setTimeout(() => { win.print(); win.close() }, 300) }
+  }
+
   return (
     <div className="flex flex-col h-full p-6 gap-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t('invoices.title')}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {total} {t('invoices.records')}
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">{total} {t('invoices.records')}</p>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Search */}
         <div className="relative flex-1 min-w-48">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={t('invoices.searchPlaceholder')}
-            className="w-full ps-9 pe-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('invoices.searchPlaceholder')} className="w-full ps-9 pe-3 py-2 text-sm rounded-md border border-input bg-background" />
         </div>
-
-        {/* Status */}
-        <select
-          value={status}
-          onChange={e => setStatus(e.target.value)}
-          className="py-2 px-3 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">{t('common.all')}</option>
-          <option value="completed">{t('invoices.status.completed')}</option>
-          <option value="partial">{t('invoices.status.partial')}</option>
-          <option value="voided">{t('invoices.status.voided')}</option>
-        </select>
-
-        {/* Date range */}
         <div className="flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-muted-foreground" />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            className="py-2 px-3 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="py-2 px-3 text-sm rounded-md border border-input bg-background" />
           <span className="text-muted-foreground text-sm">–</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            className="py-2 px-3 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          {(dateFrom || dateTo) && (
-            <button
-              onClick={() => { setDateFrom(''); setDateTo('') }}
-              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="py-2 px-3 text-sm rounded-md border border-input bg-background" />
+          {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo('') }} className="p-1.5 rounded hover:bg-muted"><X className="w-4 h-4" /></button>}
         </div>
       </div>
 
-      {/* Table */}
       <div className="flex-1 overflow-auto rounded-lg border border-border bg-card">
         {loading ? (
-          <div className="flex items-center justify-center h-40">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-          </div>
+          <div className="flex items-center justify-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-2">
-            <FileText className="w-10 h-10 opacity-30" />
-            <p>{t('common.noData')}</p>
-          </div>
+          <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-2"><FileText className="w-10 h-10 opacity-30" /><p>{t('common.noData')}</p></div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
-                <th className="px-4 py-3 text-start font-medium text-muted-foreground">{t('invoices.invoice')}</th>
+                <th className="px-4 py-3 text-start font-medium text-muted-foreground">Invoice/Receipt</th>
                 <th className="px-4 py-3 text-start font-medium text-muted-foreground">{t('common.date')}</th>
                 <th className="px-4 py-3 text-start font-medium text-muted-foreground">{t('invoices.customer')}</th>
+                <th className="px-4 py-3 text-start font-medium text-muted-foreground">Car</th>
+                <th className="px-4 py-3 text-start font-medium text-muted-foreground">Department</th>
                 <th className="px-4 py-3 text-end font-medium text-muted-foreground">{t('common.total')}</th>
-                <th className="px-4 py-3 text-end font-medium text-muted-foreground">{t('invoices.paid')}</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">{t('common.status')}</th>
+                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Payment</th>
+                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Source</th>
                 <th className="px-4 py-3 text-center font-medium text-muted-foreground">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, idx) => (
-                <tr
-                  key={row.id}
-                  className={cn(
-                    'border-b border-border last:border-0 hover:bg-muted/30 transition-colors',
-                    idx % 2 === 1 && 'bg-muted/10'
-                  )}
-                >
-                  {/* Invoice # */}
-                  <td className="px-4 py-3">
-                    <span className="font-mono font-medium text-foreground">
-                      {row.invoice_number || row.sale_number}
-                    </span>
-                  </td>
-
-                  {/* Date */}
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    {formatDateTime(row.created_at)}
-                  </td>
-
-                  {/* Customer */}
-                  <td className="px-4 py-3 text-foreground">
-                    {row.customer_name ?? <span className="text-muted-foreground italic">{t('pos.walkIn')}</span>}
-                  </td>
-
-                  {/* Total */}
-                  <td className="px-4 py-3 text-end font-medium text-foreground">
-                    {formatCurrency(row.total_amount)}
-                  </td>
-
-                  {/* Paid */}
-                  <td className="px-4 py-3 text-end">
-                    <span className={row.balance_due > 0 ? 'text-amber-600' : 'text-green-600'}>
-                      {formatCurrency(row.amount_paid)}
-                    </span>
-                  </td>
-
-                  {/* Status badge */}
+                <tr key={`${row.source_type}-${row.id}`} className={cn('border-b border-border last:border-0 hover:bg-muted/30', idx % 2 === 1 && 'bg-muted/10')}>
+                  <td className="px-4 py-3 font-mono">{row.invoice_number}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{formatDateTime(row.created_at)}</td>
+                  <td className="px-4 py-3">{row.customer_name || t('pos.walkIn')}</td>
+                  <td className="px-4 py-3">{row.car || '—'}</td>
+                  <td className="px-4 py-3">{row.department || '—'}</td>
+                  <td className="px-4 py-3 text-end font-medium">{formatCurrency(row.amount)}</td>
+                  <td className="px-4 py-3 text-center text-xs">{row.payment_method || '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={cn(
                       'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                      STATUS_COLORS[row.status] ?? STATUS_COLORS.pending
+                      row.source_type === 'invoice' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        : row.source_type === 'smart' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                     )}>
-                      {t(`invoices.status.${row.status}`, { defaultValue: row.status })}
+                      {row.source_type === 'invoice' ? 'Invoice' : row.source_type === 'smart' ? 'Smart Recipe' : 'Custom Recipe'}
                     </span>
                   </td>
-
-                  {/* Actions */}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1.5">
-                      {/* View details */}
-                      <button
-                        onClick={() => openDetail(row.id)}
-                        title={t('invoices.viewDetails')}
-                        className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-
-                      {/* Download PDF */}
-                      <button
-                        onClick={() => downloadPDF(row.id, row.invoice_number ?? row.sale_number)}
-                        disabled={generatingId === row.id || row.status === 'voided'}
-                        title={t('invoices.downloadPdf')}
-                        className={cn(
-                          'p-1.5 rounded transition-colors',
-                          row.status === 'voided'
-                            ? 'text-muted-foreground/40 cursor-not-allowed'
-                            : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
-                        )}
-                      >
-                        {generatingId === row.id
-                          ? <div className="w-4 h-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                          : <FileDown className="w-4 h-4" />
-                        }
-                      </button>
+                      <button onClick={() => { setViewRow(row); setViewOpen(true) }} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"><Eye className="w-4 h-4" /></button>
+                      <button onClick={() => void handlePrint(row)} className="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10"><Printer className="w-4 h-4" /></button>
+                      <button onClick={() => void handleDelete(row)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -364,245 +205,28 @@ function InvoicesPageInner(): JSX.Element {
         )}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {t('invoices.page', { current: page, total: totalPages })}
-          </p>
+          <p className="text-sm text-muted-foreground">{t('invoices.page', { current: page, total: totalPages })}</p>
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => loadSales(page - 1)}
-              disabled={page <= 1}
-              className="p-1.5 rounded border border-input bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const start = Math.max(1, Math.min(page - 2, totalPages - 4))
-              const p = start + i
-              return p <= totalPages ? (
-                <button
-                  key={p}
-                  onClick={() => loadSales(p)}
-                  className={cn(
-                    'w-8 h-8 text-sm rounded border transition-colors',
-                    p === page
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'border-input bg-background hover:bg-muted'
-                  )}
-                >
-                  {p}
-                </button>
-              ) : null
-            })}
-            <button
-              onClick={() => loadSales(page + 1)}
-              disabled={page >= totalPages}
-              className="p-1.5 rounded border border-input bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            <button onClick={() => void loadData(page - 1)} disabled={page <= 1} className="p-1.5 rounded border border-input bg-background hover:bg-muted disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
+            <button onClick={() => void loadData(page + 1)} disabled={page >= totalPages} className="p-1.5 rounded border border-input bg-background hover:bg-muted disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button>
           </div>
         </div>
       )}
 
-      {/* Detail Modal */}
-      {detailOpen && (
+      {viewOpen && viewRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-card rounded-xl shadow-2xl border border-border w-full max-w-2xl max-h-[90vh] flex flex-col">
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-semibold text-foreground">
-                {detailSale
-                  ? detailSale.invoice_number ?? detailSale.sale_number
-                  : t('invoices.viewDetails')}
-              </h2>
-              <button
-                onClick={() => { setDetailOpen(false); setDetailSale(null) }}
-                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+          <div className="bg-card rounded-xl shadow-2xl border border-border w-full max-w-lg p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">{viewRow.invoice_number}</h2>
+              <button onClick={() => setViewOpen(false)} className="p-1 rounded hover:bg-muted"><X className="w-4 h-4" /></button>
             </div>
-
-            {/* Modal body */}
-            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
-              {detailLoading ? (
-                <div className="flex items-center justify-center h-40">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-                </div>
-              ) : detailSale ? (
-                <>
-                  {invoiceBranding && (
-                    <div className="flex flex-col sm:flex-row gap-4 pb-4 border-b border-border">
-                      {invoiceBranding['store_logo'] ? (
-                        <img
-                          src={invoiceBranding['store_logo']}
-                          alt=""
-                          className="h-16 w-auto max-w-[160px] object-contain rounded-md border border-border bg-muted/20 p-2 shrink-0"
-                        />
-                      ) : null}
-                      <div className="min-w-0">
-                        <p className="text-xl font-bold text-foreground leading-tight">
-                          {invoiceBranding['store.name'] || 'Garage'}
-                        </p>
-                        {invoiceBranding['store.address'] ? (
-                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{invoiceBranding['store.address']}</p>
-                        ) : null}
-                        {invoiceBranding['store.phone'] ? (
-                          <p className="text-sm text-muted-foreground mt-0.5">Tel: {invoiceBranding['store.phone']}</p>
-                        ) : null}
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {(invoiceBranding['store.currency_symbol'] ?? 'د.إ').trim()} · {invoiceBranding['store.currency'] ?? 'AED'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {/* Meta */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground text-xs uppercase mb-1">{t('common.date')}</p>
-                      <p className="font-medium">{formatDateTime(detailSale.created_at)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs uppercase mb-1">{t('invoices.customer')}</p>
-                      <p className="font-medium">{detailSale.customer_name ?? t('pos.walkIn')}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs uppercase mb-1">{t('invoices.cashier')}</p>
-                      <p className="font-medium">{detailSale.cashier_name ?? '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs uppercase mb-1">{t('common.status')}</p>
-                      <span className={cn(
-                        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                        STATUS_COLORS[detailSale.status] ?? STATUS_COLORS.pending
-                      )}>
-                        {t(`invoices.status.${detailSale.status}`, { defaultValue: detailSale.status })}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Items table */}
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-2 text-sm">{t('invoices.items')}</h3>
-                    <div className="rounded-lg border border-border overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-muted/40 border-b border-border">
-                            <th className="px-3 py-2 text-start font-medium text-muted-foreground">{t('common.name')}</th>
-                            <th className="px-3 py-2 text-center font-medium text-muted-foreground">{t('common.quantity')}</th>
-                            <th className="px-3 py-2 text-end font-medium text-muted-foreground">{t('common.price')}</th>
-                            <th className="px-3 py-2 text-end font-medium text-muted-foreground">{t('common.total')}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {detailSale.items?.map((item, i) => (
-                            <tr key={i} className="border-b border-border last:border-0">
-                              <td className="px-3 py-2">
-                                <p>{item.product_name}</p>
-                                {item.product_sku && (
-                                  <p className="text-xs text-muted-foreground">{item.product_sku}</p>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-center">{item.quantity}</td>
-                              <td className="px-3 py-2 text-end">{formatCurrency(item.unit_price)}</td>
-                              <td className="px-3 py-2 text-end font-medium">{formatCurrency(item.line_total)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Totals */}
-                  <div className="flex flex-col items-end gap-1 text-sm">
-                    <div className="flex gap-12">
-                      <span className="text-muted-foreground">{t('common.subtotal')}</span>
-                      <span>{formatCurrency(detailSale.subtotal)}</span>
-                    </div>
-                    {detailSale.discount_amount > 0 && (
-                      <div className="flex gap-12">
-                        <span className="text-muted-foreground">{t('common.discount')}</span>
-                        <span className="text-red-500">-{formatCurrency(detailSale.discount_amount)}</span>
-                      </div>
-                    )}
-                    {detailSale.tax_enabled > 0 && detailSale.tax_amount > 0 && (
-                      <div className="flex gap-12">
-                        <span className="text-muted-foreground">Tax ({detailSale.tax_rate}%)</span>
-                        <span>{formatCurrency(detailSale.tax_amount)}</span>
-                      </div>
-                    )}
-                    <div className="flex gap-12 font-bold text-base border-t border-border pt-1 mt-1">
-                      <span>{t('common.total')}</span>
-                      <span>{formatCurrency(detailSale.total_amount)}</span>
-                    </div>
-                    <div className="flex gap-12">
-                      <span className="text-muted-foreground">{t('invoices.paid')}</span>
-                      <span className="text-green-600">{formatCurrency(detailSale.amount_paid)}</span>
-                    </div>
-                    {detailSale.balance_due > 0 && (
-                      <div className="flex gap-12">
-                        <span className="text-amber-600 font-medium">{t('pos.balanceDue')}</span>
-                        <span className="text-amber-600 font-medium">{formatCurrency(detailSale.balance_due)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Payment methods */}
-                  {detailSale.payments?.length > 0 && (
-                    <div>
-                      <h3 className="font-semibold text-foreground mb-2 text-sm">{t('invoices.payments')}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {detailSale.payments.map((p, i) => (
-                          <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-foreground">
-                            <span className="capitalize">{t(`pos.${p.method}`, { defaultValue: p.method })}</span>
-                            <span className="font-bold">{formatCurrency(p.amount)}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Notes */}
-                  {detailSale.notes && (
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300">
-                      <p className="font-medium mb-1">{t('common.notes')}</p>
-                      <p>{detailSale.notes}</p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">{t('common.error')}</p>
-              )}
-            </div>
-
-            {/* Modal footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-              <button
-                onClick={() => { setDetailOpen(false); setDetailSale(null) }}
-                className="px-4 py-2 text-sm rounded-md border border-input bg-background hover:bg-muted transition-colors"
-              >
-                {t('common.close')}
-              </button>
-              {detailSale && detailSale.status !== 'voided' && (
-                <button
-                  onClick={() => downloadPDF(
-                    detailSale.id,
-                    detailSale.invoice_number ?? detailSale.sale_number
-                  )}
-                  disabled={generatingId === detailSale.id}
-                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
-                >
-                  {generatingId === detailSale.id
-                    ? <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    : <FileDown className="w-4 h-4" />
-                  }
-                  {t('invoices.downloadPdf')}
-                </button>
-              )}
-            </div>
+            <p className="text-sm">{formatDateTime(viewRow.created_at)}</p>
+            <p className="text-sm">{viewRow.customer_name || t('pos.walkIn')}</p>
+            <p className="text-sm">{viewRow.car || '—'}</p>
+            <p className="text-sm">{viewRow.department || '—'}</p>
+            <p className="text-sm font-semibold">{formatCurrency(viewRow.amount)}</p>
           </div>
         </div>
       )}

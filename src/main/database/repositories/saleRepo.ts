@@ -126,7 +126,8 @@ export const saleRepo = {
     `).get(...params) as { cnt: number }).cnt
 
     const rows = db.prepare(`
-      SELECT s.*, c.name as customer_name, i.invoice_number
+      SELECT s.*, c.name as customer_name, i.invoice_number, i.id as invoice_id, i.department,
+        (SELECT p.method FROM payments p WHERE p.sale_id = s.id ORDER BY p.id DESC LIMIT 1) as payment_method
       FROM sales s
       LEFT JOIN customers c ON s.customer_id = c.id
       LEFT JOIN invoices i ON i.sale_id = s.id
