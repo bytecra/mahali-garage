@@ -97,6 +97,7 @@ export default function App(): JSX.Element {
             <Route path="/quick-invoice" element={
               <Suspense fallback={<LoadingFallback />}><POSPage /></Suspense>
             } />
+            <Route path="/smart-recipe" element={<Navigate to="/custom-receipts?mode=smart" replace />} />
             <Route path="/pos" element={<Navigate to="/quick-invoice" replace />} />
             <Route path="/job-cards" element={
               <Suspense fallback={<LoadingFallback />}><RepairsPage /></Suspense>

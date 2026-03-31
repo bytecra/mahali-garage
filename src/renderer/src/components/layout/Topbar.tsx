@@ -84,7 +84,7 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
 
   const handleNewReceipt = (): void => {
     clearCart()
-    navigate('/pos')
+    navigate('/custom-receipts?mode=smart')
   }
 
   const themes = [

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Check, ChevronRight, Code2, Eye, Plus, Printer, Trash2, Wrench } from 'lucide-react'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Modal from '../../components/shared/Modal'
@@ -49,6 +50,7 @@ type WizardStep = 1 | 2 | 3 | 4 | 5
 
 export default function CustomReceiptsPage(): JSX.Element {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { appName } = useBrandingStore()
   const user = useAuthStore(s => s.user)
   const role = user?.role
@@ -56,7 +58,6 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [mode, setMode] = useState<'list' | 'custom' | 'smart'>('list')
-  const [showCreateMenu, setShowCreateMenu] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [viewReceipt, setViewReceipt] = useState<Receipt | null>(null)
@@ -113,6 +114,18 @@ export default function CustomReceiptsPage(): JSX.Element {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const modeParam = (searchParams.get('mode') || '').toLowerCase()
+    if (modeParam === 'smart' && mode !== 'smart') {
+      resetSmartFlow()
+      setMode('smart')
+      return
+    }
+    if (modeParam !== 'smart' && mode === 'smart') {
+      setMode('list')
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (mode !== 'smart' || smartStep !== 2) return
@@ -357,31 +370,13 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
           <div className="flex items-center justify-between gap-3 mb-6">
             <h1 className="text-2xl font-bold text-foreground">{t('customReceipts.title', { defaultValue: 'Custom Receipts' })}</h1>
             {canCreate && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowCreateMenu(v => !v)}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  <Plus className="w-4 h-4" />
-                  {t('customReceipts.newRecipe', { defaultValue: 'New Recipe' })}
-                </button>
-                {showCreateMenu && (
-                  <div className="absolute right-0 mt-2 w-44 rounded-md border border-border bg-card shadow-lg z-10">
-                    <button
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                      onClick={() => { setShowCreateMenu(false); setMode('custom') }}
-                    >
-                      {t('customReceipts.customRecipe', { defaultValue: 'Custom Recipe' })}
-                    </button>
-                    <button
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                      onClick={() => { setShowCreateMenu(false); resetSmartFlow(); setMode('smart') }}
-                    >
-                      {t('customReceipts.smartRecipe', { defaultValue: 'Smart Recipe' })}
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button
+                onClick={() => setMode('custom')}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="w-4 h-4" />
+                {t('customReceipts.newRecipe', { defaultValue: 'New Recipe' })}
+              </button>
             )}
           </div>
 
@@ -465,7 +460,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <button onClick={() => setMode('list')} className="p-2 rounded-md border border-border hover:bg-accent" title={t('common.back', { defaultValue: 'Back' })}>
+              <button onClick={() => { setMode('list'); setSearchParams({}) }} className="p-2 rounded-md border border-border hover:bg-accent" title={t('common.back', { defaultValue: 'Back' })}>
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <h1 className="text-2xl font-bold text-foreground">{t('customReceipts.customRecipe', { defaultValue: 'Custom Recipe' })}</h1>
@@ -621,7 +616,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
           setCustomServices={setSmartCustomServices}
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
-          onBack={() => { resetSmartFlow(); setMode('list') }}
+          onBack={() => { resetSmartFlow(); setMode('list'); setSearchParams({}) }}
           onLoadVehicles={async (customerId: number) => {
             const vres = await window.electronAPI.vehicles.list({ owner_id: customerId, page: 1, pageSize: 100 })
             if (vres.success && vres.data) {
