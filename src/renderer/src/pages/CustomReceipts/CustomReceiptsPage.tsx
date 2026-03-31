@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Eye, Plus, Printer, Trash2 } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, Code2, Eye, Plus, Printer, Trash2, Wrench } from 'lucide-react'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Modal from '../../components/shared/Modal'
 import { formatCurrency, formatDate } from '../../lib/utils'
@@ -38,7 +38,14 @@ interface Receipt {
   notes: string | null
   created_by_name: string | null
   created_at: string
+  smart_recipe: number
 }
+
+interface CustomerLite { id: number; name: string; phone: string | null }
+interface VehicleLite { id: number; make: string; model: string; year: number | null; license_plate: string | null }
+interface BrandLite { id: number; name: string; logo: string | null }
+interface CatalogService { id: number; service_name: string; model: string; price: number; department: 'mechanical' | 'programming' }
+type WizardStep = 1 | 2 | 3 | 4 | 5
 
 export default function CustomReceiptsPage(): JSX.Element {
   const { t } = useTranslation()
@@ -48,7 +55,8 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [mode, setMode] = useState<'list' | 'form'>('list')
+  const [mode, setMode] = useState<'list' | 'custom' | 'smart'>('list')
+  const [showCreateMenu, setShowCreateMenu] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [viewReceipt, setViewReceipt] = useState<Receipt | null>(null)
@@ -67,6 +75,24 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [carYear, setCarYear] = useState('')
   const [mechanical, setMechanical] = useState<ServiceLine[]>([newLine()])
   const [programming, setProgramming] = useState<ServiceLine[]>([newLine()])
+  const [smartStep, setSmartStep] = useState<WizardStep>(1)
+  const [smartDepartment, setSmartDepartment] = useState<Department>('mechanical')
+  const [customerQuery, setCustomerQuery] = useState('')
+  const [customerResults, setCustomerResults] = useState<CustomerLite[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null)
+  const [customerVehicles, setCustomerVehicles] = useState<VehicleLite[]>([])
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleLite | null>(null)
+  const [smartWalkInCustomer, setSmartWalkInCustomer] = useState(false)
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [brands, setBrands] = useState<BrandLite[]>([])
+  const [brandSearch, setBrandSearch] = useState('')
+  const [selectedBrand, setSelectedBrand] = useState<BrandLite | null>(null)
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [selectedModel, setSelectedModel] = useState('')
+  const [newModel, setNewModel] = useState('')
+  const [catalogServices, setCatalogServices] = useState<Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>>([])
+  const [smartCustomServices, setSmartCustomServices] = useState<ServiceLine[]>([])
 
   const canCreate = ['owner', 'manager'].includes(role ?? '')
   const canDelete = ['owner', 'manager'].includes(role ?? '')
@@ -88,6 +114,76 @@ export default function CustomReceiptsPage(): JSX.Element {
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    if (mode !== 'smart' || smartStep !== 2) return
+    if (!customerQuery.trim()) { setCustomerResults([]); return }
+    let cancelled = false
+    ;(async () => {
+      const res = await window.electronAPI.customers.search(customerQuery.trim())
+      if (cancelled) return
+      if (res.success && res.data) setCustomerResults(res.data as CustomerLite[])
+    })()
+    return () => { cancelled = true }
+  }, [mode, smartStep, customerQuery])
+
+  useEffect(() => {
+    if (mode !== 'smart' || smartStep !== 3) return
+    ;(async () => {
+      const res = await window.electronAPI.carBrands.list()
+      if (res.success && res.data) setBrands(res.data as BrandLite[])
+    })()
+  }, [mode, smartStep])
+
+  useEffect(() => {
+    if (mode !== 'smart' || smartStep !== 4 || !selectedBrand) return
+    ;(async () => {
+      const departmentFilter = smartDepartment === 'both' ? undefined : smartDepartment
+      const res = await window.electronAPI.serviceCatalog.list({ brand_id: selectedBrand.id, department: departmentFilter })
+      if (!res.success || !res.data) return
+      const rows = res.data as CatalogService[]
+      const models = Array.from(new Set(rows.map(r => r.model?.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+      setModelOptions(models)
+    })()
+  }, [mode, smartStep, selectedBrand, smartDepartment])
+
+  useEffect(() => {
+    if (mode !== 'smart' || smartStep !== 5 || !selectedBrand || !selectedModel) return
+    ;(async () => {
+      const departmentFilter = smartDepartment === 'both' ? undefined : smartDepartment
+      const res = await window.electronAPI.serviceCatalog.list({
+        brand_id: selectedBrand.id,
+        model: selectedModel,
+        department: departmentFilter,
+      })
+      if (!res.success || !res.data) return
+      const rows = res.data as CatalogService[]
+      setCatalogServices(rows.map(r => ({
+        id: r.id,
+        name: r.service_name,
+        sell: String(r.price ?? 0),
+        checked: true,
+        department: r.department,
+      })))
+    })()
+  }, [mode, smartStep, selectedBrand, selectedModel, smartDepartment])
+
+  useEffect(() => {
+    if (mode !== 'smart' || smartStep !== 5 || !selectedVehicle) return
+    ;(async () => {
+      const res = await window.electronAPI.serviceCatalog.forVehicle(selectedVehicle.make || '', selectedVehicle.model || '')
+      if (!res.success || !res.data) return
+      const data = res.data as { mechanical: CatalogService[]; programming: CatalogService[] }
+      const rows = [...(data.mechanical ?? []), ...(data.programming ?? [])]
+      setCatalogServices(rows.map(r => ({
+        id: r.id,
+        name: r.service_name,
+        sell: String(r.price ?? 0),
+        checked: true,
+        department: r.department,
+      })))
+    })()
+  }, [mode, smartStep, selectedVehicle])
+
   const subtotal = useMemo(() => {
     const sum = [...mechanical, ...programming].reduce((acc, line) => acc + numberOrZero(line.sell_price), 0)
     return Math.round(sum * 100) / 100
@@ -108,6 +204,28 @@ export default function CustomReceiptsPage(): JSX.Element {
     setCarYear('')
     setMechanical([newLine()])
     setProgramming([newLine()])
+  }
+
+  function resetSmartFlow(): void {
+    setSmartStep(1)
+    setSmartDepartment('mechanical')
+    setCustomerQuery('')
+    setCustomerResults([])
+    setSelectedCustomer(null)
+    setCustomerVehicles([])
+    setSelectedVehicle(null)
+    setSmartWalkInCustomer(false)
+    setNewCustomerName('')
+    setNewCustomerPhone('')
+    setBrands([])
+    setBrandSearch('')
+    setSelectedBrand(null)
+    setModelOptions([])
+    setSelectedModel('')
+    setNewModel('')
+    setCatalogServices([])
+    setSmartCustomServices([])
+    setPaymentMethod('Cash')
   }
 
   function handlePrint(receipt: Receipt): void {
@@ -239,13 +357,31 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
           <div className="flex items-center justify-between gap-3 mb-6">
             <h1 className="text-2xl font-bold text-foreground">{t('customReceipts.title', { defaultValue: 'Custom Receipts' })}</h1>
             {canCreate && (
-              <button
-                onClick={() => setMode('form')}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                <Plus className="w-4 h-4" />
-                {t('customReceipts.newRecipe', { defaultValue: 'New Recipe' })}
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowCreateMenu(v => !v)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  <Plus className="w-4 h-4" />
+                  {t('customReceipts.newRecipe', { defaultValue: 'New Recipe' })}
+                </button>
+                {showCreateMenu && (
+                  <div className="absolute right-0 mt-2 w-44 rounded-md border border-border bg-card shadow-lg z-10">
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                      onClick={() => { setShowCreateMenu(false); setMode('custom') }}
+                    >
+                      {t('customReceipts.customRecipe', { defaultValue: 'Custom Recipe' })}
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                      onClick={() => { setShowCreateMenu(false); resetSmartFlow(); setMode('smart') }}
+                    >
+                      {t('customReceipts.smartRecipe', { defaultValue: 'Smart Recipe' })}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -325,7 +461,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
         </>
       )}
 
-      {mode === 'form' && (
+      {mode === 'custom' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -447,6 +583,120 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
         </div>
       )}
 
+      {mode === 'smart' && (
+        <SmartRecipeWizard
+          t={t}
+          step={smartStep}
+          setStep={setSmartStep}
+          department={smartDepartment}
+          setDepartment={setSmartDepartment}
+          customerQuery={customerQuery}
+          setCustomerQuery={setCustomerQuery}
+          customerResults={customerResults}
+          selectedCustomer={selectedCustomer}
+          setSelectedCustomer={setSelectedCustomer}
+          customerVehicles={customerVehicles}
+          setCustomerVehicles={setCustomerVehicles}
+          selectedVehicle={selectedVehicle}
+          setSelectedVehicle={setSelectedVehicle}
+          walkInCustomer={smartWalkInCustomer}
+          setWalkInCustomer={setSmartWalkInCustomer}
+          newCustomerName={newCustomerName}
+          setNewCustomerName={setNewCustomerName}
+          newCustomerPhone={newCustomerPhone}
+          setNewCustomerPhone={setNewCustomerPhone}
+          brands={brands}
+          brandSearch={brandSearch}
+          setBrandSearch={setBrandSearch}
+          selectedBrand={selectedBrand}
+          setSelectedBrand={setSelectedBrand}
+          modelOptions={modelOptions}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          newModel={newModel}
+          setNewModel={setNewModel}
+          catalogServices={catalogServices}
+          setCatalogServices={setCatalogServices}
+          customServices={smartCustomServices}
+          setCustomServices={setSmartCustomServices}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          onBack={() => { resetSmartFlow(); setMode('list') }}
+          onLoadVehicles={async (customerId: number) => {
+            const vres = await window.electronAPI.vehicles.list({ owner_id: customerId, page: 1, pageSize: 100 })
+            if (vres.success && vres.data) {
+              const d = vres.data as { items: VehicleLite[] }
+              setCustomerVehicles(d.items || [])
+            }
+          }}
+          onCreateCustomer={async () => {
+            if (!newCustomerName.trim()) return null
+            const cres = await window.electronAPI.customers.create({
+              name: newCustomerName.trim(),
+              phone: newCustomerPhone.trim() || null,
+              balance: 0,
+            })
+            if (!cres.success || !cres.data) return null
+            const data = cres.data as { id: number }
+            const created: CustomerLite = { id: data.id, name: newCustomerName.trim(), phone: newCustomerPhone.trim() || null }
+            setSelectedCustomer(created)
+            setCustomerVehicles([])
+            return created
+          }}
+          onSave={async (andPrint: boolean) => {
+            const selectedCatalog = catalogServices.filter(s => s.checked)
+            const mappedCatalog = selectedCatalog.map(s => ({ service_name: s.name, cost: 0, sell_price: numberOrZero(s.sell) }))
+            const mappedCustom = cleanLines(smartCustomServices)
+            const merged = [...mappedCatalog, ...mappedCustom]
+            if (merged.length === 0) {
+              toast.error(t('customReceipts.errorServiceRequired', { defaultValue: 'Add at least one service line' }))
+              return
+            }
+            const subtotalSmart = Math.round(merged.reduce((a, b) => a + b.sell_price, 0) * 100) / 100
+            const mech = smartDepartment === 'programming' ? [] : merged
+            const prog = smartDepartment === 'mechanical' ? [] : merged
+            const plate = selectedVehicle?.license_plate ?? null
+            const carModelValue = selectedVehicle?.model ?? (selectedModel || newModel || null)
+            const carBrandValue = selectedVehicle?.make ?? selectedBrand?.name ?? null
+            const carYearValue = selectedVehicle?.year != null ? String(selectedVehicle.year) : null
+            const payload = {
+              department: smartDepartment,
+                customer_name: smartWalkInCustomer
+                  ? 'Walk-in Customer'
+                  : ((selectedCustomer?.name ?? newCustomerName.trim()) || 'Walk-in Customer'),
+                customer_phone: smartWalkInCustomer
+                  ? null
+                  : ((selectedCustomer?.phone ?? newCustomerPhone.trim()) || null),
+              customer_email: null,
+              customer_address: null,
+              plate_number: plate,
+              car_company: carBrandValue,
+              car_model: carModelValue,
+              car_year: carYearValue,
+              mechanical_services: mech,
+              programming_services: prog,
+              amount: subtotalSmart,
+              payment_method: paymentMethod,
+              smart_recipe: true,
+              notes: null,
+            }
+            const res = await window.electronAPI.customReceipts.create(payload) as { success: boolean; data?: { id: number }; error?: string }
+            if (!res.success || !res.data) {
+              toast.error(res.error || t('common.error'))
+              return
+            }
+            if (andPrint) {
+              const full = await window.electronAPI.customReceipts.getById(res.data.id) as { success: boolean; data?: Receipt }
+              if (full.success && full.data) handlePrint(full.data)
+            }
+            toast.success(t('common.saved'))
+            resetSmartFlow()
+            setMode('list')
+            void load()
+          }}
+        />
+      )}
+
       <ConfirmDialog
         open={deleteId != null}
         title={t('common.delete')}
@@ -530,6 +780,253 @@ function ServiceSection({
         + Add Service
       </button>
     </section>
+  )
+}
+
+function SmartRecipeWizard(props: {
+  t: (k: string, o?: { defaultValue: string }) => string
+  step: WizardStep
+  setStep: (s: WizardStep) => void
+  department: Department
+  setDepartment: (d: Department) => void
+  customerQuery: string
+  setCustomerQuery: (v: string) => void
+  customerResults: CustomerLite[]
+  selectedCustomer: CustomerLite | null
+  setSelectedCustomer: (v: CustomerLite | null) => void
+  customerVehicles: VehicleLite[]
+  setCustomerVehicles: (v: VehicleLite[]) => void
+  selectedVehicle: VehicleLite | null
+  setSelectedVehicle: (v: VehicleLite | null) => void
+  walkInCustomer: boolean
+  setWalkInCustomer: (v: boolean) => void
+  newCustomerName: string
+  setNewCustomerName: (v: string) => void
+  newCustomerPhone: string
+  setNewCustomerPhone: (v: string) => void
+  brands: BrandLite[]
+  brandSearch: string
+  setBrandSearch: (v: string) => void
+  selectedBrand: BrandLite | null
+  setSelectedBrand: (v: BrandLite | null) => void
+  modelOptions: string[]
+  selectedModel: string
+  setSelectedModel: (v: string) => void
+  newModel: string
+  setNewModel: (v: string) => void
+  catalogServices: Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>
+  setCatalogServices: React.Dispatch<React.SetStateAction<Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>>>
+  customServices: ServiceLine[]
+  setCustomServices: React.Dispatch<React.SetStateAction<ServiceLine[]>>
+  paymentMethod: 'Cash' | 'Card' | 'Bank Transfer'
+  setPaymentMethod: (v: 'Cash' | 'Card' | 'Bank Transfer') => void
+  onBack: () => void
+  onLoadVehicles: (customerId: number) => Promise<void>
+  onCreateCustomer: () => Promise<CustomerLite | null>
+  onSave: (andPrint: boolean) => Promise<void>
+}): JSX.Element {
+  const {
+    t, step, setStep, department, setDepartment,
+    customerQuery, setCustomerQuery, customerResults, selectedCustomer, setSelectedCustomer,
+    customerVehicles, selectedVehicle, setSelectedVehicle, walkInCustomer, setWalkInCustomer,
+    newCustomerName, setNewCustomerName, newCustomerPhone, setNewCustomerPhone,
+    brands, brandSearch, setBrandSearch, selectedBrand, setSelectedBrand,
+    modelOptions, selectedModel, setSelectedModel, newModel, setNewModel,
+    catalogServices, setCatalogServices, customServices, setCustomServices,
+    paymentMethod, setPaymentMethod, onBack, onLoadVehicles, onCreateCustomer, onSave,
+  } = props
+  const filteredBrands = brands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase()))
+  const chosenModel = selectedModel || newModel
+  const selectedLines = [
+    ...catalogServices.filter(s => s.checked).map(s => ({ service_name: s.name, sell_price: numberOrZero(s.sell) })),
+    ...cleanLines(customServices).map(s => ({ service_name: s.service_name, sell_price: s.sell_price })),
+  ]
+  const subtotal = Math.round(selectedLines.reduce((a, b) => a + b.sell_price, 0) * 100) / 100
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="p-2 rounded-md border border-border hover:bg-accent"><ArrowLeft className="w-4 h-4" /></button>
+        <h1 className="text-2xl font-bold">{t('customReceipts.smartRecipe', { defaultValue: 'Smart Recipe' })}</h1>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {[1, 2, 3, 4, 5].map(n => (
+          <div key={n} className="flex items-center gap-2">
+            <span className={`w-6 h-6 rounded-full grid place-items-center border ${step >= n ? 'bg-primary text-primary-foreground border-primary' : 'border-border'}`}>{n}</span>
+            {n < 5 && <ChevronRight className="w-3 h-3" />}
+          </div>
+        ))}
+      </div>
+
+      {step === 1 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button className={`rounded-lg border p-6 text-left hover:bg-accent ${department === 'mechanical' ? 'border-primary bg-primary/5' : 'border-border'}`} onClick={() => setDepartment('mechanical')}>
+            <Wrench className="w-7 h-7 mb-3" />
+            <p className="font-semibold">{t('customReceipts.mechanical', { defaultValue: 'Mechanical' })}</p>
+          </button>
+          <button className={`rounded-lg border p-6 text-left hover:bg-accent ${department === 'programming' ? 'border-primary bg-primary/5' : 'border-border'}`} onClick={() => setDepartment('programming')}>
+            <Code2 className="w-7 h-7 mb-3" />
+            <p className="font-semibold">{t('customReceipts.programming', { defaultValue: 'Programming' })}</p>
+          </button>
+          <button className={`rounded-lg border p-6 text-left hover:bg-accent ${department === 'both' ? 'border-primary bg-primary/5' : 'border-border'}`} onClick={() => setDepartment('both')}>
+            <Check className="w-7 h-7 mb-3" />
+            <p className="font-semibold">{t('customReceipts.both', { defaultValue: 'Both' })}</p>
+          </button>
+          <div className="md:col-span-3">
+            <button className="px-4 py-2 rounded-md bg-primary text-primary-foreground" onClick={() => setStep(2)}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={walkInCustomer} onChange={e => setWalkInCustomer(e.target.checked)} />
+            {t('customReceipts.walkInCustomer', { defaultValue: 'Walk-in Customer' })}
+          </label>
+          {!walkInCustomer && (
+            <>
+              <input className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={customerQuery} onChange={e => setCustomerQuery(e.target.value)} placeholder="Search customer by name or phone" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2 max-h-56 overflow-auto">
+                  {customerResults.map(c => (
+                    <button key={c.id} className={`w-full text-left px-3 py-2 rounded border ${selectedCustomer?.id === c.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'}`} onClick={() => { setSelectedCustomer(c); void onLoadVehicles(c.id) }}>
+                      <p className="font-medium">{c.name}</p>
+                      <p className="text-xs text-muted-foreground">{c.phone || '—'}</p>
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Vehicles</p>
+                  <div className="space-y-2 max-h-56 overflow-auto">
+                    {customerVehicles.map(v => (
+                      <button key={v.id} className={`w-full text-left px-3 py-2 rounded border ${selectedVehicle?.id === v.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'}`} onClick={() => setSelectedVehicle(v)}>
+                        <p>{[v.make, v.model, v.year].filter(Boolean).join(' ')}</p>
+                        <p className="text-xs text-muted-foreground">{v.license_plate || '—'}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-border p-3 space-y-2">
+                <p className="text-sm font-medium">New customer</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input className="rounded-md border border-border bg-background px-3 py-2 text-sm" value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="Full name" />
+                  <input className="rounded-md border border-border bg-background px-3 py-2 text-sm" value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="Phone" />
+                </div>
+                <button className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-accent" onClick={() => void onCreateCustomer()}>+ Add customer</button>
+              </div>
+            </>
+          )}
+          <div className="flex gap-2">
+            <button className="px-4 py-2 rounded-md border border-border" onClick={() => setStep(1)}>Back</button>
+            {selectedVehicle && !walkInCustomer ? (
+              <button className="px-4 py-2 rounded-md bg-primary text-primary-foreground" onClick={() => setStep(5)}>Next</button>
+            ) : (
+              <button className="px-4 py-2 rounded-md bg-primary text-primary-foreground" onClick={() => setStep(3)}>Next</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-4">
+          <input className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={brandSearch} onChange={e => setBrandSearch(e.target.value)} placeholder="Search brand" />
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {filteredBrands.map(b => (
+              <button key={b.id} onClick={() => setSelectedBrand(b)} className={`rounded-lg border p-3 text-center hover:bg-accent ${selectedBrand?.id === b.id ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                {b.logo ? <img src={b.logo} alt={b.name} className="h-10 mx-auto object-contain mb-2" /> : <div className="h-10 mb-2 grid place-items-center text-xs text-muted-foreground">No logo</div>}
+                <p className="text-sm font-medium">{b.name}</p>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button className="px-4 py-2 rounded-md border border-border" onClick={() => setStep(2)}>Back</button>
+            <button disabled={!selectedBrand} className="px-4 py-2 rounded-md bg-primary text-primary-foreground disabled:opacity-60" onClick={() => setStep(4)}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <select className="rounded-md border border-border bg-background px-3 py-2 text-sm" value={selectedModel} onChange={e => setSelectedModel(e.target.value)}>
+              <option value="">Select model</option>
+              {modelOptions.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <input className="rounded-md border border-border bg-background px-3 py-2 text-sm" value={newModel} onChange={e => setNewModel(e.target.value)} placeholder="+ Add new model" />
+          </div>
+          <div className="flex gap-2">
+            <button className="px-4 py-2 rounded-md border border-border" onClick={() => setStep(3)}>Back</button>
+            <button disabled={!selectedModel && !newModel.trim()} className="px-4 py-2 rounded-md bg-primary text-primary-foreground disabled:opacity-60" onClick={() => setStep(5)}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {step === 5 && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 space-y-4">
+            <div className="rounded-lg border border-border bg-card p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">{department}</p>
+                <h2 className="text-lg font-semibold">{selectedBrand?.name || selectedVehicle?.make || 'Walk-in'} · {chosenModel || selectedVehicle?.model || 'Walk-in'}</h2>
+              </div>
+              {selectedBrand?.logo && <img src={selectedBrand.logo} className="h-10 object-contain" />}
+            </div>
+
+            <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <h3 className="font-semibold">Catalog services</h3>
+              {catalogServices.map(s => (
+                <div key={s.id} className="grid grid-cols-12 gap-2 items-center">
+                  <label className="col-span-1 grid place-items-center"><input type="checkbox" checked={s.checked} onChange={e => setCatalogServices(prev => prev.map(x => x.id === s.id ? { ...x, checked: e.target.checked } : x))} /></label>
+                  <div className="col-span-7 text-sm">
+                    <div className="font-medium">{s.name}</div>
+                    <div className="text-xs text-muted-foreground">{s.department}</div>
+                  </div>
+                  <input className="col-span-4 rounded-md border border-border bg-background px-3 py-2 text-sm" type="number" min="0" step="0.01" value={s.sell} onChange={e => setCatalogServices(prev => prev.map(x => x.id === s.id ? { ...x, sell: e.target.value } : x))} />
+                </div>
+              ))}
+            </div>
+
+            <ServiceSection
+              title="Custom services"
+              lines={customServices}
+              onAdd={() => setCustomServices(prev => [...prev, newLine()])}
+              onRemove={id => setCustomServices(prev => prev.filter(s => s.id !== id))}
+              onUpdate={(id, field, value) => setCustomServices(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))}
+            />
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-4 h-fit sticky top-4 space-y-4">
+            <h3 className="font-semibold">Summary</h3>
+            <div className="space-y-1 text-sm">
+              {selectedLines.map((s, i) => (
+                <div key={`${s.service_name}-${i}`} className="flex items-center justify-between">
+                  <span className="truncate">{s.service_name}</span>
+                  <span>{formatCurrency(s.sell_price)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between font-semibold">
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Payment method</label>
+              <select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'Cash' | 'Card' | 'Bank Transfer')}>
+                <option value="Cash">Cash</option>
+                <option value="Card">Card</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+              </select>
+            </div>
+            <button className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground" onClick={() => void onSave(true)}>Save & Print</button>
+            <button className="w-full px-4 py-2 rounded-md border border-border" onClick={() => void onSave(false)}>Save Only</button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

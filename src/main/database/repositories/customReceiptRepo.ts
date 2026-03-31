@@ -26,6 +26,7 @@ export interface CustomReceiptInput {
   /** For Cash: actual bills/coins received (≥ amount). Omitted = exact amount. */
   cash_received?: number | null
   notes?: string | null
+  smart_recipe?: boolean
   created_by: number
 }
 
@@ -67,8 +68,8 @@ export const customReceiptRepo = {
         (receipt_number, department, customer_name, customer_phone, customer_email, customer_address,
          plate_number, car_company, car_model, car_year, car_type,
          services_description, mechanical_services_json, programming_services_json,
-         amount, payment_method, notes, created_by, cash_received)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         amount, payment_method, notes, smart_recipe, created_by, cash_received)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       receipt_number,
       normalizeDepartment(input.department),
@@ -87,6 +88,7 @@ export const customReceiptRepo = {
       input.amount,
       input.payment_method || 'Cash',
       cleanText(input.notes),
+      input.smart_recipe ? 1 : 0,
       input.created_by,
       cashReceivedCol,
     )
