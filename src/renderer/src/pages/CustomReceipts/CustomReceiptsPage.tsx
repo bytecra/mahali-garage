@@ -18,6 +18,9 @@ interface ServiceLine {
   cost: string
   sell_price: string
 }
+interface SmartCustomServiceLine extends ServiceLine {
+  department: 'mechanical' | 'programming'
+}
 
 interface Receipt {
   id: number
@@ -93,7 +96,7 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [selectedModel, setSelectedModel] = useState('')
   const [newModel, setNewModel] = useState('')
   const [catalogServices, setCatalogServices] = useState<Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>>([])
-  const [smartCustomServices, setSmartCustomServices] = useState<ServiceLine[]>([])
+  const [smartCustomServices, setSmartCustomServices] = useState<SmartCustomServiceLine[]>([])
 
   const canCreate = ['owner', 'manager'].includes(role ?? '')
   const canDelete = ['owner', 'manager'].includes(role ?? '')
@@ -640,28 +643,87 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
           }}
           onSave={async (andPrint: boolean) => {
             const selectedCatalog = catalogServices.filter(s => s.checked)
-            const mappedCatalog = selectedCatalog.map(s => ({ service_name: s.name, cost: 0, sell_price: numberOrZero(s.sell) }))
-            const mappedCustom = cleanLines(smartCustomServices)
+            const mappedCatalog = selectedCatalog.map(s => ({
+              service_name: s.name,
+              cost: 0,
+              sell_price: numberOrZero(s.sell),
+              department: s.department,
+            }))
+            const mappedCustom = cleanSmartCustomLines(smartCustomServices)
             const merged = [...mappedCatalog, ...mappedCustom]
             if (merged.length === 0) {
               toast.error(t('customReceipts.errorServiceRequired', { defaultValue: 'Add at least one service line' }))
               return
             }
             const subtotalSmart = Math.round(merged.reduce((a, b) => a + b.sell_price, 0) * 100) / 100
-            const mech = smartDepartment === 'programming' ? [] : merged
-            const prog = smartDepartment === 'mechanical' ? [] : merged
-            const plate = selectedVehicle?.license_plate ?? null
+            const mech = merged.filter(s => s.department === 'mechanical').map(({ service_name, cost, sell_price }) => ({ service_name, cost, sell_price }))
+            const prog = merged.filter(s => s.department === 'programming').map(({ service_name, cost, sell_price }) => ({ service_name, cost, sell_price }))
+            if (mech.length + prog.length === 0) {
+              toast.error('Assign a department for at least one service')
+              return
+            }
+
+            let customer = selectedCustomer
+            if (!smartWalkInCustomer && !customer && newCustomerName.trim()) {
+              const cres = await window.electronAPI.customers.create({
+                name: newCustomerName.trim(),
+                phone: newCustomerPhone.trim() || null,
+                balance: 0,
+              })
+              if (cres.success && cres.data) {
+                const d = cres.data as { id: number }
+                customer = { id: d.id, name: newCustomerName.trim(), phone: newCustomerPhone.trim() || null }
+                setSelectedCustomer(customer)
+              }
+            }
+
+            let vehicle = selectedVehicle
             const carModelValue = selectedVehicle?.model ?? (selectedModel || newModel || null)
             const carBrandValue = selectedVehicle?.make ?? selectedBrand?.name ?? null
             const carYearValue = selectedVehicle?.year != null ? String(selectedVehicle.year) : null
+            if (!vehicle && customer && carBrandValue && carModelValue) {
+              const vres = await window.electronAPI.vehicles.create({
+                owner_id: customer.id,
+                make: carBrandValue,
+                model: carModelValue,
+                year: carYearValue ? Number(carYearValue) : null,
+              })
+              if (vres.success && vres.data) {
+                const d = vres.data as { id: number }
+                vehicle = {
+                  id: d.id,
+                  make: carBrandValue,
+                  model: carModelValue,
+                  year: carYearValue ? Number(carYearValue) : null,
+                  license_plate: null,
+                }
+                setSelectedVehicle(vehicle)
+              }
+            }
+
+            // If a new model was entered, persist selected services under this brand/model for future reuse.
+            if (newModel.trim() && selectedBrand) {
+              for (const line of merged) {
+                await window.electronAPI.serviceCatalog.create({
+                  brand_id: selectedBrand.id,
+                  model: newModel.trim(),
+                  service_name: line.service_name,
+                  department: line.department,
+                  price: line.sell_price,
+                  active: true,
+                })
+              }
+            }
+
+            const plate = vehicle?.license_plate ?? null
             const payload = {
               department: smartDepartment,
                 customer_name: smartWalkInCustomer
                   ? 'Walk-in Customer'
-                  : ((selectedCustomer?.name ?? newCustomerName.trim()) || 'Walk-in Customer'),
+                  : ((customer?.name ?? newCustomerName.trim()) || 'Walk-in Customer'),
                 customer_phone: smartWalkInCustomer
                   ? null
-                  : ((selectedCustomer?.phone ?? newCustomerPhone.trim()) || null),
+                  : ((customer?.phone ?? newCustomerPhone.trim()) || null),
               customer_email: null,
               customer_address: null,
               plate_number: plate,
@@ -778,6 +840,46 @@ function ServiceSection({
   )
 }
 
+function SmartCustomServiceSection({
+  lines,
+  onAdd,
+  onRemove,
+  onUpdate,
+}: {
+  lines: SmartCustomServiceLine[]
+  onAdd: () => void
+  onRemove: (id: string) => void
+  onUpdate: (
+    id: string,
+    field: keyof Pick<SmartCustomServiceLine, 'service_name' | 'cost' | 'sell_price' | 'department'>,
+    value: string
+  ) => void
+}): JSX.Element {
+  const inputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
+  return (
+    <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+      <h3 className="font-semibold">Custom services</h3>
+      {lines.map(line => (
+        <div key={line.id} className="grid grid-cols-1 md:grid-cols-12 gap-2">
+          <input className={`${inputCls} md:col-span-4`} placeholder="Service name" value={line.service_name} onChange={e => onUpdate(line.id, 'service_name', e.target.value)} />
+          <select className={`${inputCls} md:col-span-2`} value={line.department} onChange={e => onUpdate(line.id, 'department', e.target.value)}>
+            <option value="mechanical">Mechanical</option>
+            <option value="programming">Programming</option>
+          </select>
+          <input className={`${inputCls} md:col-span-2`} type="number" min="0" step="0.01" value={line.cost} onChange={e => onUpdate(line.id, 'cost', e.target.value)} />
+          <input className={`${inputCls} md:col-span-2`} type="number" min="0" step="0.01" value={line.sell_price} onChange={e => onUpdate(line.id, 'sell_price', e.target.value)} />
+          <button onClick={() => onRemove(line.id)} className="md:col-span-1 px-3 py-2 rounded-md border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+            <Trash2 className="w-4 h-4 mx-auto" />
+          </button>
+        </div>
+      ))}
+      <button onClick={onAdd} className="px-3 py-2 text-sm rounded-md border border-border hover:bg-accent">
+        + Add custom service
+      </button>
+    </section>
+  )
+}
+
 function SmartRecipeWizard(props: {
   t: (k: string, o?: { defaultValue: string }) => string
   step: WizardStep
@@ -811,8 +913,8 @@ function SmartRecipeWizard(props: {
   setNewModel: (v: string) => void
   catalogServices: Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>
   setCatalogServices: React.Dispatch<React.SetStateAction<Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>>>
-  customServices: ServiceLine[]
-  setCustomServices: React.Dispatch<React.SetStateAction<ServiceLine[]>>
+  customServices: SmartCustomServiceLine[]
+  setCustomServices: React.Dispatch<React.SetStateAction<SmartCustomServiceLine[]>>
   paymentMethod: 'Cash' | 'Card' | 'Bank Transfer'
   setPaymentMethod: (v: 'Cash' | 'Card' | 'Bank Transfer') => void
   onBack: () => void
@@ -834,7 +936,7 @@ function SmartRecipeWizard(props: {
   const chosenModel = selectedModel || newModel
   const selectedLines = [
     ...catalogServices.filter(s => s.checked).map(s => ({ service_name: s.name, sell_price: numberOrZero(s.sell) })),
-    ...cleanLines(customServices).map(s => ({ service_name: s.service_name, sell_price: s.sell_price })),
+    ...cleanSmartCustomLines(customServices).map(s => ({ service_name: s.service_name, sell_price: s.sell_price })),
   ]
   const subtotal = Math.round(selectedLines.reduce((a, b) => a + b.sell_price, 0) * 100) / 100
 
@@ -985,10 +1087,9 @@ function SmartRecipeWizard(props: {
               ))}
             </div>
 
-            <ServiceSection
-              title="Custom services"
+            <SmartCustomServiceSection
               lines={customServices}
-              onAdd={() => setCustomServices(prev => [...prev, newLine()])}
+              onAdd={() => setCustomServices(prev => [...prev, newSmartCustomLine(department === 'programming' ? 'programming' : 'mechanical')])}
               onRemove={id => setCustomServices(prev => prev.filter(s => s.id !== id))}
               onUpdate={(id, field, value) => setCustomServices(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))}
             />
@@ -1029,6 +1130,10 @@ function newLine(): ServiceLine {
   return { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, service_name: '', cost: '', sell_price: '' }
 }
 
+function newSmartCustomLine(department: 'mechanical' | 'programming'): SmartCustomServiceLine {
+  return { ...newLine(), department }
+}
+
 function numberOrZero(value: string): number {
   const num = Number(value)
   return Number.isFinite(num) && num > 0 ? num : 0
@@ -1040,6 +1145,17 @@ function cleanLines(lines: ServiceLine[]): Array<{ service_name: string; cost: n
       service_name: line.service_name.trim(),
       cost: Math.max(0, numberOrZero(line.cost)),
       sell_price: Math.max(0, numberOrZero(line.sell_price)),
+    }))
+    .filter(line => line.service_name !== '' && line.sell_price >= 0)
+}
+
+function cleanSmartCustomLines(lines: SmartCustomServiceLine[]): Array<{ service_name: string; cost: number; sell_price: number; department: 'mechanical' | 'programming' }> {
+  return lines
+    .map(line => ({
+      service_name: line.service_name.trim(),
+      cost: Math.max(0, numberOrZero(line.cost)),
+      sell_price: Math.max(0, numberOrZero(line.sell_price)),
+      department: line.department === 'programming' ? 'programming' as const : 'mechanical' as const,
     }))
     .filter(line => line.service_name !== '' && line.sell_price >= 0)
 }
