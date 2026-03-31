@@ -53,18 +53,23 @@ export function registerPrintHandlers(): void {
         win.webContents.once('did-finish-load', () => {
           // Block any further navigation after the receipt page has loaded
           win.webContents.on('will-navigate', (e) => e.preventDefault())
-          win.webContents.print(
-            {
-              silent: false,
-              printBackground: true,
-              margins: { marginType: 'default' },
-              pageSize: 'A4',
-            },
-            (success) => {
-              clearTimeout(timeout)
-              finalize(success)
-            },
-          )
+          // Show the window so Chromium fully paints the content (hidden windows print blank)
+          win.show()
+          // Small delay to allow CSS to fully render before printing
+          setTimeout(() => {
+            win.webContents.print(
+              {
+                silent: false,
+                printBackground: true,
+                margins: { marginType: 'default' },
+                pageSize: 'A4',
+              },
+              (success) => {
+                clearTimeout(timeout)
+                finalize(success)
+              },
+            )
+          }, 500)
         })
         win.webContents.once('did-fail-load', () => {
           clearTimeout(timeout)
