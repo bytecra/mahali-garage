@@ -215,13 +215,12 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
       ` : ''}
     </footer>
   </main>
-  <script>window.addEventListener('load', () => setTimeout(() => window.print(), 120));</script>
 </body>
 </html>`
 
-  const win = window.open('', '_blank', 'width=1024,height=900')
-  if (!win) return
-  win.document.write(html)
-  win.document.close()
+  const res = await window.electronAPI.print.receipt(html)
+  if (!res.success) {
+    throw new Error(res.error || 'Failed to print receipt')
+  }
 }
 

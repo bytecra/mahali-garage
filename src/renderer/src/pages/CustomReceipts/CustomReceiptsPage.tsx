@@ -244,7 +244,12 @@ export default function CustomReceiptsPage(): JSX.Element {
   }
 
   async function handlePrint(receipt: Receipt): Promise<void> {
-    await printCustomReceiptA4(receipt)
+    try {
+      await printCustomReceiptA4(receipt)
+    } catch (e) {
+      console.error('Receipt print failed', e)
+      toast.error(t('common.error'))
+    }
   }
 
   async function handleDelete(): Promise<void> {

@@ -83,7 +83,7 @@ export default function CustomReceiptModal({ open, onClose, onCreated }: Props):
         const full = await window.electronAPI.customReceipts.getById(res.data.id) as {
           success: boolean; data?: Record<string, unknown>
         }
-        if (full.success && full.data) printReceipt(full.data)
+        if (full.success && full.data) void printReceipt(full.data)
       }
 
       setForm({ ...INITIAL })
@@ -96,7 +96,7 @@ export default function CustomReceiptModal({ open, onClose, onCreated }: Props):
     }
   }
 
-  function printReceipt(receipt: Record<string, unknown>): void {
+  async function printReceipt(receipt: Record<string, unknown>): Promise<void> {
     const date = new Date(receipt.created_at as string).toLocaleString()
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Receipt</title>
@@ -147,12 +147,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
 </div>
 </body></html>`
 
-    const win = window.open('', '_blank', 'width=350,height=600')
-    if (win) {
-      win.document.write(html)
-      win.document.close()
-      setTimeout(() => { win.print(); win.close() }, 400)
-    }
+    await window.electronAPI.print.receipt(html)
   }
 
   const inputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'

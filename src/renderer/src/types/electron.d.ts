@@ -256,6 +256,9 @@ declare global {
         update: (id: number, data: unknown) => Promise<IpcResponse<null>>
         delete: (id: number) => Promise<IpcResponse<null>>
       }
+      print: {
+        receipt: (html: string) => Promise<IpcResponse<boolean>>
+      }
     }
   }
 }

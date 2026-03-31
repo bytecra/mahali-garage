@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Search, Eye, ChevronLeft, ChevronRight, FileText, CalendarDays, X, Trash2, Printer } from 'lucide-react'
 import { cn, formatCurrency, formatDateTime } from '../../lib/utils'
+import { printCustomReceiptA4 } from '../../lib/printCustomReceiptA4'
 import { FeatureGate } from '../../components/FeatureGate'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import CurrencyText from '../../components/shared/CurrencyText'
@@ -128,10 +129,7 @@ function InvoicesPageInner(): JSX.Element {
     }
     const res = await window.electronAPI.customReceipts.getById(row.id)
     if (!res.success || !res.data) return
-    const receipt = res.data as Record<string, unknown>
-    const html = `<html><body><h3>${String(receipt.receipt_number || '')}</h3><p>${String(receipt.customer_name || '')}</p><p>${formatCurrency(Number(receipt.amount || 0))}</p></body></html>`
-    const win = window.open('', '_blank', 'width=320,height=600')
-    if (win) { win.document.write(html); win.document.close(); setTimeout(() => { win.print(); win.close() }, 300) }
+    await printCustomReceiptA4(res.data as Parameters<typeof printCustomReceiptA4>[0])
   }
 
   return (

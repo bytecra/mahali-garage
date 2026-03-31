@@ -294,6 +294,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete:   (id: number)                 => invoke('customReceipts:delete', id),
   },
 
+  print: {
+    receipt: (html: string) => invoke('print:receipt', html),
+  },
+
   // ── Employees (HR) ────────────────────────────────────────────────────────
   employees: {
     list:            (filters?: unknown)                               => invoke('employees:list', filters),
