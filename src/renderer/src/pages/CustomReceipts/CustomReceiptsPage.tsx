@@ -619,7 +619,6 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
           setCustomServices={setSmartCustomServices}
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
-          onBack={() => { resetSmartFlow(); setMode('list'); setSearchParams({}) }}
           onLoadVehicles={async (customerId: number) => {
             const vres = await window.electronAPI.vehicles.list({ owner_id: customerId, page: 1, pageSize: 100 })
             if (vres.success && vres.data) {
@@ -924,7 +923,6 @@ function SmartRecipeWizard(props: {
   setCustomServices: React.Dispatch<React.SetStateAction<SmartCustomServiceLine[]>>
   paymentMethod: 'Cash' | 'Card' | 'Bank Transfer'
   setPaymentMethod: (v: 'Cash' | 'Card' | 'Bank Transfer') => void
-  onBack: () => void
   onLoadVehicles: (customerId: number) => Promise<void>
   onCreateCustomer: () => Promise<CustomerLite | null>
   onSave: (andPrint: boolean) => Promise<void>
@@ -937,7 +935,7 @@ function SmartRecipeWizard(props: {
     brands, brandSearch, setBrandSearch, selectedBrand, setSelectedBrand,
     modelOptions, selectedModel, setSelectedModel, newModel, setNewModel,
     catalogServices, setCatalogServices, customServices, setCustomServices,
-    paymentMethod, setPaymentMethod, onBack, onLoadVehicles, onCreateCustomer, onSave,
+    paymentMethod, setPaymentMethod, onLoadVehicles, onCreateCustomer, onSave,
   } = props
   const filteredBrands = brands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase()))
   const chosenModel = selectedModel || newModel
@@ -946,11 +944,18 @@ function SmartRecipeWizard(props: {
     ...cleanSmartCustomLines(customServices).map(s => ({ service_name: s.service_name, sell_price: s.sell_price })),
   ]
   const subtotal = Math.round(selectedLines.reduce((a, b) => a + b.sell_price, 0) * 100) / 100
+  const handleHeaderBack = (): void => {
+    if (step === 5) { setStep(4); return }
+    if (step === 4) { setStep(3); return }
+    if (step === 3) { setStep(2); return }
+    if (step === 2) { setStep(1); return }
+    // Step 1: stay in wizard.
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <button onClick={onBack} className="p-2 rounded-md border border-border hover:bg-accent"><ArrowLeft className="w-4 h-4" /></button>
+        <button onClick={handleHeaderBack} className="p-2 rounded-md border border-border hover:bg-accent"><ArrowLeft className="w-4 h-4" /></button>
         <h1 className="text-2xl font-bold">{t('customReceipts.smartRecipe', { defaultValue: 'Smart Recipe' })}</h1>
       </div>
 
