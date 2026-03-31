@@ -110,6 +110,18 @@ declare global {
         updateStatus: (id: number, status: string, notes?: string) => Promise<IpcResponse<null>>
         delete: (id: number) => Promise<IpcResponse<null>>
       }
+      jobCards: {
+        list: (filters?: unknown) => Promise<IpcResponse<unknown>>
+        getByStatus: () => Promise<IpcResponse<unknown[]>>
+        getById: (id: number) => Promise<IpcResponse<unknown>>
+        create: (data: unknown) => Promise<IpcResponse<unknown>>
+        update: (id: number, data: unknown) => Promise<IpcResponse<null>>
+        updateStatus: (id: number, status: string) => Promise<IpcResponse<null>>
+        delete: (id: number) => Promise<IpcResponse<null>>
+        addPart: (jobCardId: number, part: unknown) => Promise<IpcResponse<unknown>>
+        removePart: (partId: number) => Promise<IpcResponse<null>>
+        getForVehicle: (vehicleId: number) => Promise<IpcResponse<unknown[]>>
+      }
       cashDrawer: {
         summary: (filters?: { from?: string | null; to?: string | null }) => Promise<IpcResponse<{
           total_in: number

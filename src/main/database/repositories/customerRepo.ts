@@ -25,10 +25,14 @@ export interface CustomerFilters {
 export interface CustomerSummaryStats {
   /** Completed/partial POS sales + delivered job card totals. */
   total_spent: number
+  /** Actual cash received: amount_paid from sales + (total - balance_due) from job cards. */
+  total_paid: number
   /** Count of non-void sales (excl. draft) + non-cancelled job cards for this owner. */
   total_visits: number
   /** Amount customer owes (positive number); mirrors UI when balance is negative. */
   outstanding_balance: number
+  /** ISO date string of the most recent sale or job card (excluding voided/cancelled). */
+  last_visit: string | null
 }
 
 export const customerRepo = {
@@ -123,21 +127,37 @@ export const customerRepo = {
     const sales = db.prepare(`
       SELECT
         COALESCE(SUM(CASE WHEN status IN ('completed', 'partial') THEN total_amount ELSE 0 END), 0) AS spent,
+        COALESCE(SUM(CASE WHEN status NOT IN ('draft', 'voided') THEN amount_paid ELSE 0 END), 0) AS paid,
         COALESCE(SUM(CASE WHEN status NOT IN ('draft', 'voided') THEN 1 ELSE 0 END), 0) AS visits
       FROM sales WHERE customer_id = ?
-    `).get(customerId) as { spent: number; visits: number } | undefined
+    `).get(customerId) as { spent: number; paid: number; visits: number } | undefined
 
     const jobs = db.prepare(`
       SELECT
         COALESCE(SUM(CASE WHEN status = 'delivered' THEN total ELSE 0 END), 0) AS spent,
+        COALESCE(SUM(CASE WHEN status != 'cancelled' THEN
+          CASE WHEN balance_due IS NOT NULL AND balance_due > 0 THEN total - balance_due ELSE total END
+        ELSE 0 END), 0) AS paid,
         COALESCE(SUM(CASE WHEN status != 'cancelled' THEN 1 ELSE 0 END), 0) AS visits
       FROM job_cards WHERE owner_id = ?
-    `).get(customerId) as { spent: number; visits: number } | undefined
+    `).get(customerId) as { spent: number; paid: number; visits: number } | undefined
+
+    const lastVisitRow = db.prepare(`
+      SELECT MAX(d) as last_visit FROM (
+        SELECT MAX(created_at) as d FROM sales
+          WHERE customer_id = ? AND status NOT IN ('draft', 'voided')
+        UNION ALL
+        SELECT MAX(created_at) as d FROM job_cards
+          WHERE owner_id = ? AND status != 'cancelled'
+      )
+    `).get(customerId, customerId) as { last_visit: string | null } | undefined
 
     return {
       total_spent: (sales?.spent ?? 0) + (jobs?.spent ?? 0),
+      total_paid:  (sales?.paid  ?? 0) + (jobs?.paid  ?? 0),
       total_visits: (sales?.visits ?? 0) + (jobs?.visits ?? 0),
       outstanding_balance,
+      last_visit: lastVisitRow?.last_visit ?? null,
     }
   },
 

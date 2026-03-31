@@ -284,7 +284,7 @@ export const jobCardRepo = {
         j.job_number,
         j.created_at,
         j.date_in,
-        j.department,
+        'mechanical' AS department,
         j.status,
         j.total,
         j.balance_due,

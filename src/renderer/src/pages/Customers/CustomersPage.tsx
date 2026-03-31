@@ -57,7 +57,7 @@ function CustomerList(): JSX.Element {
       </div>
 
       <div className="flex items-center gap-3 mb-4">
-        <SearchInput value={search} onChange={setSearch} placeholder={t('common.search')} className="w-72" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by name or phone…" className="w-72" />
         <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
           <input type="checkbox" checked={debtOnly} onChange={e => setDebtOnly(e.target.checked)} className="accent-primary" />
           With debt only
