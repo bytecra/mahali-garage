@@ -156,14 +156,31 @@ export const reportRepo = {
     } catch { /* columns not migrated yet */ }
 
     // Month gross profit (revenue - COGS)
-    const monthCogsRow = db.prepare(`
+    const monthCogsSales = db.prepare(`
       SELECT COALESCE(SUM(si.cost_price * si.quantity), 0) as cogs
       FROM sale_items si JOIN sales s ON si.sale_id = s.id
       WHERE date(s.created_at) >= ? AND s.status != 'voided'
     `).get(monthStart) as { cogs: number }
+    const monthCogsCustom = db.prepare(`
+      SELECT COALESCE(SUM(
+        COALESCE(
+          (SELECT SUM(CAST(json_extract(j.value, '$.cost') AS REAL))
+           FROM json_each(CASE WHEN json_valid(cr.mechanical_services_json) THEN cr.mechanical_services_json ELSE '[]' END) j),
+          0
+        ) +
+        COALESCE(
+          (SELECT SUM(CAST(json_extract(j2.value, '$.cost') AS REAL))
+           FROM json_each(CASE WHEN json_valid(cr.programming_services_json) THEN cr.programming_services_json ELSE '[]' END) j2),
+          0
+        )
+      ), 0) as cogs
+      FROM custom_receipts cr
+      WHERE date(cr.created_at) >= ?
+    `).get(monthStart) as { cogs: number }
 
     const monthExpenses = expenseRepo.monthTotal(monthStart)
-    const monthGrossProfit = monthRevenueRow.revenue - monthCogsRow.cogs
+    const monthCogs = (monthCogsSales?.cogs ?? 0) + (monthCogsCustom?.cogs ?? 0)
+    const monthGrossProfit = monthRevenueRow.revenue - monthCogs
     const monthNetProfit   = monthGrossProfit - monthExpenses
     const totalAssetsPurchase = assetRepo.totalPurchaseValue()
 
@@ -323,11 +340,13 @@ export const reportRepo = {
           COALESCE(SUM(cr.amount),0) as revenue,
           COALESCE(SUM(
             COALESCE(
-              (SELECT SUM(CAST(json_extract(j.value, '$.cost') AS REAL)) FROM json_each(cr.mechanical_services_json) j),
+              (SELECT SUM(CAST(json_extract(j.value, '$.cost') AS REAL))
+               FROM json_each(CASE WHEN json_valid(cr.mechanical_services_json) THEN cr.mechanical_services_json ELSE '[]' END) j),
               0
             ) +
             COALESCE(
-              (SELECT SUM(CAST(json_extract(j2.value, '$.cost') AS REAL)) FROM json_each(cr.programming_services_json) j2),
+              (SELECT SUM(CAST(json_extract(j2.value, '$.cost') AS REAL))
+               FROM json_each(CASE WHEN json_valid(cr.programming_services_json) THEN cr.programming_services_json ELSE '[]' END) j2),
               0
             )
           ), 0) as cogs
