@@ -9,7 +9,10 @@ export function cn(...inputs: ClassValue[]): string {
 export function formatCurrency(amount: number | null | undefined, symbol?: string): string {
   const n = Number(amount ?? 0)
   const sym = symbol ?? getCurrencySymbol()
-  return `${sym}${(isNaN(n) ? 0 : n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
+  const safe = isNaN(n) ? 0 : n
+  const sign = safe < 0 ? '-' : ''
+  const absFormatted = Math.abs(safe).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return `${sign}${absFormatted}${sym}`
 }
 
 export function formatDate(dateStr: string): string {
