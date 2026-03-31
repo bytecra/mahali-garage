@@ -15,9 +15,9 @@ function invoiceDeptPredicate(dept: ReportDepartmentFilter, invoiceAlias = 'i'):
 function customReceiptDeptPredicate(dept: ReportDepartmentFilter, alias = 'cr'): string {
   if (dept === 'all') return '1=1'
   if (dept === 'mechanical') {
-    return `COALESCE(${alias}.department, 'both') IN ('mechanical','both')`
+    return `COALESCE(json_array_length(CASE WHEN json_valid(${alias}.mechanical_services_json) THEN ${alias}.mechanical_services_json ELSE '[]' END), 0) > 0`
   }
-  return `COALESCE(${alias}.department, 'both') IN ('programming','both')`
+  return `COALESCE(json_array_length(CASE WHEN json_valid(${alias}.programming_services_json) THEN ${alias}.programming_services_json ELSE '[]' END), 0) > 0`
 }
 
 export const reportRepo = {
@@ -71,17 +71,14 @@ export const reportRepo = {
         SELECT 'mechanical' as dept, labor_total, parts_total
         FROM job_cards
         WHERE date(created_at) BETWEEN date(?) AND date(?)
-          AND COALESCE(department, 'mechanical') IN ('mechanical','both')
           AND status != 'cancelled'
         UNION ALL
         SELECT 'programming' as dept, labor_total, parts_total
         FROM job_cards
-        WHERE date(created_at) BETWEEN date(?) AND date(?)
-          AND COALESCE(department, 'mechanical') IN ('programming','both')
-          AND status != 'cancelled'
+        WHERE 1=0
       )
       GROUP BY dept
-    `).all(dateFrom, dateTo, dateFrom, dateTo) as Array<{
+    `).all(dateFrom, dateTo) as Array<{
       dept: 'mechanical' | 'programming'
       jobs_count: number
       jobs_revenue: number
@@ -119,7 +116,6 @@ export const reportRepo = {
           COALESCE(labor_total,0) + COALESCE(parts_total,0) as revenue
         FROM job_cards
         WHERE date(created_at) BETWEEN date(?) AND date(?)
-          AND COALESCE(department, 'mechanical') IN ('mechanical','both')
           AND status != 'cancelled'
 
         UNION ALL
@@ -130,18 +126,15 @@ export const reportRepo = {
           1 as qty,
           COALESCE(labor_total,0) + COALESCE(parts_total,0) as revenue
         FROM job_cards
-        WHERE date(created_at) BETWEEN date(?) AND date(?)
-          AND COALESCE(department, 'mechanical') IN ('programming','both')
-          AND status != 'cancelled'
+        WHERE 1=0
       )
       WHERE service_name != ''
       GROUP BY dept, service_name
       ORDER BY dept, total_qty DESC, total_revenue DESC
     `).all(
-      dateFrom, dateTo,
-      dateFrom, dateTo,
-      dateFrom, dateTo,
-      dateFrom, dateTo,
+      dateFrom, dateTo,  // mechanical custom_receipts
+      dateFrom, dateTo,  // programming custom_receipts
+      dateFrom, dateTo,  // mechanical job_cards (programming branch uses WHERE 1=0, no params)
     ) as Array<{
       dept: 'mechanical' | 'programming'
       service_name: string

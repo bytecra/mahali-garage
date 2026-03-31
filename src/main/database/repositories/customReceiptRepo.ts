@@ -63,35 +63,40 @@ export const customReceiptRepo = {
       const programming = normalizeLines(input.programming_services)
       const carType = [input.car_company, input.car_model, input.car_year].filter(Boolean).join(' ').trim() || null
       const servicesText = servicesDescriptionFromLines(mechanical, programming)
-      const result = db.prepare(`
-      INSERT INTO custom_receipts
-        (receipt_number, department, customer_name, customer_phone, customer_email, customer_address,
-         plate_number, car_company, car_model, car_year, car_type,
-         services_description, mechanical_services_json, programming_services_json,
-         amount, payment_method, notes, smart_recipe, created_by, cash_received)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      receipt_number,
-      normalizeDepartment(input.department),
-      input.customer_name?.trim() || 'Walk-in Customer',
-      cleanText(input.customer_phone),
-      cleanText(input.customer_email),
-      cleanText(input.customer_address),
-      cleanText(input.plate_number),
-      cleanText(input.car_company),
-      cleanText(input.car_model),
-      cleanText(input.car_year),
-      carType,
-      servicesText,
-      JSON.stringify(mechanical),
-      JSON.stringify(programming),
-      input.amount,
-      input.payment_method || 'Cash',
-      cleanText(input.notes),
-      input.smart_recipe ? 1 : 0,
-      input.created_by,
-      cashReceivedCol,
-    )
+      const tableCols = (db.pragma('table_info(custom_receipts)') as Array<{ name: string }>).map(c => c.name)
+      const hasCol = (name: string): boolean => tableCols.includes(name)
+
+      const cols: string[] = ['receipt_number']
+      const vals: unknown[] = [receipt_number]
+      const push = (name: string, value: unknown): void => {
+        if (!hasCol(name)) return
+        cols.push(name)
+        vals.push(value)
+      }
+
+      push('department', normalizeDepartment(input.department))
+      push('customer_name', input.customer_name?.trim() || 'Walk-in Customer')
+      push('customer_phone', cleanText(input.customer_phone))
+      push('customer_email', cleanText(input.customer_email))
+      push('customer_address', cleanText(input.customer_address))
+      push('plate_number', cleanText(input.plate_number))
+      push('car_company', cleanText(input.car_company))
+      push('car_model', cleanText(input.car_model))
+      push('car_year', cleanText(input.car_year))
+      push('car_type', carType)
+      push('services_description', servicesText)
+      push('mechanical_services_json', JSON.stringify(mechanical))
+      push('programming_services_json', JSON.stringify(programming))
+      push('amount', input.amount)
+      push('payment_method', input.payment_method || 'Cash')
+      push('notes', cleanText(input.notes))
+      push('smart_recipe', input.smart_recipe ? 1 : 0)
+      push('created_by', input.created_by)
+      push('cash_received', cashReceivedCol)
+
+      const placeholders = cols.map(() => '?').join(', ')
+      const sql = `INSERT INTO custom_receipts (${cols.join(', ')}) VALUES (${placeholders})`
+      const result = db.prepare(sql).run(...vals)
 
       const id = result.lastInsertRowid as number
       db.prepare(`UPDATE settings SET value = ? WHERE key = 'custom_receipt.next_number'`).run(String(next + 1))
