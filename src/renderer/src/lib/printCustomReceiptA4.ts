@@ -19,6 +19,7 @@ interface CustomReceiptPrintable {
   amount: number
   mechanical_services_json: string | null
   programming_services_json: string | null
+  services_description?: string | null
 }
 
 function escapeHtml(v: string): string {
@@ -33,13 +34,13 @@ function escapeHtml(v: string): string {
 function parseLines(raw: string | null): ReceiptLine[] {
   if (!raw) return []
   try {
-    const arr = JSON.parse(raw) as Array<{ service_name?: string; sell_price?: number }>
+    const arr = JSON.parse(raw) as Array<{ service_name?: string; name?: string; sell_price?: number }>
     return arr
-      .filter(line => typeof line?.service_name === 'string' && line.service_name.trim() !== '')
       .map(line => ({
-        service_name: String(line.service_name),
+        service_name: String(line.service_name ?? line.name ?? '').trim(),
         sell_price: Number(line.sell_price ?? 0),
       }))
+      .filter(line => line.service_name !== '')
   } catch {
     return []
   }
@@ -81,8 +82,18 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
     .map(v => v.trim())
     .filter(Boolean)
 
-  const mechanical = parseLines(receipt.mechanical_services_json)
-  const programming = parseLines(receipt.programming_services_json)
+  let mechanical = parseLines(receipt.mechanical_services_json)
+  let programming = parseLines(receipt.programming_services_json)
+
+  // Fallback for old-format receipts that only have services_description text
+  if (mechanical.length === 0 && programming.length === 0 && receipt.services_description) {
+    const fallbackLines: ReceiptLine[] = receipt.services_description
+      .split('\n')
+      .map(l => l.replace(/^\d+\.\s*/, '').trim())
+      .filter(Boolean)
+      .map(name => ({ service_name: name, sell_price: 0 }))
+    mechanical = fallbackLines
+  }
 
   const subtotal = Number(receipt.amount || 0)
   const vatAmount = taxEnabled ? (subtotal * (Number.isFinite(taxRate) ? taxRate : 0) / 100) : 0
@@ -187,10 +198,10 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
       </div>
     </section>
 
-    ${(receipt.department === 'mechanical' || receipt.department === 'both') && mechanical.length > 0
+    ${(receipt.department !== 'programming') && mechanical.length > 0
       ? section('Mechanical Services', mechanical)
       : ''}
-    ${(receipt.department === 'programming' || receipt.department === 'both') && programming.length > 0
+    ${(receipt.department !== 'mechanical') && programming.length > 0
       ? section('Programming Services', programming)
       : ''}
 

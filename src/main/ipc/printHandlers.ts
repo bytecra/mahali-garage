@@ -1,4 +1,4 @@
-import { BrowserWindow, app, ipcMain } from 'electron'
+import { BrowserWindow, app, ipcMain, shell } from 'electron'
 import { unlinkSync, writeFileSync } from 'fs'
 import path from 'path'
 import { authService } from '../services/authService'
@@ -36,47 +36,56 @@ export function registerPrintHandlers(): void {
       // Block any popup windows opened by the print window (prevents about: URL dialogs on Windows)
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-      const tempPath = path.join(app.getPath('temp'), `mahali-receipt-${Date.now()}.html`)
-      writeFileSync(tempPath, html, 'utf-8')
+      const htmlPath = path.join(app.getPath('temp'), `mahali-receipt-${Date.now()}.html`)
+      writeFileSync(htmlPath, html, 'utf-8')
 
       const result = await new Promise<boolean>((resolve) => {
         let settled = false
-        const finalize = (printed: boolean): void => {
+        const finalize = (success: boolean): void => {
           if (settled) return
           settled = true
-          try { unlinkSync(tempPath) } catch { /* ignore cleanup failures */ }
+          try { unlinkSync(htmlPath) } catch { /* ignore cleanup failures */ }
           try { if (!win.isDestroyed()) win.close() } catch { /* ignore */ }
-          resolve(printed)
+          resolve(success)
         }
 
-        const timeout = setTimeout(() => finalize(false), 15000)
+        const timeout = setTimeout(() => finalize(false), 30000)
+
         win.webContents.once('did-finish-load', () => {
           // Block any further navigation after the receipt page has loaded
           win.webContents.on('will-navigate', (e) => e.preventDefault())
-          // Show the window so Chromium fully paints the content (hidden windows print blank)
+          // Show the window so Chromium fully paints the content (hidden windows render blank)
           win.show()
-          // Small delay to allow CSS to fully render before printing
+          // Allow CSS and layout to fully render before capturing
           setTimeout(() => {
-            win.webContents.print(
-              {
-                silent: false,
-                printBackground: true,
-                margins: { marginType: 'default' },
-                pageSize: 'A4',
-              },
-              (success) => {
+            win.webContents.printToPDF({
+              pageSize: 'A4',
+              printBackground: true,
+              landscape: false,
+              margins: { marginType: 'default' },
+            })
+              .then((pdfData) => {
+                const pdfPath = path.join(app.getPath('temp'), `mahali-receipt-${Date.now()}.pdf`)
+                writeFileSync(pdfPath, pdfData)
                 clearTimeout(timeout)
-                finalize(success)
-              },
-            )
+                finalize(true)
+                // Open in the system PDF viewer — user can print or save from there
+                void shell.openExternal(`file://${pdfPath}`)
+              })
+              .catch((e: unknown) => {
+                log.error('printToPDF failed', e)
+                clearTimeout(timeout)
+                finalize(false)
+              })
           }, 500)
         })
+
         win.webContents.once('did-fail-load', () => {
           clearTimeout(timeout)
           finalize(false)
         })
 
-        void win.loadFile(tempPath)
+        void win.loadFile(htmlPath)
       })
 
       if (!result) return err('Print cancelled or failed')
@@ -87,4 +96,3 @@ export function registerPrintHandlers(): void {
     }
   })
 }
-

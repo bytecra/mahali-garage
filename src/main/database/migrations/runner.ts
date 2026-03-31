@@ -24,6 +24,7 @@ import { migration021 } from './021_cash_received_and_drawer_fk'
 import { migration022 } from './022_assets'
 import { migration023 } from './023_custom_receipts_redesign'
 import { migration024 } from './024_custom_receipts_smart_recipe'
+import { migration025 } from './025_fix_store_name_default'
 
 interface Migration {
   version: number
@@ -58,6 +59,7 @@ const migrations: Migration[] = [
   { version: 22, name: '022_assets', up: migration022 },
   { version: 23, name: '023_custom_receipts_redesign', up: migration023 },
   { version: 24, name: '024_custom_receipts_smart_recipe', up: migration024 },
+  { version: 25, name: '025_fix_store_name_default',      up: migration025 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {
