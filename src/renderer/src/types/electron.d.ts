@@ -257,7 +257,8 @@ declare global {
         delete: (id: number) => Promise<IpcResponse<null>>
       }
       print: {
-        receipt: (html: string) => Promise<IpcResponse<boolean>>
+        receipt:              (html: string) => Promise<IpcResponse<boolean>>
+        chooseDownloadFolder: ()             => Promise<IpcResponse<string | null>>
       }
     }
   }

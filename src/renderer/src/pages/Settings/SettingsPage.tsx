@@ -8,11 +8,12 @@ import { useBrandingStore } from '../../store/brandingStore'
 import { useCurrencyStore } from '../../store/currencyStore'
 import { usePermission } from '../../hooks/usePermission'
 
-const JobTypesSettings = lazy(() => import('./JobTypesSettings'))
+const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
+const ReceiptSettings   = lazy(() => import('./ReceiptSettings'))
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands'
+type Tab = 'store' | 'invoice' | 'receipt' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands'
 
 interface ActivityRow {
   id: number; user_id: number | null; full_name: string | null
@@ -123,6 +124,8 @@ export default function SettingsPage(): JSX.Element {
       'invoice.footer_text': settings['invoice.footer_text'] ?? '',
       'invoice.show_tax': settings['invoice.show_tax'] ?? 'true',
       'invoice.prefix': fmt === 'prefix_number' ? prefixCombined : (settings['invoice.prefix'] ?? 'INV'),
+      pdf_download_behavior: settings['pdf_download_behavior'] ?? 'ask',
+      pdf_download_folder:   settings['pdf_download_folder']   ?? '',
     }
     const res = await window.electronAPI.settings.setBulk(entries)
     setSaving(false)
@@ -179,9 +182,10 @@ export default function SettingsPage(): JSX.Element {
   }
 
   const TABS: Array<{ key: Tab; label: string; guard?: boolean }> = [
-    { key: 'store',      label: t('settings.storeInfo'),      guard: canSettings },
-    { key: 'invoice',    label: t('settings.invoice'),        guard: canSettings },
-    { key: 'tax',        label: t('settings.tax'),            guard: canSettings },
+    { key: 'store',      label: t('settings.storeInfo'),                                          guard: canSettings },
+    { key: 'invoice',    label: t('settings.invoice'),                                            guard: canSettings },
+    { key: 'receipt',    label: t('settings.receiptSettings', { defaultValue: 'Receipt Settings' }), guard: canSettings },
+    { key: 'tax',        label: t('settings.tax'),                                                guard: canSettings },
     { key: 'appearance', label: t('settings.appearance') },
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
@@ -208,7 +212,7 @@ export default function SettingsPage(): JSX.Element {
         ))}
       </div>
 
-      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'car-brands' ? 'max-w-5xl' : 'max-w-2xl'}`}>
+      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'car-brands' || tab === 'receipt' ? 'max-w-3xl' : 'max-w-2xl'}`}>
 
         {tab === 'store' && (
           <div className="space-y-4">
@@ -357,6 +361,49 @@ export default function SettingsPage(): JSX.Element {
             </div>
             <div><label className={labelCls}>{t('settings.invoiceFooter')}</label><textarea value={settings['invoice.footer_text'] ?? ''} onChange={e => set('invoice.footer_text', e.target.value)} rows={3} className={inputCls} /></div>
             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={settings['invoice.show_tax'] === 'true'} onChange={e => set('invoice.show_tax', String(e.target.checked))} className="w-4 h-4" /><span className="text-sm">Show Tax on Invoice</span></label>
+
+            {/* ── PDF Download Behavior ── */}
+            <div className="pt-2 border-t border-border">
+              <h3 className="text-sm font-semibold text-foreground mb-3">PDF Download Behavior</h3>
+              <div className="space-y-2">
+                {([
+                  ['ask',      'Ask me each time (show save dialog)'],
+                  ['download', 'Download directly to a folder'],
+                  ['none',     "Don't download — open in PDF viewer only"],
+                ] as const).map(([value, label]) => (
+                  <label key={value} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pdf_download_behavior"
+                      className="w-4 h-4"
+                      checked={(settings['pdf_download_behavior'] ?? 'ask') === value}
+                      onChange={() => set('pdf_download_behavior', value)}
+                    />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                ))}
+              </div>
+              {settings['pdf_download_behavior'] === 'download' && (
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    readOnly
+                    className={`${inputCls} flex-1`}
+                    value={settings['pdf_download_folder'] ?? ''}
+                    placeholder="No folder selected…"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void window.electronAPI.print.chooseDownloadFolder().then(res => {
+                      if (res.success && res.data) set('pdf_download_folder', res.data as string)
+                    })}
+                    className="px-3 py-2 text-sm border border-input rounded-md bg-background hover:bg-muted/60 whitespace-nowrap"
+                  >
+                    Choose Folder
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button type="button" onClick={() => void saveInvoiceSettings()} disabled={saving} className={saveBtnCls}>
               {saving ? t('common.loading') : t('common.save')}
             </button>
@@ -420,6 +467,12 @@ export default function SettingsPage(): JSX.Element {
             </div>
             <button onClick={() => save(['payment_methods'])} disabled={saving} className={saveBtnCls}>{saving ? t('common.loading') : t('common.save')}</button>
           </div>
+        )}
+
+        {tab === 'receipt' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
+            <ReceiptSettings />
+          </Suspense>
         )}
 
         {tab === 'backup' && (

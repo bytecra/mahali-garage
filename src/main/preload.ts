@@ -295,7 +295,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   print: {
-    receipt: (html: string) => invoke('print:receipt', html),
+    receipt:              (html: string) => invoke('print:receipt', html),
+    chooseDownloadFolder: ()             => invoke('print:chooseDownloadFolder'),
   },
 
   // ── Employees (HR) ────────────────────────────────────────────────────────

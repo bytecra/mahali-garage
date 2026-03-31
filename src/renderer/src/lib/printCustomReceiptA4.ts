@@ -75,12 +75,24 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
   const taxEnabled = settings['tax.enabled'] === 'true'
   const taxRate = Number(settings['tax.rate'] || 0)
 
-  const terms = settings['invoice.terms'] || settings['invoice.footer_text'] || ''
-  const supportedBrandsRaw = settings['invoice.supported_brands'] || ''
+  // Receipt section toggles (default on)
+  const showVat          = (settings['receipt.show_vat']           ?? 'true') === 'true'
+  const showBrands       = (settings['receipt.show_brands']        ?? 'true') === 'true'
+  const showTerms        = (settings['receipt.show_terms']         ?? 'true') === 'true'
+  const showLogo         = (settings['receipt.show_logo']          ?? 'true') === 'true'
+  const showCustomerInfo = (settings['receipt.show_customer_info'] ?? 'true') === 'true'
+  const showCarInfo      = (settings['receipt.show_car_info']      ?? 'true') === 'true'
+
+  // Brands: prefer receipt.supported_brands, fall back to invoice.supported_brands
+  const supportedBrandsRaw = settings['receipt.supported_brands']
+    || settings['invoice.supported_brands'] || ''
   const supportedBrands = supportedBrandsRaw
-    .split(',')
-    .map(v => v.trim())
-    .filter(Boolean)
+    .split(',').map(v => v.trim()).filter(Boolean)
+
+  // Terms: prefer receipt.terms, fall back to invoice.terms / invoice.footer_text
+  const terms = settings['receipt.terms']
+    || settings['invoice.terms']
+    || settings['invoice.footer_text'] || ''
 
   let mechanical = parseLines(receipt.mechanical_services_json)
   let programming = parseLines(receipt.programming_services_json)
@@ -168,7 +180,7 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
   <main class="invoice">
     <header class="header">
       <div class="leftHead">
-        ${storeLogo ? `<img class="logo" src="${storeLogo}" alt="logo" />` : '<div class="logo"></div>'}
+        ${showLogo && storeLogo ? `<img class="logo" src="${storeLogo}" alt="logo" />` : ''}
         <div>
           <h1 class="name">${escapeHtml(storeName)}</h1>
           ${storeAddress ? `<div class="muted">${escapeHtml(storeAddress)}</div>` : ''}
@@ -184,17 +196,21 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
 
     <section class="bill">
       <div>
+        ${showCustomerInfo ? `
         <div class="label">Bill to</div>
         <div class="value"><strong>${escapeHtml(receipt.customer_name || 'Walk-in Customer')}</strong></div>
         ${receipt.customer_address ? `<div class="value">${escapeHtml(receipt.customer_address)}</div>` : ''}
         ${receipt.customer_email ? `<div class="value">${escapeHtml(receipt.customer_email)}</div>` : ''}
         ${receipt.customer_phone ? `<div class="value">${escapeHtml(receipt.customer_phone)}</div>` : ''}
+        ` : ''}
       </div>
       <div>
         <div class="value"><strong>Date:</strong> ${escapeHtml(dateLabel(receipt.created_at))}</div>
         <div class="value"><strong>Invoice #:</strong> ${escapeHtml(receipt.receipt_number)}</div>
+        ${showCarInfo ? `
         <div class="value"><strong>Car:</strong> ${escapeHtml([receipt.car_company, receipt.car_model].filter(Boolean).join(' ') || 'Walk-in')}</div>
         ${receipt.plate_number ? `<div class="value"><strong>Plate:</strong> ${escapeHtml(receipt.plate_number)}</div>` : ''}
+        ` : ''}
       </div>
     </section>
 
@@ -207,22 +223,20 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
 
     <section class="totals">
       <div class="r"><span>Subtotal</span><span>${currency(subtotal, currencySymbol)}</span></div>
-      ${taxEnabled ? `<div class="r"><span>VAT (${Number.isFinite(taxRate) ? taxRate : 0}%)</span><span>${currency(vatAmount, currencySymbol)}</span></div>` : ''}
+      ${taxEnabled && showVat ? `<div class="r"><span>VAT (${Number.isFinite(taxRate) ? taxRate : 0}%)</span><span>${currency(vatAmount, currencySymbol)}</span></div>` : ''}
       <div class="r grand"><span>Total Amount Due</span><span>${currency(totalDue, currencySymbol)}</span></div>
     </section>
 
     <footer class="foot">
-      ${(supportedBrands.length > 0 || !supportedBrandsRaw) ? `
+      ${showBrands && supportedBrands.length > 0 ? `
         <div class="footTitle">We Work with:</div>
         <div class="brands">
-          ${(supportedBrands.length > 0
-            ? supportedBrands.map(v => `<span class="brand">${escapeHtml(v)}</span>`).join('')
-            : ['Toyota', 'Nissan', 'BMW', 'Mercedes', 'Ford'].map(v => `<span class="brand">${v}</span>`).join(''))}
+          ${supportedBrands.map(v => `<span class="brand">${escapeHtml(v)}</span>`).join('')}
         </div>
       ` : ''}
-      ${(terms || !settings['invoice.terms']) ? `
+      ${showTerms && terms ? `
         <div class="footTitle">Our terms:</div>
-        <div class="terms">${escapeHtml(terms || 'Thank you for your business. All diagnostics and service recommendations are provided based on visible inspection and customer-reported issues.')}</div>
+        <div class="terms">${escapeHtml(terms)}</div>
       ` : ''}
     </footer>
   </main>

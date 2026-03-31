@@ -1,7 +1,8 @@
-import { BrowserWindow, app, ipcMain, shell } from 'electron'
+import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { unlinkSync, writeFileSync } from 'fs'
 import path from 'path'
 import { authService } from '../services/authService'
+import { settingsRepo } from '../database/repositories/settingsRepo'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
 
@@ -21,6 +22,7 @@ function createPrintWindow(parent: BrowserWindow | null): BrowserWindow {
 }
 
 export function registerPrintHandlers(): void {
+  // ── print:receipt ──────────────────────────────────────────────────────────
   ipcMain.handle('print:receipt', async (event, html: unknown) => {
     try {
       if (!authService.hasPermission(event.sender.id, 'sales.view')) {
@@ -29,6 +31,9 @@ export function registerPrintHandlers(): void {
       if (typeof html !== 'string' || html.trim() === '') {
         return err('Invalid print payload', 'ERR_VALIDATION')
       }
+
+      const behavior = settingsRepo.get('pdf_download_behavior') ?? 'ask'
+      const folder   = settingsRepo.get('pdf_download_folder')   ?? ''
 
       const parent = BrowserWindow.fromWebContents(event.sender) ?? null
       const win = createPrintWindow(parent)
@@ -44,7 +49,7 @@ export function registerPrintHandlers(): void {
         const finalize = (success: boolean): void => {
           if (settled) return
           settled = true
-          try { unlinkSync(htmlPath) } catch { /* ignore cleanup failures */ }
+          try { unlinkSync(htmlPath) } catch { /* ignore */ }
           try { if (!win.isDestroyed()) win.close() } catch { /* ignore */ }
           resolve(success)
         }
@@ -52,11 +57,11 @@ export function registerPrintHandlers(): void {
         const timeout = setTimeout(() => finalize(false), 30000)
 
         win.webContents.once('did-finish-load', () => {
-          // Block any further navigation after the receipt page has loaded
+          // Block further navigation after the receipt page has loaded
           win.webContents.on('will-navigate', (e) => e.preventDefault())
-          // Show the window so Chromium fully paints the content (hidden windows render blank)
+          // Show the window so Chromium fully paints before capture
           win.show()
-          // Allow CSS and layout to fully render before capturing
+          // Wait for CSS/layout to fully render
           setTimeout(() => {
             win.webContents.printToPDF({
               pageSize: 'A4',
@@ -64,13 +69,41 @@ export function registerPrintHandlers(): void {
               landscape: false,
               margins: { marginType: 'default' },
             })
-              .then((pdfData) => {
-                const pdfPath = path.join(app.getPath('temp'), `mahali-receipt-${Date.now()}.pdf`)
-                writeFileSync(pdfPath, pdfData)
+              .then(async (pdfData) => {
                 clearTimeout(timeout)
-                finalize(true)
-                // Open in the system PDF viewer — user can print or save from there
-                void shell.openExternal(`file://${pdfPath}`)
+
+                if (behavior === 'download' && folder) {
+                  // Auto-save to pre-selected folder
+                  const pdfPath = path.join(folder, `receipt-${Date.now()}.pdf`)
+                  writeFileSync(pdfPath, pdfData)
+                  finalize(true)
+                  void shell.openExternal(`file://${pdfPath}`)
+
+                } else if (behavior === 'ask') {
+                  // Show save dialog
+                  const { filePath, canceled } = await dialog.showSaveDialog(parent ?? undefined, {
+                    title: 'Save Receipt PDF',
+                    defaultPath: path.join(
+                      app.getPath('documents'),
+                      `receipt-${Date.now()}.pdf`,
+                    ),
+                    filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+                  })
+                  if (!canceled && filePath) {
+                    writeFileSync(filePath, pdfData)
+                    finalize(true)
+                    void shell.openExternal(`file://${filePath}`)
+                  } else {
+                    finalize(false)
+                  }
+
+                } else {
+                  // 'none' or unknown — open in system PDF viewer from temp dir
+                  const pdfPath = path.join(app.getPath('temp'), `receipt-${Date.now()}.pdf`)
+                  writeFileSync(pdfPath, pdfData)
+                  finalize(true)
+                  void shell.openExternal(`file://${pdfPath}`)
+                }
               })
               .catch((e: unknown) => {
                 log.error('printToPDF failed', e)
@@ -93,6 +126,22 @@ export function registerPrintHandlers(): void {
     } catch (e) {
       log.error('print:receipt', e)
       return err('Failed to print receipt')
+    }
+  })
+
+  // ── print:chooseDownloadFolder ─────────────────────────────────────────────
+  ipcMain.handle('print:chooseDownloadFolder', async (event) => {
+    try {
+      const parent = BrowserWindow.fromWebContents(event.sender) ?? undefined
+      const { filePaths, canceled } = await dialog.showOpenDialog(parent, {
+        title: 'Choose PDF Download Folder',
+        properties: ['openDirectory', 'createDirectory'],
+      })
+      if (canceled || filePaths.length === 0) return ok(null)
+      return ok(filePaths[0])
+    } catch (e) {
+      log.error('print:chooseDownloadFolder', e)
+      return err('Failed to open folder dialog')
     }
   })
 }
