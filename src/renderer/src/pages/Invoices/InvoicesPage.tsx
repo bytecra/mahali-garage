@@ -21,7 +21,7 @@ interface InvoiceRow {
   invoice_id?: number | null
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
 export default function InvoicesPage(): JSX.Element {
   return (
@@ -36,6 +36,7 @@ function InvoicesPageInner(): JSX.Element {
   const [rows, setRows] = useState<InvoiceRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -94,18 +95,20 @@ function InvoicesPageInner(): JSX.Element {
 
       const merged = [...mappedSales, ...mappedCustom]
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      const start = (p - 1) * PAGE_SIZE
-      setRows(merged.slice(start, start + PAGE_SIZE))
+      const start = (p - 1) * pageSize
+      setRows(merged.slice(start, start + pageSize))
       setTotal(merged.length)
       setPage(p)
     } finally {
       setLoading(false)
     }
-  }, [search, dateFrom, dateTo])
+  }, [search, dateFrom, dateTo, pageSize])
 
   useEffect(() => { void loadData(1) }, [loadData])
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const rangeEnd = Math.min(total, page * pageSize)
 
   async function handleDelete(row: InvoiceRow): Promise<void> {
     if (row.source_type === 'invoice') {
@@ -150,6 +153,18 @@ function InvoicesPageInner(): JSX.Element {
           <span className="text-muted-foreground text-sm">–</span>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="py-2 px-3 text-sm rounded-md border border-input bg-background" />
           {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo('') }} className="p-1.5 rounded hover:bg-muted"><X className="w-4 h-4" /></button>}
+        </div>
+        <div className="ms-auto flex items-center gap-2">
+          <label className="text-sm text-muted-foreground">Records per page</label>
+          <select
+            value={pageSize}
+            onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
+            className="py-2 px-3 text-sm rounded-md border border-input bg-background"
+          >
+            {PAGE_SIZE_OPTIONS.map(size => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -209,10 +224,29 @@ function InvoicesPageInner(): JSX.Element {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">{t('invoices.page', { current: page, total: totalPages })}</p>
+          <div>
+            <p className="text-sm text-muted-foreground">Showing {rangeStart}-{rangeEnd} of {total} records</p>
+            <p className="text-xs text-muted-foreground">{t('invoices.page', { current: page, total: totalPages })}</p>
+          </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => void loadData(page - 1)} disabled={page <= 1} className="p-1.5 rounded border border-input bg-background hover:bg-muted disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={() => void loadData(page + 1)} disabled={page >= totalPages} className="p-1.5 rounded border border-input bg-background hover:bg-muted disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button>
+            <button onClick={() => void loadData(page - 1)} disabled={page <= 1} className="px-2.5 py-1.5 text-sm rounded border border-input bg-background hover:bg-muted disabled:opacity-40 inline-flex items-center gap-1"><ChevronLeft className="w-4 h-4" />Previous</button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4))
+              const p = start + i
+              return p <= totalPages ? (
+                <button
+                  key={p}
+                  onClick={() => void loadData(p)}
+                  className={cn(
+                    'w-8 h-8 text-sm rounded border transition-colors',
+                    p === page ? 'bg-primary text-primary-foreground border-primary' : 'border-input bg-background hover:bg-muted'
+                  )}
+                >
+                  {p}
+                </button>
+              ) : null
+            })}
+            <button onClick={() => void loadData(page + 1)} disabled={page >= totalPages} className="px-2.5 py-1.5 text-sm rounded border border-input bg-background hover:bg-muted disabled:opacity-40 inline-flex items-center gap-1">Next<ChevronRight className="w-4 h-4" /></button>
           </div>
         </div>
       )}
