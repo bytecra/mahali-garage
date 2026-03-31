@@ -11,9 +11,10 @@ import { usePermission } from '../../hooks/usePermission'
 const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
-const ReceiptSettings   = lazy(() => import('./ReceiptSettings'))
 
-type Tab = 'store' | 'invoice' | 'receipt' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands'
+
+interface CarBrand { id: number; name: string; logo: string | null }
 
 interface ActivityRow {
   id: number; user_id: number | null; full_name: string | null
@@ -49,7 +50,7 @@ export default function SettingsPage(): JSX.Element {
   const [licKey, setLicKey] = useState('')
   const [hwId, setHwId] = useState('')
   const [activating, setActivating] = useState(false)
-  
+  const [brands, setBrands] = useState<CarBrand[]>([])
 
   // Activity log state
   const [activityRows, setActivityRows]   = useState<ActivityRow[]>([])
@@ -66,6 +67,10 @@ export default function SettingsPage(): JSX.Element {
       const data = res.data as Record<string, string>
       setSettings(data)
       syncCurrency(data)
+    }
+    if (tab === 'invoice') {
+      const bRes = await window.electronAPI.carBrands.list()
+      if (bRes.success && bRes.data) setBrands(bRes.data as CarBrand[])
     }
     if (tab === 'license') {
       const [statusRes, hwRes] = await Promise.all([
@@ -126,6 +131,15 @@ export default function SettingsPage(): JSX.Element {
       'invoice.prefix': fmt === 'prefix_number' ? prefixCombined : (settings['invoice.prefix'] ?? 'INV'),
       pdf_download_behavior: settings['pdf_download_behavior'] ?? 'ask',
       pdf_download_folder:   settings['pdf_download_folder']   ?? '',
+      'receipt.show_vat':           settings['receipt.show_vat']           ?? 'true',
+      'receipt.show_brands':        settings['receipt.show_brands']        ?? 'true',
+      'receipt.show_terms':         settings['receipt.show_terms']         ?? 'true',
+      'receipt.show_logo':          settings['receipt.show_logo']          ?? 'true',
+      'receipt.show_customer_info': settings['receipt.show_customer_info'] ?? 'true',
+      'receipt.show_car_info':      settings['receipt.show_car_info']      ?? 'true',
+      'receipt.supported_brands':   settings['receipt.supported_brands']   ?? '',
+      'receipt.terms':              settings['receipt.terms']              ?? '',
+      'receipt.programming_print_mode': settings['receipt.programming_print_mode'] ?? 'a4_only',
     }
     const res = await window.electronAPI.settings.setBulk(entries)
     setSaving(false)
@@ -182,10 +196,9 @@ export default function SettingsPage(): JSX.Element {
   }
 
   const TABS: Array<{ key: Tab; label: string; guard?: boolean }> = [
-    { key: 'store',      label: t('settings.storeInfo'),                                          guard: canSettings },
-    { key: 'invoice',    label: t('settings.invoice'),                                            guard: canSettings },
-    { key: 'receipt',    label: t('settings.receiptSettings', { defaultValue: 'Receipt Settings' }), guard: canSettings },
-    { key: 'tax',        label: t('settings.tax'),                                                guard: canSettings },
+    { key: 'store',      label: t('settings.storeInfo'), guard: canSettings },
+    { key: 'invoice',    label: t('settings.invoice'),   guard: canSettings },
+    { key: 'tax',        label: t('settings.tax'),       guard: canSettings },
     { key: 'appearance', label: t('settings.appearance') },
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
@@ -212,7 +225,7 @@ export default function SettingsPage(): JSX.Element {
         ))}
       </div>
 
-      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'car-brands' || tab === 'receipt' ? 'max-w-3xl' : 'max-w-2xl'}`}>
+      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'car-brands' || tab === 'invoice' ? 'max-w-3xl' : 'max-w-2xl'}`}>
 
         {tab === 'store' && (
           <div className="space-y-4">
@@ -404,6 +417,113 @@ export default function SettingsPage(): JSX.Element {
               )}
             </div>
 
+            {/* ── Print Sections ── */}
+            <div className="pt-2 border-t border-border">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Print Sections</h3>
+              <div className="space-y-2">
+                {([
+                  ['receipt.show_vat',           'true', 'Show VAT on receipt'],
+                  ['receipt.show_brands',         'true', 'Show "We Work with" brands section'],
+                  ['receipt.show_terms',          'true', 'Show "Our terms" footer'],
+                  ['receipt.show_logo',           'true', 'Show garage logo on receipt'],
+                  ['receipt.show_customer_info',  'true', 'Show customer info on receipt'],
+                  ['receipt.show_car_info',       'true', 'Show car info on receipt'],
+                ] as const).map(([key, def, label]) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4"
+                      checked={(settings[key] ?? def) === 'true'}
+                      onChange={() => set(key, (settings[key] ?? def) === 'true' ? 'false' : 'true')}
+                    />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Supported Brands ── */}
+            <div className="pt-2 border-t border-border">
+              <h3 className="text-sm font-semibold text-foreground mb-1">Supported Brands</h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Brands shown in the "We Work with" section of the printed receipt.
+              </p>
+              {brands.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No brands found — add brands in the <strong>Car Brands</strong> tab first.
+                </p>
+              ) : (() => {
+                const selected = (settings['receipt.supported_brands'] ?? '')
+                  .split(',').map(v => v.trim()).filter(Boolean)
+                const toggle = (name: string): void => {
+                  const next = selected.includes(name)
+                    ? selected.filter(b => b !== name)
+                    : [...selected, name]
+                  set('receipt.supported_brands', next.join(','))
+                }
+                return (
+                  <div className="grid grid-cols-3 gap-2">
+                    {brands.map(b => (
+                      <label
+                        key={b.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                          selected.includes(b.name) ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4"
+                          checked={selected.includes(b.name)}
+                          onChange={() => toggle(b.name)}
+                        />
+                        {b.logo && <img src={b.logo} alt={b.name} className="w-6 h-6 object-contain shrink-0" />}
+                        <span className="text-sm truncate">{b.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* ── Custom Terms Text ── */}
+            <div className="pt-2 border-t border-border">
+              <label className="block text-sm font-semibold text-foreground mb-1">Custom Terms Text</label>
+              <textarea
+                rows={4}
+                className={inputCls}
+                value={settings['receipt.terms'] ?? ''}
+                onChange={e => set('receipt.terms', e.target.value)}
+                placeholder="Thank you for your business!"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Shown in the "Our terms" footer of the printed receipt.
+              </p>
+            </div>
+
+            {/* ── Print Mode for Programming Receipts ── */}
+            <div className="pt-2 border-t border-border">
+              <h3 className="text-sm font-semibold text-foreground mb-3">
+                Print Mode for Programming Receipts
+              </h3>
+              <div className="space-y-2">
+                {([
+                  ['a4_only',       'A4 only'],
+                  ['a4_or_thermal', 'A4 or Thermal (thermal printer config coming in hardware phase)'],
+                ] as const).map(([value, label]) => (
+                  <label key={value} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="programming_print_mode"
+                      className="w-4 h-4"
+                      checked={(settings['receipt.programming_print_mode'] ?? 'a4_only') === value}
+                      onChange={() => set('receipt.programming_print_mode', value)}
+                    />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <button type="button" onClick={() => void saveInvoiceSettings()} disabled={saving} className={saveBtnCls}>
               {saving ? t('common.loading') : t('common.save')}
             </button>
@@ -467,12 +587,6 @@ export default function SettingsPage(): JSX.Element {
             </div>
             <button onClick={() => save(['payment_methods'])} disabled={saving} className={saveBtnCls}>{saving ? t('common.loading') : t('common.save')}</button>
           </div>
-        )}
-
-        {tab === 'receipt' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
-            <ReceiptSettings />
-          </Suspense>
         )}
 
         {tab === 'backup' && (
