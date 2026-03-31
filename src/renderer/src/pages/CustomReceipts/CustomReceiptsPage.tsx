@@ -54,6 +54,8 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [viewReceipt, setViewReceipt] = useState<Receipt | null>(null)
 
   const [department, setDepartment] = useState<Department>('both')
+  const [walkInCustomer, setWalkInCustomer] = useState(false)
+  const [walkInCar, setWalkInCar] = useState(false)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
@@ -92,6 +94,8 @@ export default function CustomReceiptsPage(): JSX.Element {
 
   function resetForm(): void {
     setDepartment('both')
+    setWalkInCustomer(false)
+    setWalkInCar(false)
     setCustomerName('')
     setCustomerPhone('')
     setCustomerEmail('')
@@ -180,14 +184,14 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
     try {
       const payload = {
         department,
-        customer_name: customerName.trim() || 'Walk-in Customer',
-        customer_phone: customerPhone.trim() || null,
-        customer_email: customerEmail.trim() || null,
-        customer_address: customerAddress.trim() || null,
-        plate_number: plateNumber.trim() || null,
-        car_company: carCompany.trim() || null,
-        car_model: carModel.trim() || null,
-        car_year: carYear.trim() || null,
+        customer_name: walkInCustomer ? 'Walk-in Customer' : (customerName.trim() || 'Walk-in Customer'),
+        customer_phone: walkInCustomer ? null : (customerPhone.trim() || null),
+        customer_email: walkInCustomer ? null : (customerEmail.trim() || null),
+        customer_address: walkInCustomer ? null : (customerAddress.trim() || null),
+        plate_number: walkInCar ? null : (plateNumber.trim() || null),
+        car_company: walkInCar ? 'Walk-in' : (carCompany.trim() || null),
+        car_model: walkInCar ? null : (carModel.trim() || null),
+        car_year: walkInCar ? null : (carYear.trim() || null),
         mechanical_services: effectiveMechanical,
         programming_services: effectiveProgramming,
         amount: subtotal,
@@ -334,28 +338,55 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
             </div>
           </div>
 
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex flex-wrap items-center gap-6">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  checked={walkInCustomer}
+                  onChange={e => setWalkInCustomer(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                {t('customReceipts.walkInCustomer', { defaultValue: 'Walk-in Customer' })}
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  checked={walkInCar}
+                  onChange={e => setWalkInCar(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                {t('customReceipts.walkInCar', { defaultValue: 'Walk-in Car' })}
+              </label>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-2 space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <section className="rounded-lg border border-border bg-card p-4">
-                  <h2 className="text-base font-semibold mb-4">{t('customReceipts.customerInfo', { defaultValue: 'Customer Info' })}</h2>
-                  <div className="space-y-3">
-                    <div><label className={labelCls}>{t('employees.fullName', { defaultValue: 'Full Name' })}</label><input className={inputCls} value={customerName} onChange={e => setCustomerName(e.target.value)} /></div>
-                    <div><label className={labelCls}>{t('employees.phone', { defaultValue: 'Phone Number' })}</label><input className={inputCls} value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} /></div>
-                    <div><label className={labelCls}>{t('employees.email', { defaultValue: 'Email' })}</label><input className={inputCls} value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} /></div>
-                    <div><label className={labelCls}>{t('employees.address', { defaultValue: 'Address' })}</label><input className={inputCls} value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} /></div>
-                  </div>
-                </section>
+                {!walkInCustomer && (
+                  <section className="rounded-lg border border-border bg-card p-4">
+                    <h2 className="text-base font-semibold mb-4">{t('customReceipts.customerInfo', { defaultValue: 'Customer Info' })}</h2>
+                    <div className="space-y-3">
+                      <div><label className={labelCls}>{t('employees.fullName', { defaultValue: 'Full Name' })}</label><input className={inputCls} value={customerName} onChange={e => setCustomerName(e.target.value)} /></div>
+                      <div><label className={labelCls}>{t('employees.phone', { defaultValue: 'Phone Number' })}</label><input className={inputCls} value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} /></div>
+                      <div><label className={labelCls}>{t('employees.email', { defaultValue: 'Email' })}</label><input className={inputCls} value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} /></div>
+                      <div><label className={labelCls}>{t('employees.address', { defaultValue: 'Address' })}</label><input className={inputCls} value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} /></div>
+                    </div>
+                  </section>
+                )}
 
-                <section className="rounded-lg border border-border bg-card p-4">
-                  <h2 className="text-base font-semibold mb-4">{t('customReceipts.carDetails', { defaultValue: 'Car Info' })}</h2>
-                  <div className="space-y-3">
-                    <div><label className={labelCls}>{t('customReceipts.plateNumber')}</label><input className={inputCls} value={plateNumber} onChange={e => setPlateNumber(e.target.value)} /></div>
-                    <div><label className={labelCls}>{t('customReceipts.company', { defaultValue: 'Company (Brand)' })}</label><input className={inputCls} value={carCompany} onChange={e => setCarCompany(e.target.value)} /></div>
-                    <div><label className={labelCls}>{t('customReceipts.model', { defaultValue: 'Model' })}</label><input className={inputCls} value={carModel} onChange={e => setCarModel(e.target.value)} /></div>
-                    <div><label className={labelCls}>{t('customReceipts.year', { defaultValue: 'Year' })}</label><input className={inputCls} value={carYear} onChange={e => setCarYear(e.target.value)} /></div>
-                  </div>
-                </section>
+                {!walkInCar && (
+                  <section className="rounded-lg border border-border bg-card p-4">
+                    <h2 className="text-base font-semibold mb-4">{t('customReceipts.carDetails', { defaultValue: 'Car Info' })}</h2>
+                    <div className="space-y-3">
+                      <div><label className={labelCls}>{t('customReceipts.plateNumber')}</label><input className={inputCls} value={plateNumber} onChange={e => setPlateNumber(e.target.value)} /></div>
+                      <div><label className={labelCls}>{t('customReceipts.company', { defaultValue: 'Company (Brand)' })}</label><input className={inputCls} value={carCompany} onChange={e => setCarCompany(e.target.value)} /></div>
+                      <div><label className={labelCls}>{t('customReceipts.model', { defaultValue: 'Model' })}</label><input className={inputCls} value={carModel} onChange={e => setCarModel(e.target.value)} /></div>
+                      <div><label className={labelCls}>{t('customReceipts.year', { defaultValue: 'Year' })}</label><input className={inputCls} value={carYear} onChange={e => setCarYear(e.target.value)} /></div>
+                    </div>
+                  </section>
+                )}
               </div>
 
               {(department === 'mechanical' || department === 'both') && (
