@@ -5,10 +5,9 @@ import { ArrowLeft, Check, ChevronRight, Code2, Eye, Plus, Printer, Trash2, Wren
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Modal from '../../components/shared/Modal'
 import { formatCurrency, formatDate } from '../../lib/utils'
+import { printCustomReceiptA4 } from '../../lib/printCustomReceiptA4'
 import CurrencyText from '../../components/shared/CurrencyText'
-import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
-import { useBrandingStore } from '../../store/brandingStore'
 import { toast } from '../../store/notificationStore'
 
 type Department = 'mechanical' | 'programming' | 'both'
@@ -55,7 +54,6 @@ type WizardStep = 1 | 2 | 3 | 4 | 5
 export default function CustomReceiptsPage(): JSX.Element {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { appName } = useBrandingStore()
   const user = useAuthStore(s => s.user)
   const role = user?.role
   const [receipts, setReceipts] = useState<Receipt[]>([])
@@ -245,56 +243,8 @@ export default function CustomReceiptsPage(): JSX.Element {
     setPaymentMethod('Cash')
   }
 
-  function handlePrint(receipt: Receipt): void {
-    const date = new Date(receipt.created_at).toLocaleString()
-    const lines = parseLines(receipt)
-    const lineRows = lines.map(line => `
-      <div class="row"><span>${escapeHtml(line.service_name)}</span><span>${getCurrencySymbol() + Number(line.sell_price).toFixed(2)}</span></div>
-    `).join('')
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Receipt</title>
-<style>
-  @page { size: 80mm auto; margin: 4mm; }
-  body { font-family: 'Courier New', monospace; font-size: 12px; width: 72mm; margin: 0 auto; color: #000; }
-  .center { text-align: center; }
-  .bold { font-weight: bold; }
-  .line { border-top: 1px dashed #000; margin: 6px 0; }
-  .row { display: flex; justify-content: space-between; }
-  h1 { font-size: 16px; margin: 0; }
-  h2 { font-size: 12px; margin: 2px 0 8px; font-weight: normal; }
-  .services { white-space: pre-wrap; margin: 4px 0; }
-  .total { font-size: 16px; font-weight: bold; }
-  .footer { margin-top: 12px; font-size: 11px; }
-</style></head><body>
-<div class="center"><h1>${appName}</h1><h2>Auto Repair &amp; Service</h2></div>
-<div class="line"></div>
-<div class="row"><span>Receipt:</span><span class="bold">${receipt.receipt_number}</span></div>
-<div class="row"><span>Date:</span><span>${date}</span></div>
-<div class="row"><span>Department:</span><span>${prettyDepartment(receipt.department)}</span></div>
-<div class="line"></div>
-<div class="row"><span>Customer:</span><span>${receipt.customer_name || '—'}</span></div>
-<div class="row"><span>Plate:</span><span class="bold">${receipt.plate_number || '—'}</span></div>
-<div class="row"><span>Vehicle:</span><span>${[receipt.car_company, receipt.car_model, receipt.car_year].filter(Boolean).join(' ') || receipt.car_type || '—'}</span></div>
-<div class="line"></div>
-<div class="bold">Services:</div>
-${lineRows || '<div class="services">—</div>'}
-<div class="line"></div>
-<div class="row"><span class="total">Total:</span><span class="total">${getCurrencySymbol() + Number(receipt.amount).toFixed(2)} (${getCurrencyCode()})</span></div>
-<div class="row"><span>Payment:</span><span>${receipt.payment_method || 'Cash'}</span></div>
-${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` : ''}
-<div class="line"></div>
-<div class="center footer">
-  <p>Thank you for your business!</p>
-  <p>Served by: ${receipt.created_by_name || 'Staff'}</p>
-</div>
-</body></html>`
-
-    const win = window.open('', '_blank', 'width=350,height=600')
-    if (win) {
-      win.document.write(html)
-      win.document.close()
-      setTimeout(() => { win.print(); win.close() }, 400)
-    }
+  async function handlePrint(receipt: Receipt): Promise<void> {
+    await printCustomReceiptA4(receipt)
   }
 
   async function handleDelete(): Promise<void> {
@@ -353,7 +303,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
           success: boolean
           data?: Receipt
         }
-        if (full.success && full.data) handlePrint(full.data)
+        if (full.success && full.data) await handlePrint(full.data)
       }
       toast.success(t('common.saved'))
       resetForm()
@@ -429,7 +379,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
                                 <Eye className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handlePrint(r)}
+                                onClick={() => void handlePrint(r)}
                                 className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
                                 title={t('customReceipts.printReceipt')}
                               >
@@ -744,7 +694,7 @@ ${receipt.notes ? `<div class="line"></div><div>Notes: ${receipt.notes}</div>` :
             }
             if (andPrint) {
               const full = await window.electronAPI.customReceipts.getById(res.data.id) as { success: boolean; data?: Receipt }
-              if (full.success && full.data) handlePrint(full.data)
+              if (full.success && full.data) await handlePrint(full.data)
             }
             toast.success(t('common.saved'))
             resetSmartFlow()
@@ -1200,11 +1150,3 @@ function prettyDepartment(dep: Department): string {
   return 'Both'
 }
 
-function escapeHtml(v: string): string {
-  return v
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
