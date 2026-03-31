@@ -1,16 +1,31 @@
 import { getDb } from '../index'
 import { insertCustomReceiptCashInTx } from './cashDrawerRepo'
 
+type Department = 'mechanical' | 'programming' | 'both'
+
+interface CustomServiceLine {
+  service_name: string
+  cost: number
+  sell_price: number
+}
+
 export interface CustomReceiptInput {
-  customer_name?: string
-  plate_number: string
-  car_type: string
-  services_description?: string
+  department: Department
+  customer_name: string
+  customer_phone?: string | null
+  customer_email?: string | null
+  customer_address?: string | null
+  plate_number?: string | null
+  car_company?: string | null
+  car_model?: string | null
+  car_year?: string | null
+  mechanical_services?: CustomServiceLine[]
+  programming_services?: CustomServiceLine[]
   amount: number
-  payment_method?: string
+  payment_method?: string | null
   /** For Cash: actual bills/coins received (≥ amount). Omitted = exact amount. */
   cash_received?: number | null
-  notes?: string
+  notes?: string | null
   created_by: number
 }
 
@@ -43,20 +58,35 @@ export const customReceiptRepo = {
     const receipt_number = `CR-${year}-${String(next).padStart(4, '0')}`
 
     const txn = db.transaction(() => {
+      const mechanical = normalizeLines(input.mechanical_services)
+      const programming = normalizeLines(input.programming_services)
+      const carType = [input.car_company, input.car_model, input.car_year].filter(Boolean).join(' ').trim() || null
+      const servicesText = servicesDescriptionFromLines(mechanical, programming)
       const result = db.prepare(`
       INSERT INTO custom_receipts
-        (receipt_number, customer_name, plate_number, car_type, services_description,
+        (receipt_number, department, customer_name, customer_phone, customer_email, customer_address,
+         plate_number, car_company, car_model, car_year, car_type,
+         services_description, mechanical_services_json, programming_services_json,
          amount, payment_method, notes, created_by, cash_received)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       receipt_number,
-      input.customer_name || 'Walk-in Customer',
-      input.plate_number,
-      input.car_type,
-      input.services_description ?? null,
+      normalizeDepartment(input.department),
+      input.customer_name?.trim() || 'Walk-in Customer',
+      cleanText(input.customer_phone),
+      cleanText(input.customer_email),
+      cleanText(input.customer_address),
+      cleanText(input.plate_number),
+      cleanText(input.car_company),
+      cleanText(input.car_model),
+      cleanText(input.car_year),
+      carType,
+      servicesText,
+      JSON.stringify(mechanical),
+      JSON.stringify(programming),
       input.amount,
       input.payment_method || 'Cash',
-      input.notes ?? null,
+      cleanText(input.notes),
       input.created_by,
       cashReceivedCol,
     )
@@ -104,10 +134,10 @@ export const customReceiptRepo = {
 
     if (search) {
       conditions.push(
-        `(cr.receipt_number LIKE ? OR cr.customer_name LIKE ? OR cr.plate_number LIKE ? OR cr.car_type LIKE ?)`
+        `(cr.receipt_number LIKE ? OR cr.customer_name LIKE ? OR cr.plate_number LIKE ? OR cr.car_type LIKE ? OR cr.car_company LIKE ? OR cr.car_model LIKE ?)`
       )
       const like = `%${search}%`
-      params.push(like, like, like, like)
+      params.push(like, like, like, like, like, like)
     }
     if (startDate) {
       conditions.push('DATE(cr.created_at) >= ?')
@@ -140,4 +170,38 @@ export const customReceiptRepo = {
     getDb().prepare('DELETE FROM custom_receipts WHERE id = ?').run(id)
     return true
   },
+}
+
+function cleanText(value?: string | null): string | null {
+  const v = value?.trim()
+  return v ? v : null
+}
+
+function normalizeDepartment(value: string): Department {
+  if (value === 'mechanical' || value === 'programming' || value === 'both') return value
+  return 'both'
+}
+
+function normalizeLines(lines: CustomServiceLine[] | undefined): CustomServiceLine[] {
+  return (lines ?? [])
+    .map(line => ({
+      service_name: String(line.service_name ?? '').trim(),
+      cost: Number(line.cost ?? 0),
+      sell_price: Number(line.sell_price ?? 0),
+    }))
+    .filter(line => line.service_name && Number.isFinite(line.sell_price) && line.sell_price >= 0)
+    .map(line => ({
+      service_name: line.service_name,
+      cost: Number.isFinite(line.cost) ? line.cost : 0,
+      sell_price: line.sell_price,
+    }))
+}
+
+function servicesDescriptionFromLines(
+  mechanical: CustomServiceLine[],
+  programming: CustomServiceLine[]
+): string | null {
+  const all = [...mechanical, ...programming]
+  if (all.length === 0) return null
+  return all.map((line, index) => `${index + 1}. ${line.service_name}`).join('\n')
 }
