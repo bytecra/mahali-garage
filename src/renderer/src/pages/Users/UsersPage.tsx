@@ -10,6 +10,7 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog'
 interface UserRow {
   id: number; username: string; full_name: string; role: string
   is_active: number; created_at: string; override_count: number
+  auth_type?: 'password' | 'passcode_4' | 'passcode_6'
 }
 
 interface Override { key: string; granted: boolean; description: string | null }
@@ -434,27 +435,89 @@ function UserFormModal({ open, user, onClose, onSaved }: {
 }): JSX.Element {
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ username: '', password: '', full_name: '', role: 'cashier', is_active: true })
+  const [form, setForm] = useState({
+    username: '',
+    password: '',
+    new_password: '',
+    full_name: '',
+    role: 'cashier',
+    is_active: true,
+    auth_type: 'password' as 'password' | 'passcode_4' | 'passcode_6',
+    passcode: '',
+    passcode_confirm: '',
+  })
   const set = (k: keyof typeof form, v: string | boolean) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
     if (!open) return
-    if (user) setForm({ username: user.username, password: '', full_name: user.full_name, role: user.role, is_active: Boolean(user.is_active) })
-    else setForm({ username: '', password: '', full_name: '', role: 'cashier', is_active: true })
+    if (user) setForm({
+      username: user.username,
+      password: '',
+      new_password: '',
+      full_name: user.full_name,
+      role: user.role,
+      is_active: Boolean(user.is_active),
+      auth_type: user.auth_type ?? 'password',
+      passcode: '',
+      passcode_confirm: '',
+    })
+    else setForm({
+      username: '',
+      password: '',
+      new_password: '',
+      full_name: '',
+      role: 'cashier',
+      is_active: true,
+      auth_type: 'password',
+      passcode: '',
+      passcode_confirm: '',
+    })
   }, [open, user])
 
   const handleSave = async () => {
     if (!form.full_name || !form.username) { toast.error('Name and username are required'); return }
-    if (!user && !form.password) { toast.error('Password is required'); return }
+    if (!user && form.auth_type === 'password' && !form.password) { toast.error('Password is required'); return }
+    if (form.auth_type !== 'password') {
+      const len = form.auth_type === 'passcode_4' ? 4 : 6
+      if (!/^\d+$/.test(form.passcode) || form.passcode.length !== len) {
+        toast.error(`Passcode must be exactly ${len} digits`)
+        return
+      }
+      if (form.passcode !== form.passcode_confirm) {
+        toast.error('Passcode confirmation does not match')
+        return
+      }
+    }
     setSaving(true)
     if (user) {
-      const res = await window.electronAPI.users.update(user.id, { full_name: form.full_name, role: form.role, is_active: form.is_active })
+      const res = await window.electronAPI.users.update(user.id, {
+        full_name: form.full_name,
+        role: form.role,
+        is_active: form.is_active,
+        new_password: form.auth_type === 'password' && form.new_password ? form.new_password : undefined,
+      })
       setSaving(false)
       if (!res.success) { toast.error(res.error ?? t('common.error')); return }
+      const authRes = await window.electronAPI.users.setAuth(user.id, {
+        auth_type: form.auth_type,
+        passcode: form.auth_type === 'password' ? null : form.passcode,
+      })
+      if (!authRes.success) { toast.error(authRes.error ?? t('common.error')); return }
     } else {
-      const res = await window.electronAPI.users.create({ username: form.username, password: form.password, full_name: form.full_name, role: form.role })
+      const initialPassword = form.auth_type === 'password' ? form.password : `${Date.now()}-tmp`
+      const res = await window.electronAPI.users.create({
+        username: form.username,
+        password: initialPassword,
+        full_name: form.full_name,
+        role: form.role,
+      })
       setSaving(false)
       if (!res.success) { toast.error(res.error ?? t('common.error')); return }
+      const userId = Number(res.data)
+      if (form.auth_type !== 'password') {
+        const authRes = await window.electronAPI.users.setAuth(userId, { auth_type: form.auth_type, passcode: form.passcode })
+        if (!authRes.success) { toast.error(authRes.error ?? t('common.error')); return }
+      }
     }
     toast.success(t('common.success'))
     onSaved()
@@ -478,8 +541,55 @@ function UserFormModal({ open, user, onClose, onSaved }: {
           <input value={form.full_name} onChange={e => set('full_name', e.target.value)} className={inputCls} /></div>
         {!user && <div><label className="block text-sm font-medium mb-1">{t('auth.username')}</label>
           <input value={form.username} onChange={e => set('username', e.target.value)} className={inputCls} /></div>}
-        {!user && <div><label className="block text-sm font-medium mb-1">{t('auth.password')}</label>
-          <input type="password" value={form.password} onChange={e => set('password', e.target.value)} className={inputCls} /></div>}
+        <div>
+          <label className="block text-sm font-medium mb-1">Authentication</label>
+          <select value={form.auth_type} onChange={e => set('auth_type', e.target.value as typeof form.auth_type)} className={inputCls}>
+            <option value="password">Password</option>
+            <option value="passcode_4">4-digit Passcode</option>
+            <option value="passcode_6">6-digit Passcode</option>
+          </select>
+        </div>
+        {!user && form.auth_type === 'password' && (
+          <div><label className="block text-sm font-medium mb-1">{t('auth.password')}</label>
+            <input type="password" value={form.password} onChange={e => set('password', e.target.value)} className={inputCls} /></div>
+        )}
+        {user && form.auth_type === 'password' && (
+          <div><label className="block text-sm font-medium mb-1">New Password (optional)</label>
+            <input type="password" value={form.new_password} onChange={e => set('new_password', e.target.value)} className={inputCls} /></div>
+        )}
+        {form.auth_type !== 'password' && (
+          <>
+            <div><label className="block text-sm font-medium mb-1">{form.auth_type === 'passcode_4' ? '4-digit passcode' : '6-digit passcode'}</label>
+              <div className="flex items-center gap-2 mb-2">
+                {Array.from({ length: form.auth_type === 'passcode_4' ? 4 : 6 }).map((_, i) => (
+                  <span key={i} className={`w-3.5 h-3.5 rounded-sm border ${i < form.passcode.length ? 'bg-primary border-primary' : 'border-border bg-transparent'}`} />
+                ))}
+              </div>
+              <input
+                inputMode="numeric"
+                maxLength={form.auth_type === 'passcode_4' ? 4 : 6}
+                value={form.passcode}
+                onChange={e => set('passcode', e.target.value.replace(/\D/g, ''))}
+                className={inputCls}
+                placeholder={form.auth_type === 'passcode_4' ? '1234' : '123456'}
+              />
+            </div>
+            <div><label className="block text-sm font-medium mb-1">Confirm passcode</label>
+              <div className="flex items-center gap-2 mb-2">
+                {Array.from({ length: form.auth_type === 'passcode_4' ? 4 : 6 }).map((_, i) => (
+                  <span key={i} className={`w-3.5 h-3.5 rounded-sm border ${i < form.passcode_confirm.length ? 'bg-primary border-primary' : 'border-border bg-transparent'}`} />
+                ))}
+              </div>
+              <input
+                inputMode="numeric"
+                maxLength={form.auth_type === 'passcode_4' ? 4 : 6}
+                value={form.passcode_confirm}
+                onChange={e => set('passcode_confirm', e.target.value.replace(/\D/g, ''))}
+                className={inputCls}
+              />
+            </div>
+          </>
+        )}
         <div>
           <label className="block text-sm font-medium mb-1">{t('users.role')}</label>
           <select value={form.role} onChange={e => set('role', e.target.value)} className={inputCls}>

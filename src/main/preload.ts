@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSession:     () => invoke('auth:getSession'),
     changePassword: (data: { currentPassword: string; newPassword: string }) =>
                       invoke('auth:changePassword', data),
+    getAuthType:    (username: string) => invoke('auth:getAuthType', username),
   },
 
   // ── Settings ─────────────────────────────────────────────────────────────
@@ -165,6 +166,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getUserOverrides:   (id: number)                                 => invoke('users:getUserOverrides', id),
     setOverride:        (id: number, key: string, granted: boolean)  => invoke('users:setOverride', id, key, granted),
     removeOverride:     (id: number, key: string)                    => invoke('users:removeOverride', id, key),
+    setAuth:            (id: number, data: { auth_type: 'password' | 'passcode_4' | 'passcode_6'; passcode?: string | null }) =>
+      invoke('users:setAuth', id, data),
   },
 
   // ── Backup ────────────────────────────────────────────────────────────────

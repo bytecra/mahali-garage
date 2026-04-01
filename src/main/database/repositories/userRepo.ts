@@ -4,6 +4,8 @@ export interface UserRow {
   id: number
   username: string
   password_hash: string
+  auth_type: 'password' | 'passcode_4' | 'passcode_6'
+  passcode: string | null
   full_name: string
   role: 'owner' | 'manager' | 'cashier' | 'technician' | 'accountant'
   is_active: number
@@ -11,7 +13,7 @@ export interface UserRow {
   updated_at: string
 }
 
-export interface UserListRow extends Omit<UserRow, 'password_hash'> {
+export interface UserListRow extends Omit<UserRow, 'password_hash' | 'passcode'> {
   override_count: number
 }
 
@@ -42,7 +44,7 @@ export const userRepo = {
 
   list(): UserListRow[] {
     return getDb().prepare(`
-      SELECT u.id, u.username, u.full_name, u.role, u.is_active, u.created_at, u.updated_at,
+      SELECT u.id, u.username, u.full_name, u.role, u.auth_type, u.is_active, u.created_at, u.updated_at,
              (SELECT COUNT(*) FROM user_permissions WHERE user_id = u.id) AS override_count
       FROM users u
       ORDER BY u.full_name
@@ -51,18 +53,22 @@ export const userRepo = {
 
   create(data: { username: string; password_hash: string; full_name: string; role: string }): number {
     const result = getDb().prepare(`
-      INSERT INTO users (username, password_hash, full_name, role)
-      VALUES (?, ?, ?, ?)
-    `).run(data.username, data.password_hash, data.full_name, data.role)
+      INSERT INTO users (username, password_hash, auth_type, passcode, full_name, role)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(data.username, data.password_hash, 'password', null, data.full_name, data.role)
     return result.lastInsertRowid as number
   },
 
   update(id: number, data: Partial<{
     username: string; password_hash: string; full_name: string
     role: string; is_active: number
+    auth_type: 'password' | 'passcode_4' | 'passcode_6'
+    passcode: string | null
   }>): void {
-    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ')
-    const values = Object.values(data)
+    const entries = Object.entries(data).filter(([, v]) => v !== undefined)
+    if (entries.length === 0) return
+    const fields = entries.map(([k]) => `${k} = ?`).join(', ')
+    const values = entries.map(([, v]) => v)
     getDb().prepare(
       `UPDATE users SET ${fields}, updated_at = datetime('now') WHERE id = ?`
     ).run(...values, id)

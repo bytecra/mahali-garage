@@ -28,6 +28,7 @@ declare global {
         logout: () => Promise<IpcResponse<null>>
         getSession: () => Promise<IpcResponse<SessionData | null>>
         changePassword: (data: { currentPassword: string; newPassword: string }) => Promise<IpcResponse<null>>
+        getAuthType: (username: string) => Promise<IpcResponse<'password' | 'passcode_4' | 'passcode_6' | null>>
       }
       settings: {
         getAll: () => Promise<IpcResponse<Record<string, string>>>
@@ -201,6 +202,7 @@ declare global {
         getUserOverrides: (id: number) => Promise<IpcResponse<{ key: string; granted: boolean; description: string | null }[]>>
         setOverride: (id: number, key: string, granted: boolean) => Promise<IpcResponse<null>>
         removeOverride: (id: number, key: string) => Promise<IpcResponse<null>>
+        setAuth: (id: number, data: { auth_type: 'password' | 'passcode_4' | 'passcode_6'; passcode?: string | null }) => Promise<IpcResponse<null>>
       }
       backup: {
         create: () => Promise<IpcResponse<unknown>>

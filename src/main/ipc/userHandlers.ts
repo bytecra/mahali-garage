@@ -49,7 +49,16 @@ export function registerUserHandlers(): void {
   ipcMain.handle('users:update', (event, id: number, input: { full_name?: string; role?: string; is_active?: boolean }) => {
     try {
       if (!authService.hasPermission(event.sender.id, 'users.manage')) return err('Forbidden', 'ERR_FORBIDDEN')
-      userRepo.update(id, { full_name: input.full_name, role: input.role, is_active: input.is_active ? 1 : 0 })
+      const payload: { full_name?: string; role?: string; is_active?: number; password_hash?: string } = {
+        full_name: input.full_name,
+        role: input.role,
+      }
+      if (typeof input.is_active === 'boolean') payload.is_active = input.is_active ? 1 : 0
+      const withPassword = input as { new_password?: string }
+      if (withPassword.new_password && withPassword.new_password.length >= 4) {
+        payload.password_hash = bcrypt.hashSync(withPassword.new_password, 12)
+      }
+      userRepo.update(id, payload)
       return ok(null)
     } catch (e) { log.error('users:update', e); return err('Failed', 'ERR_USERS') }
   })
@@ -58,9 +67,34 @@ export function registerUserHandlers(): void {
     try {
       if (!authService.hasPermission(event.sender.id, 'users.manage')) return err('Forbidden', 'ERR_FORBIDDEN')
       const hash = bcrypt.hashSync(newPassword, 12)
-      userRepo.update(id, { password_hash: hash })
+      userRepo.update(id, { password_hash: hash, auth_type: 'password', passcode: null })
       return ok(null)
     } catch (e) { log.error('users:resetPassword', e); return err('Failed', 'ERR_USERS') }
+  })
+
+  ipcMain.handle('users:setAuth', (event, id: number, input: {
+    auth_type: 'password' | 'passcode_4' | 'passcode_6'
+    passcode?: string | null
+  }) => {
+    try {
+      if (!authService.hasPermission(event.sender.id, 'users.manage')) return err('Forbidden', 'ERR_FORBIDDEN')
+      if (input.auth_type === 'password') {
+        userRepo.update(id, { auth_type: 'password', passcode: null })
+        return ok(null)
+      }
+
+      const passcode = (input.passcode ?? '').trim()
+      const requiredLen = input.auth_type === 'passcode_4' ? 4 : 6
+      if (!/^\d+$/.test(passcode) || passcode.length !== requiredLen) {
+        return err(`Passcode must be exactly ${requiredLen} digits`, 'ERR_USERS')
+      }
+      const passcodeHash = bcrypt.hashSync(passcode, 12)
+      userRepo.update(id, { auth_type: input.auth_type, passcode: passcodeHash })
+      return ok(null)
+    } catch (e) {
+      log.error('users:setAuth', e)
+      return err('Failed', 'ERR_USERS')
+    }
   })
 
   ipcMain.handle('users:delete', (event, id: number) => {

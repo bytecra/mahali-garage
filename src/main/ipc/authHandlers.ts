@@ -25,6 +25,16 @@ export function registerAuthHandlers(): void {
     }
   })
 
+  ipcMain.handle('auth:getAuthType', (_event, username: string) => {
+    try {
+      const authType = authService.getAuthTypeForUsername(username)
+      return ok(authType)
+    } catch (e) {
+      log.error('auth:getAuthType error:', e)
+      return err('Failed to get auth type', 'ERR_LOGIN')
+    }
+  })
+
   ipcMain.handle('auth:logout', (event) => {
     const session = authService.getSession(event.sender.id)
     if (session) {

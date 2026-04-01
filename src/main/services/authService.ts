@@ -61,15 +61,21 @@ export interface Session {
   permissions: string[]
 }
 
+export type AuthType = 'password' | 'passcode_4' | 'passcode_6'
+
 // In-memory session store (keyed by webContents ID)
 const sessions = new Map<number, Session>()
 
 export const authService = {
-  async login(username: string, password: string): Promise<Session | null> {
+  async login(username: string, secret: string): Promise<Session | null> {
     const user = userRepo.findByUsername(username)
     if (!user) return null
 
-    const valid = await bcrypt.compare(password, user.password_hash)
+    const authType = (user.auth_type ?? 'password') as AuthType
+    const hashToCompare = authType === 'password' ? user.password_hash : user.passcode
+    if (!hashToCompare) return null
+
+    const valid = await bcrypt.compare(secret, hashToCompare)
     if (!valid) return null
 
     // Start with role defaults, then apply user overrides (grants + revocations)
@@ -164,5 +170,11 @@ export const authService = {
     const hash = await bcrypt.hash(newPassword, 12)
     userRepo.update(userId, { password_hash: hash })
     return true
+  },
+
+  getAuthTypeForUsername(username: string): AuthType | null {
+    const user = userRepo.findByUsername(username)
+    if (!user) return null
+    return (user.auth_type ?? 'password') as AuthType
   },
 }
