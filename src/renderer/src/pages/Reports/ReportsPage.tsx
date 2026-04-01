@@ -5,6 +5,12 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { formatCurrency, formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { FeatureGate } from '../../components/FeatureGate'
+import { toast } from 'sonner'
+import {
+  buildDailySalesPdf,
+  buildProfitPdf,
+  buildTopServicesPdf,
+} from '../../utils/reportPdfTemplate'
 
 type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets'
 type ReportDept = 'all' | 'mechanical' | 'programming'
@@ -61,13 +67,148 @@ function ReportsPageInner(): JSX.Element {
     department: 'mechanical' | 'programming' | 'both',
     weekDate?: string,
   ): Promise<void> {
-    void period
-    void dateFrom
-    void dateTo
-    void department
-    void weekDate
-    // TODO: implement in next commit
-    setShowExportModal(false)
+    const toYmd = (d: Date): string => d.toISOString().slice(0, 10)
+    let resolvedFrom = dateFrom
+    let resolvedTo = dateTo
+
+    if (period === 'weekly') {
+      const base = weekDate && weekDate.trim() ? new Date(weekDate) : new Date()
+      const day = base.getDay()
+      const diff = day === 0 ? -6 : 1 - day
+      const monday = new Date(base)
+      monday.setDate(base.getDate() + diff)
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      resolvedFrom = toYmd(monday)
+      resolvedTo = toYmd(sunday)
+    } else if (period === 'monthly') {
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      resolvedFrom = toYmd(start)
+      resolvedTo = toYmd(end)
+    } else if (period === 'custom') {
+      if (!dateFrom || !dateTo) {
+        toast.error('Please select both From and To dates')
+        return
+      }
+      resolvedFrom = dateFrom
+      resolvedTo = dateTo
+    }
+
+    const storeRes = await window.electronAPI.settings.get('store_name')
+    const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Mahali Garage'
+    const currencyRes = await window.electronAPI.settings.get('currency')
+    const currency = (currencyRes?.success ? currencyRes.data : null) ?? 'AED'
+
+    const depts: Array<'Mechanical' | 'Programming'> = department === 'both'
+      ? ['Mechanical', 'Programming']
+      : department === 'mechanical'
+        ? ['Mechanical']
+        : ['Programming']
+
+    setExportingPdf(true)
+    try {
+      const topProductsRes = tab === 'topproducts'
+        ? await window.electronAPI.reports.topProducts(resolvedFrom, resolvedTo)
+        : null
+
+      for (let i = 0; i < depts.length; i++) {
+        const dept = depts[i]
+        const deptParam = dept.toLowerCase() as 'mechanical' | 'programming'
+        let html = ''
+
+        if (tab === 'sales') {
+          const salesRes = await window.electronAPI.reports.salesDaily(resolvedFrom, resolvedTo, deptParam)
+          if (!salesRes?.success) throw new Error(salesRes?.error || 'Failed to load daily sales data')
+          const salesRows = (salesRes.data as Array<{
+            sale_number: string
+            customer_name: string | null
+            total_amount: number
+            status: string
+          }> | undefined) ?? []
+
+          html = buildDailySalesPdf({
+            storeName,
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            department: dept,
+            rows: salesRows.map((row) => ({
+              invoice: row.sale_number,
+              customer: row.customer_name ?? 'Walk-in',
+              car: '—',
+              amount: row.total_amount,
+              status: row.status,
+            })),
+            currency,
+          })
+        } else if (tab === 'profit') {
+          const profitRes = await window.electronAPI.reports.profit(resolvedFrom, resolvedTo, deptParam)
+          if (!profitRes?.success) throw new Error(profitRes?.error || 'Failed to load profit data')
+          const profitRows = (profitRes.data as Array<{
+            revenue: number
+            cogs: number
+            gross_profit: number
+          }> | undefined) ?? []
+
+          const totalRevenue = profitRows.reduce((sum, row) => sum + row.revenue, 0)
+          const totalCost = profitRows.reduce((sum, row) => sum + row.cogs, 0)
+          const grossProfit = profitRows.reduce((sum, row) => sum + row.gross_profit, 0)
+          const marginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+
+          html = buildProfitPdf({
+            storeName,
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            department: dept,
+            totalRevenue,
+            totalCost,
+            grossProfit,
+            marginPercent,
+            currency,
+          })
+        } else if (tab === 'topproducts') {
+          if (!topProductsRes?.success) throw new Error(topProductsRes?.error || 'Failed to load top products data')
+          const topRows = ((topProductsRes.data as Array<{
+            product_name: string
+            total_qty: number
+            total_revenue: number
+          }> | undefined) ?? [])
+            .slice()
+            .sort((a, b) => b.total_revenue - a.total_revenue)
+
+          html = buildTopServicesPdf({
+            storeName,
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            department: dept,
+            rows: topRows.map((row, idx) => ({
+              rank: idx + 1,
+              serviceName: row.product_name,
+              count: row.total_qty,
+              revenue: row.total_revenue,
+            })),
+            currency,
+          })
+        } else {
+          throw new Error('PDF export is only supported for Sales, Profit, and Top Products tabs')
+        }
+
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+
+        if (depts.length > 1 && i < depts.length - 1) {
+          await new Promise((r) => setTimeout(r, 600))
+        }
+      }
+
+      setShowExportModal(false)
+    } catch (e) {
+      const msg = e instanceof Error && e.message ? e.message : 'Failed to export PDF'
+      toast.error(msg)
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   const applyDepartmentPreset = (preset: DepartmentPreset): void => {
