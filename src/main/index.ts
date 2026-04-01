@@ -130,6 +130,11 @@ app.whenReady().then(async () => {
 
     // Listen for successful activation so we can open the main window
     ipcMain.once('app:licenseActivated', () => {
+      const status = checkLicense()
+      if (!(status.valid && status.licensed)) {
+        log.warn('Ignoring app:licenseActivated; license is not valid/licensed')
+        return
+      }
       if (activationWindow) {
         activationWindow.close()
         activationWindow = null
