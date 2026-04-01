@@ -65,8 +65,8 @@
     "services": "Services",
     "parts": "Parts Inventory",
     "inventory": "Parts Inventory",
-    "owners": "Vehicle Owners",
-    "customers": "Vehicle Owners",
+    "owners": "Customers",
+    "customers": "Customers",
     "repairs": "Job Cards",
     "reports": "Reports",
     "users": "Users",
@@ -288,7 +288,8 @@
     "partName": "Part Name",
     "partNamePlaceholder": "e.g. Oil Filter",
     "unitCost": "Unit Cost",
-    "partsTotal": "Parts Total"
+    "partsTotal": "Parts Total",
+    "listSearchPlaceholder": "Search jobs, vehicles, customers..."
   },
   "jobCards": {
     "title": "Job Cards",
@@ -298,7 +299,7 @@
     "priority": "Priority",
     "status": "Status",
     "vehicle": "Vehicle",
-    "owner": "Vehicle Owner",
+    "owner": "Customer",
     "dateIn": "Date In",
     "expectedCompletion": "Expected Completion",
     "dateOut": "Date Out",
@@ -322,7 +323,7 @@
     "notes": "Internal Notes",
     "customerAuthorized": "Customer Authorized",
     "selectVehicle": "Select Vehicle",
-    "vehicleOwner": "Vehicle & Owner",
+    "vehicleOwner": "Vehicle & Customer",
     "serviceDetails": "Service Details",
     "workDescription": "Work Description",
     "partsUsed": "Parts Used",

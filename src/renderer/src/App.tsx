@@ -29,6 +29,7 @@ const ServicesPage    = lazy(() => import('./pages/Services/ServicesPage'))
 const CustomReceiptsPage = lazy(() => import('./pages/CustomReceipts/CustomReceiptsPage'))
 const EmployeesPage     = lazy(() => import('./pages/Employees/EmployeesPage'))
 const AssetsPage        = lazy(() => import('./pages/Assets/AssetsPage'))
+const TvDisplayPage     = lazy(() => import('./pages/TV/TvDisplayPage'))
 
 function LoadingFallback(): JSX.Element {
   return (
@@ -89,6 +90,9 @@ export default function App(): JSX.Element {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/tv-display" element={
+          <Suspense fallback={<LoadingFallback />}><TvDisplayPage /></Suspense>
+        } />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>

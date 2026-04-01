@@ -141,7 +141,7 @@ function VehiclesInner(): JSX.Element {
                 <tr>
                   <th className="text-start px-4 py-3 font-medium">Vehicle</th>
                   <th className="text-start px-4 py-3 font-medium">Plate</th>
-                  <th className="text-start px-4 py-3 font-medium">Owner</th>
+                  <th className="text-start px-4 py-3 font-medium">{t('jobCards.owner')}</th>
                   <th className="text-center px-4 py-3 font-medium">Year</th>
                   <th className="text-end px-4 py-3 font-medium">Mileage</th>
                   <th className="text-end px-4 py-3 font-medium">{t('common.actions')}</th>
@@ -183,7 +183,7 @@ function VehiclesInner(): JSX.Element {
           <div><label className="block text-sm font-medium mb-1">VIN</label><input value={form.vin} onChange={e => setForm(f => ({ ...f, vin: e.target.value }))} className={inputCls} /></div>
           <div><label className="block text-sm font-medium mb-1">Color</label><input value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} className={inputCls} /></div>
           <div><label className="block text-sm font-medium mb-1">Mileage (km)</label><input type="number" value={form.mileage} onChange={e => setForm(f => ({ ...f, mileage: e.target.value }))} className={inputCls} /></div>
-          <div><label className="block text-sm font-medium mb-1">Owner</label>
+          <div><label className="block text-sm font-medium mb-1">{t('jobCards.owner')}</label>
             <select value={form.owner_id ?? ''} onChange={e => setForm(f => ({ ...f, owner_id: e.target.value ? Number(e.target.value) : null }))} className={inputCls}>
               <option value="">— None —</option>
               {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}

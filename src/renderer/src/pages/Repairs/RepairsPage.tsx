@@ -246,7 +246,7 @@ function RepairsPageInner(): JSX.Element {
 
       <div className="flex flex-wrap gap-3 mb-4">
         {view === 'list' && (
-          <SearchInput value={search} onChange={setSearch} placeholder="Search jobs, vehicles, owners..." className="max-w-xs" />
+          <SearchInput value={search} onChange={setSearch} placeholder={t('repairs.listSearchPlaceholder')} className="max-w-xs" />
         )}
         {view === 'list' && (
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
@@ -319,7 +319,7 @@ function RepairsPageInner(): JSX.Element {
                 <tr>
                   <th className="text-start px-4 py-3 font-medium">Job #</th>
                   <th className="text-start px-4 py-3 font-medium">Vehicle</th>
-                  <th className="text-start px-4 py-3 font-medium">Owner</th>
+                  <th className="text-start px-4 py-3 font-medium">{t('jobCards.owner')}</th>
                   <th className="text-start px-4 py-3 font-medium">Type</th>
                   <th className="text-center px-4 py-3 font-medium">Dept</th>
                   <th className="text-center px-4 py-3 font-medium">Priority</th>

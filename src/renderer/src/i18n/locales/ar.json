@@ -65,8 +65,8 @@
     "services": "الخدمات",
     "parts": "قطع الغيار",
     "inventory": "قطع الغيار",
-    "owners": "أصحاب المركبات",
-    "customers": "أصحاب المركبات",
+    "owners": "العملاء",
+    "customers": "العملاء",
     "repairs": "بطاقات العمل",
     "reports": "التقارير",
     "users": "المستخدمون",
@@ -288,7 +288,8 @@
     "partName": "اسم القطعة",
     "partNamePlaceholder": "مثال: فلتر زيت",
     "unitCost": "سعر الوحدة",
-    "partsTotal": "إجمالي القطع"
+    "partsTotal": "إجمالي القطع",
+    "listSearchPlaceholder": "ابحث عن بطاقات عمل، مركبات، عملاء..."
   },
   "jobCards": {
     "title": "بطاقات العمل",
@@ -298,7 +299,7 @@
     "priority": "الأولوية",
     "status": "الحالة",
     "vehicle": "المركبة",
-    "owner": "صاحب المركبة",
+    "owner": "العميل",
     "dateIn": "تاريخ الاستلام",
     "expectedCompletion": "تاريخ الإنجاز المتوقع",
     "dateOut": "تاريخ التسليم",
@@ -322,7 +323,7 @@
     "notes": "ملاحظات داخلية",
     "customerAuthorized": "تفويض العميل",
     "selectVehicle": "اختر مركبة",
-    "vehicleOwner": "المركبة والمالك",
+    "vehicleOwner": "المركبة والعميل",
     "serviceDetails": "تفاصيل الخدمة",
     "workDescription": "وصف العمل",
     "partsUsed": "القطع المستخدمة",

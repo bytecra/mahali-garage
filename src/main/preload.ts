@@ -327,6 +327,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     licenseActivated: () => ipcRenderer.send('app:licenseActivated'),
   },
 
+  tv: {
+    open: () => invoke('tv:open'),
+  },
+
   // ── Tasks ─────────────────────────────────────────────────────────────────
   tasks: {
     list:            (filters?: unknown)                      => invoke('tasks:list', filters),

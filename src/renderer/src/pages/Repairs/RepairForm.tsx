@@ -352,9 +352,9 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
           </div>
         </div>
 
-        {/* ── Section 2: Vehicle & Owner ── */}
+        {/* ── Section 2: Vehicle & customer ── */}
         <div className={sectionCls}>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Vehicle & Owner</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">{t('jobCards.vehicleOwner')}</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Vehicle *</label>
@@ -368,7 +368,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
               </select>
             </div>
             <div>
-              <label className={labelCls}>Owner</label>
+              <label className={labelCls}>{t('jobCards.owner')}</label>
               <input readOnly value={selectedVehicle?.owner_name ?? '—'} className={`${inputCls} bg-muted/50 cursor-default`} />
             </div>
           </div>

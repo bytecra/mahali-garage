@@ -236,6 +236,9 @@ declare global {
       app: {
         licenseActivated: () => void
       }
+      tv: {
+        open: () => Promise<IpcResponse<{ success: boolean }>>
+      }
       tasks: {
         list:           (filters?: unknown) => Promise<IpcResponse<{ rows: unknown[]; total: number; page: number; pageSize: number }>>
         getById:        (id: number) => Promise<IpcResponse<unknown>>

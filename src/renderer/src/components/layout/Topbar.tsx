@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, Bell, CheckCheck, Palette, Package, AlertTriangle, CalendarClock, CircleDollarSign, Sparkles, FileEdit } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, Bell, CheckCheck, Palette, Package, AlertTriangle, CalendarClock, CircleDollarSign, Sparkles, FileEdit, Tv } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
@@ -93,6 +93,10 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
     navigate('/custom-receipts?mode=custom')
   }
 
+  const handleOpenTvDisplay = async (): Promise<void> => {
+    await window.electronAPI.tv.open()
+  }
+
   const themes = [
     { value: 'light', icon: Sun,     label: t('settings.light') },
     { value: 'dark',  icon: Moon,    label: t('settings.dark') },
@@ -182,6 +186,15 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
 
       {/* Right: controls */}
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void handleOpenTvDisplay()}
+          className="p-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          title="Open TV Display"
+        >
+          <Tv className="w-5 h-5" />
+        </button>
+
         {/* Language switcher */}
         <div className="flex items-center gap-1 bg-muted rounded-md p-1">
           <Globe className="w-4 h-4 text-muted-foreground ms-1" />
