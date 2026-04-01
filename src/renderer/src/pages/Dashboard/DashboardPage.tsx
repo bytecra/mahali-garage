@@ -7,6 +7,7 @@ import CurrencyText from '../../components/shared/CurrencyText'
 import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
 import { usePermission } from '../../hooks/usePermission'
+import { parseDashboardWidgets } from '../../lib/dashboardWidgets'
 
 interface TaskSummary {
   total: number; pending: number; in_progress: number; done: number;
@@ -639,17 +640,19 @@ export default function DashboardPage(): JSX.Element {
   const [data, setData] = useState<DashboardData | null>(null)
   const [taskSummary, setTaskSummary] = useState<TaskSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [widgets, setWidgets] = useState(() => parseDashboardWidgets())
 
   useEffect(() => {
-    window.electronAPI.dashboard.getSummary().then(res => {
-      if (res.success) setData(res.data as DashboardData)
+    Promise.all([
+      window.electronAPI.dashboard.getSummary(),
+      canTasks ? window.electronAPI.tasks.getSummary() : Promise.resolve(null),
+      window.electronAPI.settings.get('dashboard_widgets'),
+    ]).then(([dashRes, taskRes, widgetsRes]) => {
+      if (dashRes.success) setData(dashRes.data as DashboardData)
+      if (taskRes && taskRes.success) setTaskSummary(taskRes.data as TaskSummary)
+      if (widgetsRes.success) setWidgets(parseDashboardWidgets((widgetsRes.data as string | null) ?? null))
       setLoading(false)
     })
-    if (canTasks) {
-      window.electronAPI.tasks.getSummary().then(res => {
-        if (res.success) setTaskSummary(res.data as TaskSummary)
-      })
-    }
   }, [canTasks])
 
   if (loading) return (
@@ -662,7 +665,7 @@ export default function DashboardPage(): JSX.Element {
 
       {/* Stats Row 1 — Garage Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-        <StatCard icon={Car} label={t('dashboard.vehiclesInGarage')}
+        {widgets.vehicles_in_garage && <StatCard icon={Car} label={t('dashboard.vehiclesInGarage')}
           valueContent={(
             <DeptBreakdown
               mechanical={data?.vehiclesInGarageMechanical ?? 0}
@@ -670,8 +673,8 @@ export default function DashboardPage(): JSX.Element {
             />
           )}
           sub={t('dashboard.activeRepairsLabel')}
-          color="bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" />
-        <StatCard icon={CheckCircle} label={t('dashboard.readyForPickup')}
+          color="bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" />}
+        {widgets.ready_for_pickup && <StatCard icon={CheckCircle} label={t('dashboard.readyForPickup')}
           valueContent={(
             <DeptBreakdown
               mechanical={data?.readyForPickupMechanical ?? 0}
@@ -679,8 +682,8 @@ export default function DashboardPage(): JSX.Element {
             />
           )}
           sub={t('dashboard.completedJobs')}
-          color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />
-        <StatCard icon={Wrench} label={t('dashboard.activeJobCards')}
+          color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />}
+        {widgets.active_job_cards && <StatCard icon={Wrench} label={t('dashboard.activeJobCards')}
           valueContent={(
             <DeptBreakdown
               mechanical={data?.activeJobCardsMechanical ?? 0}
@@ -688,8 +691,8 @@ export default function DashboardPage(): JSX.Element {
             />
           )}
           sub={t('dashboard.inProgress')}
-          color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />
-        <StatCard icon={PackageCheck} label="Today's Delivered"
+          color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />}
+        {widgets.today_delivered && <StatCard icon={PackageCheck} label="Today's Delivered"
           valueContent={(
             <DeptBreakdown
               mechanical={data?.todayDeliveredMechanical ?? 0}
@@ -697,43 +700,43 @@ export default function DashboardPage(): JSX.Element {
             />
           )}
           sub="Completed & delivered today"
-          color="bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" />
-        <StatCard icon={DatabaseIcon} label={t('dashboard.totalVehicles')}
+          color="bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" />}
+        {widgets.total_vehicles && <StatCard icon={DatabaseIcon} label={t('dashboard.totalVehicles')}
           value={data?.totalVehicles ?? 0}
           sub={t('dashboard.inSystem')}
-          color="bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-400" />
+          color="bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-400" />}
       </div>
 
       {/* Stats Row 2 — Sales & Stock */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <StatCard icon={ShoppingCart} label={t('dashboard.todaySales')}
+        {widgets.today_sales && <StatCard icon={ShoppingCart} label={t('dashboard.todaySales')}
           valueContent={<CurrencyText amount={data?.todayRevenue ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={`${data?.todaySalesCount ?? 0} transactions · ${getCurrencyCode()}`}
-          color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />
-        <StatCard icon={TrendingUp} label={t('dashboard.monthRevenue')}
+          color="bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-400" />}
+        {widgets.revenue_month && <StatCard icon={TrendingUp} label={t('dashboard.monthRevenue')}
           valueContent={<CurrencyText amount={data?.monthRevenue ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={getCurrencyCode()}
-          color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />
-        <StatCard icon={Package} label={t('dashboard.lowStock')}
+          color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />}
+        {widgets.low_stock_items && <StatCard icon={Package} label={t('dashboard.lowStock')}
           value={data?.lowStock ?? 0}
-          color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />
+          color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />}
       </div>
 
       {/* Stats Row 3 — Financials */}
       <div className={cn('grid grid-cols-1 gap-4 mb-8', canAssets ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
-        <StatCard icon={TrendingUp} label={t('dashboard.grossProfit')}
+        {widgets.gross_profit_month && <StatCard icon={TrendingUp} label={t('dashboard.grossProfit')}
           valueContent={<CurrencyText amount={data?.monthGrossProfit ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
-          color="bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" />
-        <StatCard icon={DollarSign} label={t('dashboard.monthExpenses')}
+          color="bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" />}
+        {widgets.expenses_month && <StatCard icon={DollarSign} label={t('dashboard.monthExpenses')}
           valueContent={<CurrencyText amount={data?.monthExpenses ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
-          color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />
-        <StatCard icon={DollarSign} label={t('dashboard.netProfit')}
+          color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />}
+        {widgets.net_profit_month && <StatCard icon={DollarSign} label={t('dashboard.netProfit')}
           valueContent={<CurrencyText amount={data?.monthNetProfit ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={`${t('dashboard.thisMonth')} · ${getCurrencyCode()}`}
-          color={(data?.monthNetProfit ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'} />
-        {canAssets && (
+          color={(data?.monthNetProfit ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'} />}
+        {canAssets && widgets.total_assets && (
           <StatCard icon={Building2} label={t('dashboard.totalAssets', { defaultValue: 'Total assets' })}
             valueContent={<CurrencyText amount={data?.totalAssetsPurchase ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
             sub={t('dashboard.totalAssetsSub', { defaultValue: 'Sum of purchase prices · ' }) + getCurrencyCode()}
@@ -746,19 +749,19 @@ export default function DashboardPage(): JSX.Element {
         <h2 className="text-base font-semibold text-foreground mb-3">{t('dashboard.cashWidgetsTitle', { defaultValue: 'Cash & receipts' })}</h2>
         <p className="text-xs text-muted-foreground mb-3">{t('dashboard.cashWidgetsHint', { defaultValue: 'Totals from recorded payment methods (Quick Invoice). Job-card-only deposits are not split by method until recorded as payments.' })}</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <CashInHandWidget />
-          <CashFlowWidget
+          {widgets.cash_in_hand && <CashInHandWidget />}
+          {widgets.bank_transfer && <CashFlowWidget
             icon={Landmark}
             title={t('dashboard.bankTransfer', { defaultValue: 'Bank transfer' })}
             subtitle={t('dashboard.bankTransferSub', { defaultValue: 'Non-cash: card, transfer, mobile, other' })}
             valueKey="non_cash"
-          />
-          <CashFlowWidget
+          />}
+          {widgets.cash_total && <CashFlowWidget
             icon={Sigma}
             title={t('dashboard.cashTotal', { defaultValue: 'Total' })}
             subtitle={t('dashboard.cashTotalSub', { defaultValue: 'Cash + non-cash' })}
             valueKey="total"
-          />
+          />}
         </div>
       </div>
 
@@ -782,10 +785,12 @@ export default function DashboardPage(): JSX.Element {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
-              <StatCard icon={Clock} label={t('dashboard.myTasksToday')} value={taskSummary.due_today}
+              {widgets.my_tasks_today && <StatCard icon={Clock} label={t('dashboard.myTasksToday')} value={taskSummary.due_today}
                 color="bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400" />
-              <StatCard icon={TriangleAlert} label={t('dashboard.myOverdue')} value={taskSummary.overdue}
+              }
+              {widgets.my_overdue && <StatCard icon={TriangleAlert} label={t('dashboard.myOverdue')} value={taskSummary.overdue}
                 color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />
+              }
             </div>
           )}
         </div>
@@ -793,7 +798,7 @@ export default function DashboardPage(): JSX.Element {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <div className="bg-card border border-border rounded-lg p-5">
+        {widgets.sales_trend_7_days && <div className="bg-card border border-border rounded-lg p-5">
           <h2 className="font-semibold text-foreground mb-4">{t('dashboard.salesTrend')}</h2>
           {(data?.salesTrend?.length ?? 0) === 0 ? (
             <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">{t('common.noData')}</div>
@@ -814,8 +819,8 @@ export default function DashboardPage(): JSX.Element {
               </AreaChart>
             </ResponsiveContainer>
           )}
-        </div>
-        <div className="bg-card border border-border rounded-lg p-5">
+        </div>}
+        {widgets.top_parts && <div className="bg-card border border-border rounded-lg p-5">
           <h2 className="font-semibold text-foreground mb-4">{t('dashboard.topProducts')}</h2>
           {(data?.topProducts?.length ?? 0) === 0 ? (
             <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">{t('common.noData')}</div>
@@ -830,7 +835,7 @@ export default function DashboardPage(): JSX.Element {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Urgent job cards */}

@@ -7,12 +7,13 @@ import { useLangStore } from '../../store/langStore'
 import { useBrandingStore } from '../../store/brandingStore'
 import { useCurrencyStore } from '../../store/currencyStore'
 import { usePermission } from '../../hooks/usePermission'
+import { DASHBOARD_WIDGETS, parseDashboardWidgets } from '../../lib/dashboardWidgets'
 
 const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -203,6 +204,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
     { key: 'car-brands', label: t('settings.carBrands', { defaultValue: 'Car Brands' }), guard: canSettings },
+    { key: 'dashboard',  label: 'Dashboard', guard: canSettings },
     { key: 'backup',     label: t('settings.backup'),         guard: canBackup },
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
     { key: 'license',    label: 'License' },
@@ -211,6 +213,12 @@ export default function SettingsPage(): JSX.Element {
   const inputCls = 'w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring'
   const labelCls = 'block text-sm font-medium mb-1 text-foreground'
   const saveBtnCls = 'px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-60'
+  const dashboardWidgets = parseDashboardWidgets(settings['dashboard_widgets'])
+
+  const toggleDashboardWidget = (widgetId: string): void => {
+    const next = { ...dashboardWidgets, [widgetId]: !dashboardWidgets[widgetId as keyof typeof dashboardWidgets] }
+    set('dashboard_widgets', JSON.stringify(next))
+  }
 
   return (
     <div>
@@ -586,6 +594,31 @@ export default function SettingsPage(): JSX.Element {
               })}
             </div>
             <button onClick={() => save(['payment_methods'])} disabled={saving} className={saveBtnCls}>{saving ? t('common.loading') : t('common.save')}</button>
+          </div>
+        )}
+
+        {tab === 'dashboard' && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Choose which widgets are visible on the Dashboard.
+            </p>
+            <div className="space-y-2">
+              {DASHBOARD_WIDGETS.map((widget) => (
+                <label key={widget.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
+                  <span className="text-sm text-foreground">{widget.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleDashboardWidget(widget.id)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${dashboardWidgets[widget.id] ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${dashboardWidgets[widget.id] ? 'translate-x-5' : ''}`} />
+                  </button>
+                </label>
+              ))}
+            </div>
+            <button onClick={() => save(['dashboard_widgets'])} disabled={saving} className={saveBtnCls}>
+              {saving ? t('common.loading') : t('common.save')}
+            </button>
           </div>
         )}
 
