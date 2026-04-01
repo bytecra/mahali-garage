@@ -68,3 +68,8 @@ export function openTvWindow(): BrowserWindow {
   return tvWindow
 }
 
+export function closeTvWindow(): void {
+  if (tvWindow && !tvWindow.isDestroyed()) {
+    tvWindow.close()
+  }
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, Routes, Route } from 'react-router-dom'
+import { useNavigate, Routes, Route, useSearchParams } from 'react-router-dom'
 import { Plus, User, Phone, AlertCircle } from 'lucide-react'
 import SearchInput from '../../components/shared/SearchInput'
 import Pagination from '../../components/shared/Pagination'
@@ -30,6 +30,15 @@ function CustomerList(): JSX.Element {
   const [debtOnly, setDebtOnly] = useState(false)
   const dSearch               = useDebounce(search)
   const [formOpen, setFormOpen] = useState(false)
+
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new') {
+      setFormOpen(true)
+      setSearchParams({})
+    }
+  }, [searchParams, setSearchParams])
 
   const load = useCallback(async () => {
     setLoading(true)

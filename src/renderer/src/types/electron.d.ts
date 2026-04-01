@@ -240,6 +240,7 @@ declare global {
       }
       tv: {
         open: () => Promise<IpcResponse<{ success: boolean }>>
+        close: () => Promise<IpcResponse<{ success: boolean }>>
         listDisplays: () => Promise<IpcResponse<Array<{
           index: number
           id: number

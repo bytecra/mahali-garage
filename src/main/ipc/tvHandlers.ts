@@ -1,7 +1,7 @@
 import { ipcMain, screen } from 'electron'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
-import { openTvWindow } from '../services/tvWindow'
+import { closeTvWindow, openTvWindow } from '../services/tvWindow'
 import { authService } from '../services/authService'
 
 export function registerTvHandlers(): void {
@@ -33,6 +33,18 @@ export function registerTvHandlers(): void {
     } catch (e) {
       log.error('tv:open', e)
       return err('Failed to open TV display')
+    }
+  })
+
+  ipcMain.handle('tv:close', (event) => {
+    try {
+      if (!authService.getSession(event.sender.id))
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      closeTvWindow()
+      return ok({ success: true })
+    } catch (e) {
+      log.error('tv:close', e)
+      return err('Failed')
     }
   })
 }

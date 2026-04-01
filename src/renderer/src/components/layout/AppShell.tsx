@@ -5,11 +5,14 @@ import Topbar from './Topbar'
 import ToastContainer from '../shared/ToastContainer'
 import { useAuthStore } from '../../store/authStore'
 import { useNavColorStore } from '../../store/navColorStore'
+import { useAppShortcuts } from '../../hooks/useAppShortcuts'
 
 export default function AppShell(): JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
   const user = useAuthStore(s => s.user)
   const loadNavColor = useNavColorStore(s => s.loadNavColor)
+
+  useAppShortcuts()
 
   useEffect(() => {
     if (user) loadNavColor(user.userId)

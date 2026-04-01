@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, Car, Pencil, Trash2 } from 'lucide-react'
 import SearchInput from '../../components/shared/SearchInput'
 import Pagination from '../../components/shared/Pagination'
@@ -50,6 +51,8 @@ function VehiclesInner(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null)
   const [owners, setOwners] = useState<{ id: number; name: string }[]>([])
 
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const load = useCallback(async () => {
     setLoading(true)
     const res = await window.electronAPI.vehicles.list({ search: dSearch, page })
@@ -60,15 +63,22 @@ function VehiclesInner(): JSX.Element {
     setLoading(false)
   }, [dSearch, page])
 
-  useEffect(() => { setPage(1) }, [dSearch])
-  useEffect(() => { load() }, [load])
-
-  const openCreate = async () => {
+  const openCreate = useCallback(async () => {
     setEditId(null); setForm(emptyForm)
     const res = await window.electronAPI.customers.list({ pageSize: 200 })
     if (res.success) setOwners((res.data as { items: { id: number; name: string }[] }).items)
     setFormOpen(true)
-  }
+  }, [])
+
+  useEffect(() => { setPage(1) }, [dSearch])
+  useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new') {
+      void openCreate()
+      setSearchParams({})
+    }
+  }, [searchParams, setSearchParams])
 
   const openEdit = async (v: Vehicle) => {
     setEditId(v.id)

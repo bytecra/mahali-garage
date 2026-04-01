@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense, useRef, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, AlertCircle, Upload, Plus, X } from 'lucide-react'
+import { CheckCircle, AlertCircle, Upload, Plus, X, Keyboard } from 'lucide-react'
 import { toast } from '../../store/notificationStore'
 import { useThemeStore } from '../../store/themeStore'
 import { useLangStore } from '../../store/langStore'
@@ -10,11 +10,20 @@ import { usePermission } from '../../hooks/usePermission'
 import { DASHBOARD_WIDGETS, parseDashboardWidgets } from '../../lib/dashboardWidgets'
 import { TV_DISPLAY_WIDGETS, parseTvDisplayWidgets } from '../../lib/tvDisplayWidgets'
 
+const APP_SHORTCUT_DEFAULTS: Record<string, string> = {
+  smart_recipe: 'ctrl+shift+s',
+  custom_recipe: 'ctrl+shift+c',
+  tv_on: 'ctrl+shift+t',
+  tv_off: 'ctrl+shift+w',
+  add_customer: 'ctrl+shift+u',
+  add_vehicle: 'ctrl+shift+v',
+}
+
 const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -61,6 +70,7 @@ export default function SettingsPage(): JSX.Element {
   const [activating, setActivating] = useState(false)
   const [brands, setBrands] = useState<CarBrand[]>([])
   const [tvDisplays, setTvDisplays] = useState<TvDisplayOption[]>([])
+  const [shortcutsState, setShortcutsState] = useState<Record<string, string>>(() => ({ ...APP_SHORTCUT_DEFAULTS }))
 
   // Activity log state
   const [activityRows, setActivityRows]   = useState<ActivityRow[]>([])
@@ -113,6 +123,22 @@ export default function SettingsPage(): JSX.Element {
 
   useEffect(() => { load() }, [tab])
   useEffect(() => { if (tab === 'activity') loadActivity(0) }, [tab, loadActivity])
+
+  useEffect(() => {
+    void (async () => {
+      const res = await window.electronAPI.settings.get('app.shortcuts')
+      if (res.success && res.data) {
+        try {
+          const parsed = JSON.parse(res.data) as Record<string, string>
+          setShortcutsState({ ...APP_SHORTCUT_DEFAULTS, ...parsed })
+        } catch {
+          setShortcutsState({ ...APP_SHORTCUT_DEFAULTS })
+        }
+      } else {
+        setShortcutsState({ ...APP_SHORTCUT_DEFAULTS })
+      }
+    })()
+  }, [])
 
   const set = (key: string, val: string) => setSettings(s => ({ ...s, [key]: val }))
 
@@ -216,6 +242,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'invoice',    label: t('settings.invoice'),   guard: canSettings },
     { key: 'tax',        label: t('settings.tax'),       guard: canSettings },
     { key: 'appearance', label: t('settings.appearance') },
+    { key: 'shortcuts', label: 'Shortcuts', guard: canSettings },
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
     { key: 'car-brands', label: t('settings.carBrands', { defaultValue: 'Car Brands' }), guard: canSettings },
@@ -294,7 +321,8 @@ export default function SettingsPage(): JSX.Element {
       <div className="flex gap-1 border-b border-border mb-6 flex-wrap">
         {TABS.map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === tb.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === tb.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            {tb.key === 'shortcuts' ? <Keyboard className="w-4 h-4 shrink-0" /> : null}
             {tb.label}
           </button>
         ))}
@@ -713,6 +741,64 @@ export default function SettingsPage(): JSX.Element {
             >
               {saving ? t('common.loading') : t('common.save')}
             </button>
+          </div>
+        )}
+
+        {tab === 'shortcuts' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Keyboard Shortcuts</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Customize keyboard shortcuts for quick actions.
+                Use format: ctrl+shift+s, alt+t, etc.
+              </p>
+            </div>
+            <div className="space-y-3">
+              {([
+                ['smart_recipe', 'Create Smart Recipe'],
+                ['custom_recipe', 'Create Custom Recipe'],
+                ['tv_on', 'TV Display ON'],
+                ['tv_off', 'TV Display OFF'],
+                ['add_customer', 'Add New Customer'],
+                ['add_vehicle', 'Add New Vehicle'],
+              ] as const).map(([key, label]) => (
+                <label key={key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+                  <span className="text-sm text-foreground shrink-0">{label}</span>
+                  <input
+                    type="text"
+                    value={shortcutsState[key] ?? ''}
+                    onChange={e => setShortcutsState(s => ({ ...s, [key]: e.target.value }))}
+                    className={`${inputCls} sm:max-w-xs sm:flex-1`}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setSaving(true)
+                  const res = await window.electronAPI.settings.set('app.shortcuts', JSON.stringify(shortcutsState))
+                  setSaving(false)
+                  if (res.success) {
+                    toast.success(t('common.success'))
+                    setSettings(s => ({ ...s, 'app.shortcuts': JSON.stringify(shortcutsState) }))
+                  } else toast.error(res.error ?? t('common.error'))
+                }}
+                disabled={saving}
+                className={saveBtnCls}
+              >
+                {saving ? t('common.loading') : t('common.save')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShortcutsState({ ...APP_SHORTCUT_DEFAULTS })}
+                disabled={saving}
+                className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-60"
+              >
+                Reset to defaults
+              </button>
+            </div>
           </div>
         )}
 
