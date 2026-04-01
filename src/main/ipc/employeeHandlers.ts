@@ -2,6 +2,7 @@ import { ipcMain, dialog, shell, app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { employeeRepo } from '../database/repositories/employeeRepo'
+import { salaryRepo, type SalaryType } from '../database/repositories/salaryRepo'
 import { authService } from '../services/authService'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
@@ -227,6 +228,65 @@ export function registerEmployeeHandlers(): void {
     } catch (e) {
       log.error('employees:deleteDocument', e)
       return err('Failed to delete document')
+    }
+  })
+
+  ipcMain.handle('employees:getSalary', (event, employeeId: number) => {
+    try {
+      const session = authService.getSession(event.sender.id)
+      if (!session || session.role !== 'owner')
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      return ok(salaryRepo.getByEmployeeId(employeeId))
+    } catch (e) {
+      log.error('employees:getSalary', e)
+      return err('Failed')
+    }
+  })
+
+  ipcMain.handle('employees:upsertSalary', (event, data: {
+    employee_id: number
+    salary_type: SalaryType
+    amount: number
+    payment_day?: number | null
+    start_date: string
+    notes?: string | null
+    custom_period?: string | null
+  }) => {
+    try {
+      const session = authService.getSession(event.sender.id)
+      if (!session || session.role !== 'owner')
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      const row = salaryRepo.upsert(data)
+      return ok(row)
+    } catch (e) {
+      log.error('employees:upsertSalary', e)
+      return err('Failed to save salary')
+    }
+  })
+
+  ipcMain.handle('employees:listPayroll', (event, filter: 'all' | 'paid' | 'unpaid' | 'overdue') => {
+    try {
+      const session = authService.getSession(event.sender.id)
+      if (!session || session.role !== 'owner')
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      return ok(salaryRepo.listPayroll(filter ?? 'all'))
+    } catch (e) {
+      log.error('employees:listPayroll', e)
+      return err('Failed to load payroll')
+    }
+  })
+
+  ipcMain.handle('employees:markSalaryPaid', (event, employeeId: number) => {
+    try {
+      const session = authService.getSession(event.sender.id)
+      if (!session || session.role !== 'owner')
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      const result = salaryRepo.markPaid(employeeId)
+      return ok(result)
+    } catch (e) {
+      log.error('employees:markSalaryPaid', e)
+      const msg = e instanceof Error ? e.message : 'Failed to record payment'
+      return err(msg)
     }
   })
 

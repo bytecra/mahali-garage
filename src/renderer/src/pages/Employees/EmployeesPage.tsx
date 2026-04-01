@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Plus, Search, Users, Edit, Trash2, FileText, CalendarPlus,
-  AlertTriangle, Eye, Upload, X, ChevronDown, ChevronUp,
+  AlertTriangle, Eye, Upload, X, ChevronDown, ChevronUp, Wallet,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
@@ -34,6 +34,34 @@ interface Employee {
   notes: string | null
   document_count: number
   vacation_count: number
+}
+
+type SalaryTypeOpt = 'monthly' | 'weekly' | 'daily' | 'one_time' | 'custom'
+
+interface EmployeeSalaryConfig {
+  id: number
+  employee_id: number
+  salary_type: SalaryTypeOpt
+  amount: number
+  payment_day: number | null
+  start_date: string
+  notes: string | null
+  custom_period: string | null
+  created_at: string
+}
+
+interface PayrollRow {
+  employee_id: number
+  full_name: string
+  employee_code: string
+  salary_type: SalaryTypeOpt
+  amount: number
+  payment_day: number | null
+  month_status: 'paid' | 'unpaid' | 'overdue'
+  carryover_amount: number
+  current_period_amount: number
+  total_due: number
+  period_label: string
 }
 
 interface Vacation {
@@ -90,6 +118,110 @@ const btnDanger = `${btn} bg-destructive text-destructive-foreground hover:bg-de
 const inputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
 const labelCls = 'block text-sm font-medium text-foreground mb-1'
 
+function PayrollSection({
+  rows,
+  loading,
+  filter,
+  setFilter,
+  onRefresh,
+  t,
+}: {
+  rows: PayrollRow[]
+  loading: boolean
+  filter: 'all' | 'paid' | 'unpaid' | 'overdue'
+  setFilter: (f: 'all' | 'paid' | 'unpaid' | 'overdue') => void
+  onRefresh: () => void
+  t: (key: string, opts?: { defaultValue?: string }) => string
+}) {
+  const filters = ['all', 'paid', 'unpaid', 'overdue'] as const
+
+  async function markPaid(employeeId: number) {
+    const res = await window.electronAPI.employees.markSalaryPaid(employeeId) as { success: boolean; error?: string }
+    if (!res.success) {
+      window.alert(res.error ?? t('common.error'))
+      return
+    }
+    onRefresh()
+  }
+
+  function statusLabel(s: PayrollRow['month_status']): string {
+    if (s === 'paid') return `${t('employees.payrollPaid', { defaultValue: 'Paid' })} ✓`
+    if (s === 'overdue') return `${t('employees.payrollOverdue', { defaultValue: 'Overdue' })} ⚠`
+    return `${t('employees.payrollUnpaid', { defaultValue: 'Unpaid' })} ✗`
+  }
+
+  return (
+    <div className="mb-8">
+      <p className="text-sm text-muted-foreground mb-4">
+        {t('employees.payrollIntro', { defaultValue: 'This month’s payroll status and amounts due (carryover from earlier unpaid periods is included).' })}
+      </p>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {filters.map(f => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+              filter === f
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-border text-muted-foreground hover:bg-accent'
+            }`}
+          >
+            {t(`employees.payroll_filter_${f}`, { defaultValue: f.charAt(0).toUpperCase() + f.slice(1) })}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          {t('employees.payrollEmpty', { defaultValue: 'No employees with salary configuration match this filter.' })}
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {rows.map(row => (
+            <div
+              key={row.employee_id}
+              className="bg-card border border-border rounded-lg px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-foreground">{row.full_name}</div>
+                <div className="text-xs text-muted-foreground font-mono">{row.employee_code}</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {t(`employees.salaryType_${row.salary_type}`, { defaultValue: row.salary_type })}
+                  {' · '}
+                  <span className="text-foreground font-medium">
+                    {t('employees.amountAed', { defaultValue: 'د.إ' })} {row.amount.toLocaleString()}
+                  </span>
+                  {row.month_status !== 'paid' && row.carryover_amount > 0 && (
+                    <span className="ml-2 text-amber-700 dark:text-amber-400">
+                      {t('employees.carryoverLabel', { defaultValue: 'Carryover' })}: د.إ {row.carryover_amount.toLocaleString()}
+                      {' → '}
+                      <span className="font-semibold">{t('employees.totalDue', { defaultValue: 'Total' })}: د.إ {row.total_due.toLocaleString()}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col sm:items-end gap-2">
+                <span className="text-sm font-medium">{statusLabel(row.month_status)}</span>
+                <span className="text-xs text-muted-foreground">{row.period_label}</span>
+                {row.month_status !== 'paid' && row.total_due > 0 && (
+                  <button type="button" onClick={() => markPaid(row.employee_id)} className={btnPrimary}>
+                    {t('employees.markSalaryPaid', { defaultValue: 'Mark as paid' })}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function daysUntil(dateStr: string): number {
   const diff = new Date(dateStr).getTime() - Date.now()
   return Math.ceil(diff / 86_400_000)
@@ -112,12 +244,16 @@ export default function EmployeesPage(): JSX.Element {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [pageSection, setPageSection] = useState<'list' | 'payroll'>('list')
+  const [payrollFilter, setPayrollFilter] = useState<'all' | 'paid' | 'unpaid' | 'overdue'>('all')
+  const [payrollRows, setPayrollRows] = useState<PayrollRow[]>([])
+  const [payrollLoading, setPayrollLoading] = useState(false)
 
   const [showForm, setShowForm] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
 
   const [viewEmployee, setViewEmployee] = useState<Employee | null>(null)
-  const [viewTab, setViewTab] = useState<'personal' | 'employment' | 'vacation' | 'documents'>('personal')
+  const [viewTab, setViewTab] = useState<'personal' | 'employment' | 'salary' | 'vacation' | 'documents'>('personal')
 
   if (user?.role !== 'owner') {
     return (
@@ -145,6 +281,20 @@ export default function EmployeesPage(): JSX.Element {
 
   useEffect(() => { load() }, [load])
 
+  const loadPayroll = useCallback(async () => {
+    setPayrollLoading(true)
+    try {
+      const res = await window.electronAPI.employees.listPayroll(payrollFilter) as { success: boolean; data?: PayrollRow[] }
+      if (res.success && res.data) setPayrollRows(res.data)
+    } catch { /* */ } finally {
+      setPayrollLoading(false)
+    }
+  }, [payrollFilter])
+
+  useEffect(() => {
+    if (pageSection === 'payroll') loadPayroll()
+  }, [pageSection, loadPayroll])
+
   function openCreate() {
     setEditEmployee(null)
     setShowForm(true)
@@ -171,7 +321,7 @@ export default function EmployeesPage(): JSX.Element {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Users className="w-6 h-6" /> {t('employees.title')}
         </h1>
@@ -191,7 +341,41 @@ export default function EmployeesPage(): JSX.Element {
         </div>
       </div>
 
+      <div className="flex gap-2 mb-6 border-b border-border">
+        <button
+          type="button"
+          onClick={() => setPageSection('list')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            pageSection === 'list' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {t('employees.tabList', { defaultValue: 'Directory' })}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPageSection('payroll')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${
+            pageSection === 'payroll' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Wallet className="w-4 h-4" />
+          {t('employees.payrollTab', { defaultValue: 'Payroll' })}
+        </button>
+      </div>
+
+      {pageSection === 'payroll' && (
+        <PayrollSection
+          rows={payrollRows}
+          loading={payrollLoading}
+          filter={payrollFilter}
+          setFilter={setPayrollFilter}
+          onRefresh={loadPayroll}
+          t={t}
+        />
+      )}
+
       {/* Filter tabs */}
+      {pageSection === 'list' && (
       <div className="flex gap-2 mb-6 flex-wrap">
         {statuses.map(s => (
           <button
@@ -207,17 +391,18 @@ export default function EmployeesPage(): JSX.Element {
           </button>
         ))}
       </div>
+      )}
 
       {/* List */}
-      {loading ? (
+      {pageSection === 'list' && loading ? (
         <div className="flex justify-center py-16">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
-      ) : employees.length === 0 ? (
+      ) : pageSection === 'list' && employees.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           {t('employees.noEmployees')}
         </div>
-      ) : (
+      ) : pageSection === 'list' ? (
         <div className="grid gap-3">
           {employees.map(emp => (
             <div key={emp.id} className="bg-card border border-border rounded-lg px-5 py-4 flex items-center gap-4 hover:shadow-sm transition-shadow">
@@ -276,7 +461,7 @@ export default function EmployeesPage(): JSX.Element {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
       {/* Employee Form Modal */}
       {showForm && (
@@ -324,21 +509,45 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
     department: employee?.department ?? '',
     hire_date: employee?.hire_date ?? new Date().toISOString().split('T')[0],
     employment_status: employee?.employment_status ?? 'active',
-    salary: employee?.salary ?? '',
-    salary_currency: employee?.salary_currency ?? 'USD',
-    payment_frequency: employee?.payment_frequency ?? 'monthly',
     emergency_contact_name: employee?.emergency_contact_name ?? '',
     emergency_contact_phone: employee?.emergency_contact_phone ?? '',
     emergency_contact_relation: employee?.emergency_contact_relation ?? '',
     notes: employee?.notes ?? '',
   })
+  const [salaryForm, setSalaryForm] = useState({
+    salary_type: 'monthly' as SalaryTypeOpt,
+    amount: employee?.salary != null ? String(employee.salary) : '',
+    payment_day: 1,
+    start_date: employee?.hire_date ?? new Date().toISOString().split('T')[0],
+    notes: '',
+    custom_period: '',
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [section, setSection] = useState<'personal' | 'employment' | 'emergency'>('personal')
+  const [section, setSection] = useState<'personal' | 'employment' | 'salary' | 'emergency'>('personal')
 
   function set<K extends keyof typeof form>(key: K, value: typeof form[K]) {
     setForm(prev => ({ ...prev, [key]: value }))
   }
+
+  useEffect(() => {
+    if (!employee?.id) return
+    async function loadSalary() {
+      const res = await window.electronAPI.employees.getSalary(employee!.id) as { success: boolean; data?: EmployeeSalaryConfig | null }
+      if (res.success && res.data) {
+        const d = res.data
+        setSalaryForm({
+          salary_type: d.salary_type,
+          amount: String(d.amount),
+          payment_day: d.payment_day ?? 1,
+          start_date: d.start_date,
+          notes: d.notes ?? '',
+          custom_period: d.custom_period ?? '',
+        })
+      }
+    }
+    loadSalary()
+  }, [employee?.id])
 
   async function handleSave() {
     if (!form.full_name.trim()) return setError(t('employees.nameRequired'))
@@ -348,15 +557,32 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
     setSaving(true)
     setError('')
     try {
-      const payload = {
-        ...form,
-        salary: form.salary ? Number(form.salary) : null,
-      }
+      const payload = { ...form }
+      let empId: number
       if (isEdit) {
-        await window.electronAPI.employees.update(employee!.id, payload)
+        const res = await window.electronAPI.employees.update(employee!.id, payload) as { success: boolean }
+        if (!res.success) throw new Error('update')
+        empId = employee!.id
       } else {
-        await window.electronAPI.employees.create(payload)
+        const res = await window.electronAPI.employees.create(payload) as { success: boolean; data?: Employee }
+        if (!res.success || !res.data) throw new Error('create')
+        empId = res.data.id
       }
+
+      const amt = Number(salaryForm.amount)
+      if (!Number.isNaN(amt) && amt > 0) {
+        const resSal = await window.electronAPI.employees.upsertSalary({
+          employee_id: empId,
+          salary_type: salaryForm.salary_type,
+          amount: amt,
+          payment_day: ['monthly', 'custom'].includes(salaryForm.salary_type) ? (Number(salaryForm.payment_day) || 1) : null,
+          start_date: salaryForm.start_date || form.hire_date,
+          notes: salaryForm.notes.trim() ? salaryForm.notes : null,
+          custom_period: salaryForm.salary_type === 'custom' ? (salaryForm.custom_period.trim() || null) : null,
+        }) as { success: boolean }
+        if (!resSal.success) throw new Error('salary')
+      }
+
       onClose()
     } catch {
       setError(t('common.saveFailed'))
@@ -365,7 +591,7 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
     }
   }
 
-  const sections = ['personal', 'employment', 'emergency'] as const
+  const sections = ['personal', 'employment', 'salary', 'emergency'] as const
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -460,31 +686,80 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
                   </select>
                 </div>
               )}
-              <div>
-                <label className={labelCls}>{t('employees.salary')}</label>
-                <input type="number" className={inputCls} value={form.salary} onChange={e => set('salary', e.target.value as unknown as number)} />
-              </div>
-              <div>
-                <label className={labelCls}>{t('employees.currency')}</label>
-                <select className={inputCls} value={form.salary_currency} onChange={e => set('salary_currency', e.target.value)}>
-                  <option value="USD">USD</option>
-                  <option value="AED">AED</option>
-                  <option value="SAR">SAR</option>
-                  <option value="EUR">EUR</option>
-                  <option value="GBP">GBP</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>{t('employees.paymentFrequency')}</label>
-                <select className={inputCls} value={form.payment_frequency} onChange={e => set('payment_frequency', e.target.value)}>
-                  <option value="monthly">{t('employees.monthly')}</option>
-                  <option value="biweekly">{t('employees.biweekly')}</option>
-                  <option value="weekly">{t('employees.weekly')}</option>
-                </select>
-              </div>
               <div className="col-span-2">
                 <label className={labelCls}>{t('employees.notes')}</label>
                 <textarea className={inputCls} rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          {section === 'salary' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className={labelCls}>{t('employees.salaryType', { defaultValue: 'Salary type' })}</label>
+                <select
+                  className={inputCls}
+                  value={salaryForm.salary_type}
+                  onChange={e => setSalaryForm(s => ({ ...s, salary_type: e.target.value as SalaryTypeOpt }))}
+                >
+                  <option value="monthly">{t('employees.salaryType_monthly', { defaultValue: 'Monthly' })}</option>
+                  <option value="weekly">{t('employees.salaryType_weekly', { defaultValue: 'Weekly' })}</option>
+                  <option value="daily">{t('employees.salaryType_daily', { defaultValue: 'Daily' })}</option>
+                  <option value="one_time">{t('employees.salaryType_one_time', { defaultValue: 'One time' })}</option>
+                  <option value="custom">{t('employees.salaryType_custom', { defaultValue: 'Custom' })}</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>{t('employees.salaryAmount', { defaultValue: 'Amount (د.إ)' })}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  className={inputCls}
+                  value={salaryForm.amount}
+                  onChange={e => setSalaryForm(s => ({ ...s, amount: e.target.value }))}
+                />
+              </div>
+              {(salaryForm.salary_type === 'monthly' || salaryForm.salary_type === 'custom') && (
+                <div>
+                  <label className={labelCls}>{t('employees.paymentDayOfMonth', { defaultValue: 'Payment day (1–31)' })}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    className={inputCls}
+                    value={salaryForm.payment_day}
+                    onChange={e => setSalaryForm(s => ({ ...s, payment_day: Math.min(31, Math.max(1, Number(e.target.value) || 1)) }))}
+                  />
+                </div>
+              )}
+              <div className="col-span-2">
+                <label className={labelCls}>{t('employees.salaryStartDate', { defaultValue: 'Salary start date' })}</label>
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={salaryForm.start_date}
+                  onChange={e => setSalaryForm(s => ({ ...s, start_date: e.target.value }))}
+                />
+              </div>
+              {salaryForm.salary_type === 'custom' && (
+                <div className="col-span-2">
+                  <label className={labelCls}>{t('employees.customPeriod', { defaultValue: 'Custom period description' })}</label>
+                  <input
+                    className={inputCls}
+                    value={salaryForm.custom_period}
+                    onChange={e => setSalaryForm(s => ({ ...s, custom_period: e.target.value }))}
+                  />
+                </div>
+              )}
+              <div className="col-span-2">
+                <label className={labelCls}>{t('employees.salaryNotes', { defaultValue: 'Salary notes' })}</label>
+                <textarea
+                  className={inputCls}
+                  rows={3}
+                  value={salaryForm.notes}
+                  onChange={e => setSalaryForm(s => ({ ...s, notes: e.target.value }))}
+                />
               </div>
             </div>
           )}
@@ -525,8 +800,8 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
 
 interface ViewProps {
   employee: Employee
-  tab: 'personal' | 'employment' | 'vacation' | 'documents'
-  setTab: (tab: 'personal' | 'employment' | 'vacation' | 'documents') => void
+  tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'documents'
+  setTab: (tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'documents') => void
   onClose: () => void
   onRefresh: () => void
 }
@@ -535,12 +810,21 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
   const { t } = useTranslation()
   const [vacations, setVacations] = useState<Vacation[]>([])
   const [documents, setDocuments] = useState<EmpDocument[]>([])
+  const [salaryCfg, setSalaryCfg] = useState<EmployeeSalaryConfig | null>(null)
   const [showVacForm, setShowVacForm] = useState(false)
   const [showDocUpload, setShowDocUpload] = useState(false)
 
   useEffect(() => {
     loadVacations()
     loadDocuments()
+  }, [employee.id])
+
+  useEffect(() => {
+    async function loadSalary() {
+      const res = await window.electronAPI.employees.getSalary(employee.id) as { success: boolean; data?: EmployeeSalaryConfig | null }
+      if (res.success) setSalaryCfg(res.data ?? null)
+    }
+    loadSalary()
   }, [employee.id])
 
   async function loadVacations() {
@@ -553,7 +837,7 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
     if (res.success && res.data) setDocuments(res.data)
   }
 
-  const tabs = ['personal', 'employment', 'vacation', 'documents'] as const
+  const tabs = ['personal', 'employment', 'salary', 'vacation', 'documents'] as const
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -596,6 +880,7 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {tab === 'personal' && <PersonalTab employee={employee} />}
           {tab === 'employment' && <EmploymentTab employee={employee} />}
+          {tab === 'salary' && <SalaryViewTab salary={salaryCfg} employee={employee} t={t} />}
           {tab === 'vacation' && (
             <VacationTab
               employee={employee}
@@ -626,6 +911,67 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
           employeeId={employee.id}
           onClose={() => { setShowDocUpload(false); loadDocuments() }}
         />
+      )}
+    </div>
+  )
+}
+
+/* ── Salary view tab ─────────────────────────────────────────────────────── */
+
+function SalaryViewTab({
+  salary,
+  employee,
+  t,
+}: {
+  salary: EmployeeSalaryConfig | null
+  employee: Employee
+  t: (key: string, opts?: { defaultValue?: string }) => string
+}) {
+  if (!salary) {
+    return (
+      <div className="text-sm text-muted-foreground space-y-2">
+        <p>{t('employees.noSalaryConfig', { defaultValue: 'No salary configuration yet. Edit the employee and use the Salary tab to add payroll details.' })}</p>
+        {employee.salary != null && (
+          <p>
+            {t('employees.legacySalaryHint', { defaultValue: 'Legacy amount on file' })}: د.إ {Number(employee.salary).toLocaleString()}
+          </p>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+      <div>
+        <div className="text-xs text-muted-foreground">{t('employees.salaryType', { defaultValue: 'Salary type' })}</div>
+        <div className="text-sm font-medium text-foreground">
+          {t(`employees.salaryType_${salary.salary_type}`, { defaultValue: salary.salary_type })}
+        </div>
+      </div>
+      <div>
+        <div className="text-xs text-muted-foreground">{t('employees.salaryAmount', { defaultValue: 'Amount (د.إ)' })}</div>
+        <div className="text-sm font-medium text-foreground">د.إ {salary.amount.toLocaleString()}</div>
+      </div>
+      {(salary.salary_type === 'monthly' || salary.salary_type === 'custom') && (
+        <div>
+          <div className="text-xs text-muted-foreground">{t('employees.paymentDayOfMonth', { defaultValue: 'Payment day (1–31)' })}</div>
+          <div className="text-sm font-medium text-foreground">{salary.payment_day ?? '—'}</div>
+        </div>
+      )}
+      <div>
+        <div className="text-xs text-muted-foreground">{t('employees.salaryStartDate', { defaultValue: 'Salary start date' })}</div>
+        <div className="text-sm font-medium text-foreground">{salary.start_date}</div>
+      </div>
+      {salary.custom_period && (
+        <div className="col-span-2">
+          <div className="text-xs text-muted-foreground">{t('employees.customPeriod', { defaultValue: 'Custom period' })}</div>
+          <div className="text-sm font-medium text-foreground">{salary.custom_period}</div>
+        </div>
+      )}
+      {salary.notes && (
+        <div className="col-span-2">
+          <div className="text-xs text-muted-foreground">{t('employees.salaryNotes', { defaultValue: 'Salary notes' })}</div>
+          <div className="text-sm text-foreground whitespace-pre-wrap">{salary.notes}</div>
+        </div>
       )}
     </div>
   )

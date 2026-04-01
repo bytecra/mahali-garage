@@ -273,6 +273,26 @@ declare global {
         receipt:              (html: string) => Promise<IpcResponse<boolean>>
         chooseDownloadFolder: ()             => Promise<IpcResponse<string | null>>
       }
+      employees: {
+        list:            (filters?: unknown) => Promise<IpcResponse<unknown[]>>
+        getById:         (id: number) => Promise<IpcResponse<unknown>>
+        create:          (data: unknown) => Promise<IpcResponse<unknown>>
+        update:          (id: number, data: unknown) => Promise<IpcResponse<unknown>>
+        delete:          (id: number) => Promise<IpcResponse<unknown>>
+        listVacations:   (employeeId: number) => Promise<IpcResponse<unknown[]>>
+        addVacation:     (data: unknown) => Promise<IpcResponse<unknown>>
+        endVacation:     (vacationId: number, actualReturnDate: string) => Promise<IpcResponse<unknown>>
+        deleteVacation:  (vacationId: number) => Promise<IpcResponse<unknown>>
+        listDocuments:   (employeeId: number) => Promise<IpcResponse<unknown[]>>
+        uploadDocument:  (data: unknown) => Promise<IpcResponse<unknown>>
+        openDocument:    (docId: number) => Promise<IpcResponse<unknown>>
+        deleteDocument:  (docId: number) => Promise<IpcResponse<unknown>>
+        chooseFile:      () => Promise<IpcResponse<unknown>>
+        getSalary:       (employeeId: number) => Promise<IpcResponse<unknown>>
+        upsertSalary:    (data: unknown) => Promise<IpcResponse<unknown>>
+        listPayroll:     (filter?: 'all' | 'paid' | 'unpaid' | 'overdue') => Promise<IpcResponse<unknown[]>>
+        markSalaryPaid:  (employeeId: number) => Promise<IpcResponse<{ expense_id: number; amount: number }>>
+      }
     }
   }
 }

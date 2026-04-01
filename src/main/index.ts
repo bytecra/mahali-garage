@@ -7,6 +7,7 @@ import { initDatabase } from './database/index'
 import { registerAllHandlers } from './ipc/index'
 import { checkLicense } from './licensing/license-manager'
 import { initBackupScheduler, stopBackupScheduler } from './services/backupScheduler'
+import { initPayrollScheduler, stopPayrollScheduler } from './services/payrollScheduler'
 
 log.initialize()
 log.info('App starting...')
@@ -127,6 +128,7 @@ app.whenReady().then(async () => {
     })
 
     initBackupScheduler()
+    initPayrollScheduler()
 
     openMainOrActivation()
 
@@ -147,6 +149,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   stopBackupScheduler()
+  stopPayrollScheduler()
   globalShortcut.unregisterAll()
 })
 

@@ -1,6 +1,7 @@
 import { getDb } from '../index'
 import { expenseRepo } from './expenseRepo'
 import { assetRepo } from './assetRepo'
+import { salaryRepo } from './salaryRepo'
 
 export type ReportDepartmentFilter = 'all' | 'mechanical' | 'programming'
 
@@ -357,6 +358,10 @@ export const reportRepo = {
     const monthGrossProfit = monthRevenueRow.revenue - monthCogs
     const monthNetProfit   = monthGrossProfit - monthExpenses
     const totalAssetsPurchase = assetRepo.totalPurchaseValue()
+    let unpaidSalariesTotal = 0
+    try {
+      unpaidSalariesTotal = salaryRepo.totalUnpaidDue()
+    } catch { /* payroll tables missing */ }
 
     return {
       todaySalesCount: todaySalesRow.count,
@@ -384,6 +389,7 @@ export const reportRepo = {
       todayDeliveredMechanical,
       todayDeliveredProgramming,
       urgentJobCards,
+      unpaidSalariesTotal,
     }
   },
 

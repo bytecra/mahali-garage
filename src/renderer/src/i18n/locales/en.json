@@ -99,6 +99,8 @@
     "recentSales": "Recent Sales",
     "topProducts": "Top Parts",
     "urgentJobs": "Urgent Jobs",
+    "unpaidSalaries": "Unpaid salaries",
+    "unpaidSalariesSub": "Total due (including carryover) · ",
     "salesTrend": "Sales Trend (7 days)",
     "taskOverview": "Task Overview",
     "myTasks": "My Tasks",
@@ -544,7 +546,12 @@
         "permissions.change": "Permission Changed",
         "user.create": "User Created"
       }
-    }
+    },
+    "payroll": "Payroll",
+    "payrollNotifications": "Payroll notifications",
+    "payrollNotificationsHint": "Remind owners in the app when a salary is due within the selected number of days.",
+    "payrollRemindersEnable": "Enable salary reminders",
+    "payrollRemindersDays": "Days before payday to notify"
   },
   "tasks": {
     "title": "Tasks",
@@ -776,6 +783,36 @@
     "doc_certificate": "Certificate",
     "doc_medical": "Medical Certificate",
     "doc_driving_license": "Driving License",
-    "doc_other": "Other"
+    "doc_other": "Other",
+    "section_salary": "Salary",
+    "tab_salary": "Salary",
+    "tabList": "Directory",
+    "payrollTab": "Payroll",
+    "payrollIntro": "This month’s payroll status. Carryover from earlier unpaid periods is included in the total due.",
+    "payroll_filter_all": "All",
+    "payroll_filter_paid": "Paid",
+    "payroll_filter_unpaid": "Unpaid",
+    "payroll_filter_overdue": "Overdue",
+    "payrollEmpty": "No employees with salary configuration match this filter.",
+    "payrollPaid": "Paid",
+    "payrollUnpaid": "Unpaid",
+    "payrollOverdue": "Overdue",
+    "carryoverLabel": "Carryover",
+    "totalDue": "Total",
+    "markSalaryPaid": "Mark as paid",
+    "amountAed": "د.إ",
+    "salaryType": "Salary type",
+    "salaryType_monthly": "Monthly",
+    "salaryType_weekly": "Weekly",
+    "salaryType_daily": "Daily",
+    "salaryType_one_time": "One time",
+    "salaryType_custom": "Custom",
+    "salaryAmount": "Amount (د.إ)",
+    "paymentDayOfMonth": "Payment day (1–31)",
+    "salaryStartDate": "Salary start date",
+    "customPeriod": "Custom period description",
+    "salaryNotes": "Salary notes",
+    "noSalaryConfig": "No salary configuration yet. Edit the employee and use the Salary tab to add payroll details.",
+    "legacySalaryHint": "Legacy amount on file"
   }
 }

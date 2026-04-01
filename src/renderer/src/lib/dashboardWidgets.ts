@@ -18,6 +18,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'my_overdue', label: 'My Overdue' },
   { id: 'sales_trend_7_days', label: 'Sales Trend (7 days)' },
   { id: 'top_parts', label: 'Top Parts' },
+  { id: 'unpaid_salaries', label: 'Unpaid Salaries' },
 ] as const
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id']

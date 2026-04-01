@@ -27,6 +27,7 @@ import { migration024 } from './024_custom_receipts_smart_recipe'
 import { migration025 } from './025_fix_store_name_default'
 import { migration026 } from './026_ensure_department_columns'
 import { migration027 } from './027_job_cards_status_check_update'
+import { migration028 } from './028_employee_payroll'
 
 interface Migration {
   version: number
@@ -64,6 +65,7 @@ const migrations: Migration[] = [
   { version: 25, name: '025_fix_store_name_default',      up: migration025 },
   { version: 26, name: '026_ensure_department_columns',   up: migration026 },
   { version: 27, name: '027_job_cards_status_check_update', up: migration027 },
+  { version: 28, name: '028_employee_payroll', up: migration028 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

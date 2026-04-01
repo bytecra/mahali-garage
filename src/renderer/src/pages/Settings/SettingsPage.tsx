@@ -13,7 +13,7 @@ const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -205,6 +205,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
     { key: 'car-brands', label: t('settings.carBrands', { defaultValue: 'Car Brands' }), guard: canSettings },
     { key: 'dashboard',  label: 'Dashboard', guard: canSettings },
+    { key: 'payroll',    label: t('settings.payroll', { defaultValue: 'Payroll' }), guard: canSettings },
     { key: 'backup',     label: t('settings.backup'),         guard: canBackup },
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
     { key: 'license',    label: 'License' },
@@ -594,6 +595,45 @@ export default function SettingsPage(): JSX.Element {
               })}
             </div>
             <button onClick={() => save(['payment_methods'])} disabled={saving} className={saveBtnCls}>{saving ? t('common.loading') : t('common.save')}</button>
+          </div>
+        )}
+
+        {tab === 'payroll' && (
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">{t('settings.payrollNotifications', { defaultValue: 'Payroll notifications' })}</h3>
+              <p className="text-sm text-muted-foreground">
+                {t('settings.payrollNotificationsHint', { defaultValue: 'Remind owners in the app when a salary is due within the selected number of days.' })}
+              </p>
+            </div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="w-4 h-4 rounded border-border"
+                checked={(settings['payroll.reminders_enabled'] ?? '1') === '1'}
+                onChange={e => set('payroll.reminders_enabled', e.target.checked ? '1' : '0')}
+              />
+              <span className="text-sm text-foreground">{t('settings.payrollRemindersEnable', { defaultValue: 'Enable salary reminders' })}</span>
+            </label>
+            <div>
+              <label className={labelCls}>{t('settings.payrollRemindersDays', { defaultValue: 'Days before payday to notify' })}</label>
+              <input
+                type="number"
+                min={0}
+                max={60}
+                className={inputCls}
+                value={settings['payroll.reminder_days_before'] ?? '2'}
+                onChange={e => set('payroll.reminder_days_before', e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => save(['payroll.reminders_enabled', 'payroll.reminder_days_before'])}
+              disabled={saving}
+              className={saveBtnCls}
+            >
+              {saving ? t('common.loading') : t('common.save')}
+            </button>
           </div>
         )}
 

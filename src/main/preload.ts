@@ -316,6 +316,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openDocument:    (docId: number)                                  => invoke('employees:openDocument', docId),
     deleteDocument:  (docId: number)                                  => invoke('employees:deleteDocument', docId),
     chooseFile:      ()                                               => invoke('employees:chooseFile'),
+    getSalary:       (employeeId: number)                              => invoke('employees:getSalary', employeeId),
+    upsertSalary:    (data: unknown)                                   => invoke('employees:upsertSalary', data),
+    listPayroll:     (filter?: 'all' | 'paid' | 'unpaid' | 'overdue')  => invoke('employees:listPayroll', filter ?? 'all'),
+    markSalaryPaid:  (employeeId: number)                              => invoke('employees:markSalaryPaid', employeeId),
   },
 
   // ── App (activation window) ───────────────────────────────────────────────

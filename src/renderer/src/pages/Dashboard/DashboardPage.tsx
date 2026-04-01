@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle, Building2, PackageCheck } from 'lucide-react'
+import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle, Building2, PackageCheck, Users } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
 import { formatCurrency, cn } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
@@ -44,6 +44,7 @@ interface DashboardData {
     vehicle_make: string | null; vehicle_model: string | null; vehicle_year: number | null; vehicle_plate: string | null
   }>
   totalAssetsPurchase: number
+  unpaidSalariesTotal: number
 }
 
 function DeptBreakdown({ mechanical, programming }: { mechanical: number; programming: number }): JSX.Element {
@@ -706,6 +707,19 @@ export default function DashboardPage(): JSX.Element {
           sub={t('dashboard.inSystem')}
           color="bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-400" />}
       </div>
+
+      {/* Payroll alert — only when there is unpaid salary and widget enabled */}
+      {widgets.unpaid_salaries && (data?.unpaidSalariesTotal ?? 0) > 0 && (
+        <div className="mb-4">
+          <StatCard
+            icon={Users}
+            label={t('dashboard.unpaidSalaries', { defaultValue: 'Unpaid salaries' })}
+            valueContent={<CurrencyText amount={data?.unpaidSalariesTotal ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
+            sub={t('dashboard.unpaidSalariesSub', { defaultValue: 'Total due (including carryover) · ' }) + getCurrencyCode()}
+            color="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+          />
+        </div>
+      )}
 
       {/* Stats Row 2 — Sales & Stock */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">

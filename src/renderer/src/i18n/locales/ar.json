@@ -99,6 +99,8 @@
     "recentSales": "المبيعات الأخيرة",
     "topProducts": "أكثر القطع مبيعاً",
     "urgentJobs": "المهام العاجلة",
+    "unpaidSalaries": "رواتب غير مدفوعة",
+    "unpaidSalariesSub": "الإجمالي المستحق (بما فيه المرحّل) · ",
     "salesTrend": "اتجاه المبيعات (7 أيام)",
     "taskOverview": "نظرة عامة على المهام",
     "myTasks": "مهامي",
@@ -544,7 +546,12 @@
         "permissions.change": "تغيير صلاحية",
         "user.create": "إنشاء مستخدم"
       }
-    }
+    },
+    "payroll": "الرواتب",
+    "payrollNotifications": "إشعارات الرواتب",
+    "payrollNotificationsHint": "تذكير المالك داخل التطبيق عند استحقاق راتب خلال عدد الأيام المحدد.",
+    "payrollRemindersEnable": "تفعيل تذكيرات الرواتب",
+    "payrollRemindersDays": "أيام قبل يوم الدفع للإشعار"
   },
   "tasks": {
     "title": "المهام",
@@ -776,6 +783,36 @@
     "doc_certificate": "شهادة",
     "doc_medical": "شهادة طبية",
     "doc_driving_license": "رخصة القيادة",
-    "doc_other": "أخرى"
+    "doc_other": "أخرى",
+    "section_salary": "الراتب",
+    "tab_salary": "الراتب",
+    "tabList": "الدليل",
+    "payrollTab": "الرواتب",
+    "payrollIntro": "حالة الرواتب لهذا الشهر. يُضاف الرصيد المتراكم من فترات سابقة غير المدفوعة إلى الإجمالي المستحق.",
+    "payroll_filter_all": "الكل",
+    "payroll_filter_paid": "مدفوع",
+    "payroll_filter_unpaid": "غير مدفوع",
+    "payroll_filter_overdue": "متأخر",
+    "payrollEmpty": "لا يوجد موظفون بإعداد راتب يطابق هذا التصفية.",
+    "payrollPaid": "مدفوع",
+    "payrollUnpaid": "غير مدفوع",
+    "payrollOverdue": "متأخر",
+    "carryoverLabel": "مرحّل",
+    "totalDue": "الإجمالي",
+    "markSalaryPaid": "تسجيل كمدفوع",
+    "amountAed": "د.إ",
+    "salaryType": "نوع الراتب",
+    "salaryType_monthly": "شهري",
+    "salaryType_weekly": "أسبوعي",
+    "salaryType_daily": "يومي",
+    "salaryType_one_time": "مرة واحدة",
+    "salaryType_custom": "مخصص",
+    "salaryAmount": "المبلغ (د.إ)",
+    "paymentDayOfMonth": "يوم الدفع (1–31)",
+    "salaryStartDate": "تاريخ بداية الراتب",
+    "customPeriod": "وصف الفترة المخصصة",
+    "salaryNotes": "ملاحظات الراتب",
+    "noSalaryConfig": "لا يوجد إعداد راتب بعد. عدّل الموظف واستخدم تبويب الراتب لإضافة التفاصيل.",
+    "legacySalaryHint": "مبلغ قديم في السجل"
   }
 }
