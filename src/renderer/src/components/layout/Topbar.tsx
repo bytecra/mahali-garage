@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, ReceiptText, Bell, CheckCheck, Palette, Package, AlertTriangle, CalendarClock, CircleDollarSign } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, Bell, CheckCheck, Palette, Package, AlertTriangle, CalendarClock, CircleDollarSign, Sparkles, FileEdit } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
@@ -83,9 +83,14 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
     navigate('/login')
   }
 
-  const handleNewReceipt = (): void => {
+  const handleSmartRecipe = (): void => {
     clearCart()
     navigate('/custom-receipts?mode=smart')
+  }
+
+  const handleCustomRecipe = (): void => {
+    clearCart()
+    navigate('/custom-receipts?mode=custom')
   }
 
   const themes = [
@@ -153,15 +158,26 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
         }
       </button>
 
-      {/* Center: New Receipt shortcut */}
+      {/* Center: Smart Recipe + Custom Recipe */}
       {canSales && (
-        <button
-          onClick={handleNewReceipt}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-        >
-          <ReceiptText className="w-4 h-4" />
-          {t('pos.newReceipt')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSmartRecipe}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+          >
+            <Sparkles className="w-4 h-4 shrink-0" />
+            {t('nav.smartRecipe')}
+          </button>
+          <button
+            type="button"
+            onClick={handleCustomRecipe}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground hover:bg-accent transition-colors"
+          >
+            <FileEdit className="w-4 h-4 shrink-0" />
+            {t('nav.customRecipe')}
+          </button>
+        </div>
       )}
 
       {/* Right: controls */}

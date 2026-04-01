@@ -124,7 +124,16 @@ export default function CustomReceiptsPage(): JSX.Element {
       setMode('smart')
       return
     }
+    if (modeParam === 'custom' && mode !== 'custom') {
+      resetForm()
+      setMode('custom')
+      return
+    }
     if (modeParam !== 'smart' && mode === 'smart') {
+      setMode('list')
+      return
+    }
+    if (modeParam !== 'custom' && mode === 'custom') {
       setMode('list')
     }
   }, [searchParams])
