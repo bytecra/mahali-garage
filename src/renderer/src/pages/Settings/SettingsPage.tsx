@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, lazy, Suspense, type ChangeEvent } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense, useRef, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, AlertCircle, Upload } from 'lucide-react'
+import { CheckCircle, AlertCircle, Upload, Plus, X } from 'lucide-react'
 import { toast } from '../../store/notificationStore'
 import { useThemeStore } from '../../store/themeStore'
 import { useLangStore } from '../../store/langStore'
@@ -152,6 +152,8 @@ export default function SettingsPage(): JSX.Element {
       'receipt.show_customer_info': settings['receipt.show_customer_info'] ?? 'true',
       'receipt.show_car_info':      settings['receipt.show_car_info']      ?? 'true',
       'receipt.supported_brands':   settings['receipt.supported_brands']   ?? '',
+      'receipt.brand_logos':        settings['receipt.brand_logos']        ?? '',
+      'receipt.brands_title':       settings['receipt.brands_title']       ?? '',
       'receipt.terms':              settings['receipt.terms']              ?? '',
       'receipt.programming_print_mode': settings['receipt.programming_print_mode'] ?? 'a4_only',
     }
@@ -230,6 +232,48 @@ export default function SettingsPage(): JSX.Element {
   const saveBtnCls = 'px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-60'
   const dashboardWidgets = parseDashboardWidgets(settings['dashboard_widgets'])
   const tvDisplayWidgets = parseTvDisplayWidgets(settings['tv_display_widgets'])
+
+  const parseBrandLogos = (raw: string | undefined): string[] => {
+    try {
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed)
+        ? parsed.filter((x): x is string => typeof x === 'string')
+        : []
+    } catch {
+      return []
+    }
+  }
+
+  const brandLogos: string[] = parseBrandLogos(settings['receipt.brand_logos']).slice(0, 5)
+
+  const setBrandLogos = (logos: string[]): void => {
+    set('receipt.brand_logos', JSON.stringify(logos.slice(0, 5)))
+  }
+
+  const logoFileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleLogoFile = (e: ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      if (!result.startsWith('data:image/')) return
+      setSettings(s => {
+        const current = parseBrandLogos(s['receipt.brand_logos'])
+        if (current.length >= 5) return s
+        return { ...s, 'receipt.brand_logos': JSON.stringify([...current, result].slice(0, 5)) }
+      })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const removeLogoAt = (index: number): void => {
+    setBrandLogos(brandLogos.filter((_, i) => i !== index))
+  }
 
   const toggleDashboardWidget = (widgetId: string): void => {
     const next = { ...dashboardWidgets, [widgetId]: !dashboardWidgets[widgetId as keyof typeof dashboardWidgets] }
@@ -473,47 +517,60 @@ export default function SettingsPage(): JSX.Element {
               </div>
             </div>
 
-            {/* ── Supported Brands ── */}
+            {/* ── We Work With — Logos ── */}
             <div className="pt-2 border-t border-border">
-              <h3 className="text-sm font-semibold text-foreground mb-1">Supported Brands</h3>
-              <p className="text-xs text-muted-foreground mb-3">
-                Brands shown in the "We Work with" section of the printed receipt.
-              </p>
-              {brands.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No brands found — add brands in the <strong>Car Brands</strong> tab first.
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-1">We Work With — Logos</h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Upload up to 5 logos to show in the &quot;We Work with&quot; section on printed receipts.
                 </p>
-              ) : (() => {
-                const selected = (settings['receipt.supported_brands'] ?? '')
-                  .split(',').map(v => v.trim()).filter(Boolean)
-                const toggle = (name: string): void => {
-                  const next = selected.includes(name)
-                    ? selected.filter(b => b !== name)
-                    : [...selected, name]
-                  set('receipt.supported_brands', next.join(','))
-                }
-                return (
-                  <div className="grid grid-cols-3 gap-2">
-                    {brands.map(b => (
-                      <label
-                        key={b.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
-                          selected.includes(b.name) ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'
-                        }`}
+                <div className="mb-3">
+                  <label className={labelCls}>Section Title</label>
+                  <input
+                    type="text"
+                    value={settings['receipt.brands_title'] ?? 'We Work with'}
+                    onChange={e => set('receipt.brands_title', e.target.value)}
+                    placeholder="We Work with"
+                    className={inputCls}
+                  />
+                </div>
+                <input
+                  ref={logoFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoFile}
+                />
+                <div className="flex flex-wrap gap-2 items-start">
+                  {brandLogos.map((logo, index) => (
+                    <div
+                      key={index}
+                      className="relative w-20 h-20 shrink-0 rounded-lg border border-border bg-background overflow-hidden"
+                    >
+                      <img src={logo} alt="" className="w-full h-full object-contain p-1" />
+                      <button
+                        type="button"
+                        onClick={() => removeLogoAt(index)}
+                        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-background/90 text-red-600 hover:bg-destructive/10"
                       >
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4"
-                          checked={selected.includes(b.name)}
-                          onChange={() => toggle(b.name)}
-                        />
-                        {b.logo && <img src={b.logo} alt={b.name} className="w-6 h-6 object-contain shrink-0" />}
-                        <span className="text-sm truncate">{b.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                )
-              })()}
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {brandLogos.length < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => logoFileInputRef.current?.click()}
+                      className="w-20 h-20 shrink-0 rounded-lg border border-dashed border-border flex items-center justify-center text-muted-foreground hover:bg-muted/30 hover:text-foreground transition-colors"
+                    >
+                      <Plus className="w-7 h-7" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {brandLogos.length}/5 logos added
+                </p>
+              </div>
             </div>
 
             {/* ── Custom Terms Text ── */}

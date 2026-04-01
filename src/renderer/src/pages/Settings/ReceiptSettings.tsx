@@ -1,11 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, type ChangeEvent } from 'react'
+import { Plus, X } from 'lucide-react'
 import { toast } from '../../store/notificationStore'
-
-interface CarBrand {
-  id: number
-  name: string
-  logo: string | null
-}
 
 const TOGGLES: Array<[string, string, string]> = [
   ['receipt.show_vat',           'true',  'Show VAT on receipt'],
@@ -24,22 +19,37 @@ const RECEIPT_KEYS = [
   'receipt.show_customer_info',
   'receipt.show_car_info',
   'receipt.supported_brands',
+  'receipt.brand_logos',
   'receipt.terms',
   'receipt.programming_print_mode',
 ]
 
+function parseBrandLogos(raw: string | undefined): string[] {
+  try {
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
 export default function ReceiptSettings(): JSX.Element {
   const [settings, setSettings] = useState<Record<string, string>>({})
-  const [brands, setBrands] = useState<CarBrand[]>([])
   const [saving, setSaving] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    void Promise.all([
-      window.electronAPI.settings.getAll(),
-      window.electronAPI.carBrands.list(),
-    ]).then(([sRes, bRes]) => {
-      if (sRes.success && sRes.data) setSettings(sRes.data as Record<string, string>)
-      if (bRes.success && bRes.data) setBrands(bRes.data as CarBrand[])
+    void window.electronAPI.settings.getAll().then(sRes => {
+      if (sRes.success && sRes.data) {
+        const data = sRes.data as Record<string, string>
+        setSettings({
+          ...data,
+          'receipt.brand_logos': data['receipt.brand_logos'] ?? '',
+        })
+      }
     })
   }, [])
 
@@ -52,14 +62,35 @@ export default function ReceiptSettings(): JSX.Element {
   const toggle = (key: string, def = 'true'): void =>
     set(key, isOn(key, def) ? 'false' : 'true')
 
-  const selectedBrands: string[] = (settings['receipt.supported_brands'] ?? '')
-    .split(',').map(v => v.trim()).filter(Boolean)
+  const brandLogos: string[] = parseBrandLogos(settings['receipt.brand_logos']).slice(0, 5)
 
-  const toggleBrand = (name: string): void => {
-    const next = selectedBrands.includes(name)
-      ? selectedBrands.filter(b => b !== name)
-      : [...selectedBrands, name]
-    set('receipt.supported_brands', next.join(','))
+  const setBrandLogos = (logos: string[]): void => {
+    set('receipt.brand_logos', JSON.stringify(logos.slice(0, 5)))
+  }
+
+  const removeLogoAt = (index: number): void => {
+    setBrandLogos(brandLogos.filter((_, i) => i !== index))
+  }
+
+  const handleLogoFile = (e: ChangeEvent<HTMLInputElement>): void => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f || !f.type.startsWith('image/')) {
+      toast.error('Please choose an image')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string' || !result.startsWith('data:image/')) return
+      setSettings(s => {
+        const current = parseBrandLogos(s['receipt.brand_logos'])
+        if (current.length >= 5) return s
+        const next = [...current, result].slice(0, 5)
+        return { ...s, 'receipt.brand_logos': JSON.stringify(next) }
+      })
+    }
+    reader.readAsDataURL(f)
   }
 
   const save = async (): Promise<void> => {
@@ -97,41 +128,50 @@ export default function ReceiptSettings(): JSX.Element {
         </div>
       </div>
 
-      {/* ── Supported Brands ───────────────────────────────── */}
+      {/* ── We Work With — Logos ─────────────────────────────── */}
       <div>
-        <h3 className="text-sm font-semibold text-foreground mb-1">Supported Brands</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-1">We Work With — Logos</h3>
         <p className="text-xs text-muted-foreground mb-3">
-          Brands shown in the "We Work with" section of the printed receipt.
+          Upload up to 5 logos to show in the &quot;We Work with&quot; section on printed receipts.
         </p>
-        {brands.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No brands found — add brands in the <strong>Car Brands</strong> tab first.
-          </p>
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {brands.map(b => (
-              <label
-                key={b.id}
-                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
-                  selectedBrands.includes(b.name)
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:bg-muted/30'
-                }`}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleLogoFile}
+        />
+        <div className="flex flex-wrap gap-2 items-start">
+          {brandLogos.map((logo, index) => (
+            <div
+              key={index}
+              className="relative w-20 h-20 shrink-0 rounded-lg border border-border bg-background overflow-hidden"
+            >
+              <img src={logo} alt="" className="w-full h-full object-contain p-1" />
+              <button
+                type="button"
+                onClick={() => removeLogoAt(index)}
+                className="absolute top-0.5 right-0.5 p-0.5 rounded bg-background/90 text-red-600 hover:bg-destructive/10"
+                title="Remove"
               >
-                <input
-                  type="checkbox"
-                  className="w-4 h-4"
-                  checked={selectedBrands.includes(b.name)}
-                  onChange={() => toggleBrand(b.name)}
-                />
-                {b.logo && (
-                  <img src={b.logo} alt={b.name} className="w-6 h-6 object-contain shrink-0" />
-                )}
-                <span className="text-sm truncate">{b.name}</span>
-              </label>
-            ))}
-          </div>
-        )}
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          {brandLogos.length < 5 && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-20 h-20 shrink-0 rounded-lg border border-dashed border-border flex items-center justify-center text-muted-foreground hover:bg-muted/30 hover:text-foreground transition-colors"
+              title="Add logo"
+            >
+              <Plus className="w-7 h-7" />
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          {brandLogos.length}/5 logos added
+        </p>
       </div>
 
       {/* ── Custom Terms ───────────────────────────────────── */}

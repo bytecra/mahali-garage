@@ -92,6 +92,22 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
   const supportedBrands = supportedBrandsRaw
     .split(',').map(v => v.trim()).filter(Boolean)
 
+  const brandLogosRaw = settings['receipt.brand_logos'] ?? ''
+  const brandLogos: string[] = (() => {
+    try {
+      if (!brandLogosRaw) return []
+      const parsed = JSON.parse(brandLogosRaw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })()
+  const hasLogoImages = brandLogos.length > 0
+
+  const brandsTitle =
+    settings['receipt.brands_title']?.trim()
+    || 'We Work with'
+
   // Terms: prefer receipt.terms, fall back to invoice.terms / invoice.footer_text
   const terms = settings['receipt.terms']
     || settings['invoice.terms']
@@ -239,11 +255,25 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
     </section>
 
     <footer class="foot">
-      ${showBrands && supportedBrands.length > 0 ? `
-        <div class="footTitle">We Work with:</div>
+      ${showBrands && (hasLogoImages || supportedBrands.length > 0) ? `
+        <div class="footTitle">${escapeHtml(brandsTitle)}:</div>
+        ${hasLogoImages ? `
+    <div style="display:flex;flex-wrap:wrap;
+      gap:12px;align-items:center;
+      justify-content:center;
+      margin:6px 16px;">
+      ${brandLogos.map(logo =>
+        `<img src="${logo}" 
+          style="height:108px;width:auto;
+          max-width:216px;object-fit:contain;" 
+          alt="" />`
+      ).join('')}
+    </div>
+    ` : `
         <div class="brands">
           ${supportedBrands.map(v => `<span class="brand">${escapeHtml(v)}</span>`).join('')}
         </div>
+    `}
       ` : ''}
       ${showTerms && terms ? `
         <div class="footTitle">Our terms:</div>
