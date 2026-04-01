@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
@@ -39,10 +39,11 @@ export function openTvWindow(): BrowserWindow {
     fullscreen: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       nodeIntegration: false,
       contextIsolation: true,
-      devTools: true,
+      webSecurity: true,
+      devTools: !app.isPackaged,
     },
   })
 

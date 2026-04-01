@@ -15,8 +15,10 @@ function createPrintWindow(parent: BrowserWindow | null): BrowserWindow {
     modal: false,
     autoHideMenuBar: true,
     webPreferences: {
+      sandbox: true,
       nodeIntegration: false,
       contextIsolation: true,
+      webSecurity: true,
     },
   })
 }

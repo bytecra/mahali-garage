@@ -26,10 +26,11 @@ function createWindow(): void {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       nodeIntegration: false,
       contextIsolation: true,
-      devTools: true,
+      webSecurity: true,
+      devTools: !app.isPackaged,
     },
   })
 
@@ -55,7 +56,9 @@ function createWindow(): void {
       if (win.webContents.isDevToolsOpened()) {
         win.webContents.closeDevTools()
       } else {
-        win.webContents.openDevTools()
+        if (!app.isPackaged) {
+          win.webContents.openDevTools()
+        }
       }
     }
   })
@@ -78,10 +81,11 @@ function createActivationWindow(): void {
     title: 'Activate Mahali Garage',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       nodeIntegration: false,
       contextIsolation: true,
-      devTools: true,
+      webSecurity: true,
+      devTools: !app.isPackaged,
     },
   })
 
