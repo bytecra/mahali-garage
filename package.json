@@ -147,6 +147,21 @@
       "warningsAsErrors": false,
       "uninstallDisplayName": "${productName} ${version}",
       "multiLanguageInstaller": false
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.business"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "resources/icon.png",
+      "category": "Office"
     }
   }
 }
