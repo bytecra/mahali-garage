@@ -277,6 +277,12 @@ export default function CustomReceiptsPage(): JSX.Element {
     if (!canCreate) return
     const effectiveMechanical = department === 'programming' ? [] : cleanLines(mechanical)
     const effectiveProgramming = department === 'mechanical' ? [] : cleanLines(programming)
+    const effectiveDepartment =
+      effectiveMechanical.length > 0 && effectiveProgramming.length > 0
+        ? 'both'
+        : effectiveMechanical.length > 0
+          ? 'mechanical'
+          : 'programming'
     if (effectiveMechanical.length + effectiveProgramming.length === 0) {
       toast.error(t('customReceipts.errorServiceRequired', { defaultValue: 'Add at least one service line' }))
       return
@@ -288,7 +294,7 @@ export default function CustomReceiptsPage(): JSX.Element {
     setSaving(true)
     try {
       const payload = {
-        department,
+        department: effectiveDepartment,
         customer_name: walkInCustomer ? 'Walk-in Customer' : (customerName.trim() || 'Walk-in Customer'),
         customer_phone: walkInCustomer ? null : (customerPhone.trim() || null),
         customer_email: walkInCustomer ? null : (customerEmail.trim() || null),
@@ -622,6 +628,12 @@ export default function CustomReceiptsPage(): JSX.Element {
             const subtotalSmart = Math.round(merged.reduce((a, b) => a + b.sell_price, 0) * 100) / 100
             const mech = merged.filter(s => s.department === 'mechanical').map(({ service_name, cost, sell_price }) => ({ service_name, cost, sell_price }))
             const prog = merged.filter(s => s.department === 'programming').map(({ service_name, cost, sell_price }) => ({ service_name, cost, sell_price }))
+            const effectiveSmartDepartment =
+              mech.length > 0 && prog.length > 0
+                ? 'both'
+                : mech.length > 0
+                  ? 'mechanical'
+                  : 'programming'
             if (mech.length + prog.length === 0) {
               toast.error('Assign a department for at least one service')
               return
@@ -681,7 +693,7 @@ export default function CustomReceiptsPage(): JSX.Element {
 
             const plate = vehicle?.license_plate ?? null
             const payload = {
-              department: smartDepartment,
+              department: effectiveSmartDepartment,
                 customer_name: smartWalkInCustomer
                   ? 'Walk-in Customer'
                   : ((customer?.name ?? newCustomerName.trim()) || 'Walk-in Customer'),
