@@ -29,6 +29,7 @@ import { migration026 } from './026_ensure_department_columns'
 import { migration027 } from './027_job_cards_status_check_update'
 import { migration028 } from './028_employee_payroll'
 import { migration029 } from './029_user_auth_type_passcode'
+import { migration030 } from './030_performance_indexes'
 
 interface Migration {
   version: number
@@ -68,6 +69,7 @@ const migrations: Migration[] = [
   { version: 27, name: '027_job_cards_status_check_update', up: migration027 },
   { version: 28, name: '028_employee_payroll', up: migration028 },
   { version: 29, name: '029_user_auth_type_passcode', up: migration029 },
+  { version: 30, name: '030_performance_indexes', up: migration030 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

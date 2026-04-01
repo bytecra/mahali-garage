@@ -36,7 +36,7 @@ export const reportRepo = {
           cr.id as receipt_id
         FROM custom_receipts cr
         JOIN json_each(CASE WHEN json_valid(cr.mechanical_services_json) THEN cr.mechanical_services_json ELSE '[]' END) j
-        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+        WHERE cr.created_at BETWEEN ? AND ?
         UNION ALL
         SELECT
           'programming' as dept,
@@ -47,7 +47,7 @@ export const reportRepo = {
           cr.id as receipt_id
         FROM custom_receipts cr
         JOIN json_each(CASE WHEN json_valid(cr.programming_services_json) THEN cr.programming_services_json ELSE '[]' END) j
-        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+        WHERE cr.created_at BETWEEN ? AND ?
       )
       SELECT
         dept,
@@ -71,7 +71,7 @@ export const reportRepo = {
       FROM (
         SELECT 'mechanical' as dept, labor_total, parts_total
         FROM job_cards
-        WHERE date(created_at) BETWEEN date(?) AND date(?)
+        WHERE created_at BETWEEN ? AND ?
           AND status != 'cancelled'
         UNION ALL
         SELECT 'programming' as dept, labor_total, parts_total
@@ -95,7 +95,7 @@ export const reportRepo = {
           CAST(json_extract(j.value, '$.sell_price') AS REAL) as revenue
         FROM custom_receipts cr
         JOIN json_each(CASE WHEN json_valid(cr.mechanical_services_json) THEN cr.mechanical_services_json ELSE '[]' END) j
-        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+        WHERE cr.created_at BETWEEN ? AND ?
 
         UNION ALL
 
@@ -106,7 +106,7 @@ export const reportRepo = {
           CAST(json_extract(j.value, '$.sell_price') AS REAL) as revenue
         FROM custom_receipts cr
         JOIN json_each(CASE WHEN json_valid(cr.programming_services_json) THEN cr.programming_services_json ELSE '[]' END) j
-        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+        WHERE cr.created_at BETWEEN ? AND ?
 
         UNION ALL
 
@@ -116,7 +116,7 @@ export const reportRepo = {
           1 as qty,
           COALESCE(labor_total,0) + COALESCE(parts_total,0) as revenue
         FROM job_cards
-        WHERE date(created_at) BETWEEN date(?) AND date(?)
+        WHERE created_at BETWEEN ? AND ?
           AND status != 'cancelled'
 
         UNION ALL
@@ -193,11 +193,11 @@ export const reportRepo = {
 
     const monthRevenueBase = db.prepare(`
       SELECT COALESCE(SUM(total_amount),0) as revenue
-      FROM sales WHERE date(created_at) >= ? AND status != 'voided'
+      FROM sales WHERE created_at >= ? AND status != 'voided'
     `).get(monthStart) as { revenue: number }
     const monthRevenueCustom = db.prepare(`
       SELECT COALESCE(SUM(amount),0) as revenue
-      FROM custom_receipts WHERE date(created_at) >= ?
+      FROM custom_receipts WHERE created_at >= ?
     `).get(monthStart) as { revenue: number }
     const monthRevenueRow = {
       revenue: (monthRevenueBase?.revenue ?? 0) + (monthRevenueCustom?.revenue ?? 0),
@@ -334,7 +334,7 @@ export const reportRepo = {
     const monthCogsSales = db.prepare(`
       SELECT COALESCE(SUM(si.cost_price * si.quantity), 0) as cogs
       FROM sale_items si JOIN sales s ON si.sale_id = s.id
-      WHERE date(s.created_at) >= ? AND s.status != 'voided'
+      WHERE s.created_at >= ? AND s.status != 'voided'
     `).get(monthStart) as { cogs: number }
     const monthCogsCustom = db.prepare(`
       SELECT COALESCE(SUM(
@@ -350,7 +350,7 @@ export const reportRepo = {
         )
       ), 0) as cogs
       FROM custom_receipts cr
-      WHERE date(cr.created_at) >= ?
+      WHERE cr.created_at >= ?
     `).get(monthStart) as { cogs: number }
 
     const monthExpenses = expenseRepo.monthTotal(monthStart)
@@ -405,7 +405,7 @@ export const reportRepo = {
         COALESCE(SUM(CASE WHEN p.method != 'cash' THEN p.amount ELSE 0 END), 0) AS non_cash_sum
       FROM payments p
       INNER JOIN sales s ON s.id = p.sale_id AND s.status != 'voided'
-      WHERE date(p.created_at) BETWEEN date(?) AND date(?)
+      WHERE p.created_at BETWEEN ? AND ?
     `).get(dateFrom, dateTo) as { cash_sum: number; non_cash_sum: number }
 
     let custom = { cash_sum: 0, non_cash_sum: 0 }
@@ -415,7 +415,7 @@ export const reportRepo = {
           COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) = 'cash' THEN amount ELSE 0 END), 0) AS cash_sum,
           COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) != 'cash' THEN amount ELSE 0 END), 0) AS non_cash_sum
         FROM custom_receipts
-        WHERE date(created_at) BETWEEN date(?) AND date(?)
+        WHERE created_at BETWEEN ? AND ?
       `).get(dateFrom, dateTo) as { cash_sum: number; non_cash_sum: number }
     } catch {
       /* custom_receipts missing in older DBs */
@@ -438,7 +438,7 @@ export const reportRepo = {
         LEFT JOIN customers c ON s.customer_id = c.id
         LEFT JOIN users u ON s.user_id = u.id
         LEFT JOIN invoices i ON i.sale_id = s.id
-        WHERE date(s.created_at) BETWEEN date(?) AND date(?)
+        WHERE s.created_at BETWEEN ? AND ?
           AND s.status != 'voided'
           AND (${deptPred})
 
@@ -456,7 +456,7 @@ export const reportRepo = {
           u.full_name as cashier_name
         FROM custom_receipts cr
         LEFT JOIN users u ON u.id = cr.created_by
-        WHERE date(cr.created_at) BETWEEN date(?) AND date(?)
+        WHERE cr.created_at BETWEEN ? AND ?
           AND (${customDeptPred})
       )
       ORDER BY created_at
@@ -512,7 +512,7 @@ export const reportRepo = {
         FROM sales s
         JOIN sale_items si ON si.sale_id = s.id
         LEFT JOIN invoices i ON i.sale_id = s.id
-        WHERE date(s.created_at) BETWEEN ? AND ? AND s.status != 'voided'
+        WHERE s.created_at BETWEEN ? AND ? AND s.status != 'voided'
           AND (${deptPred})
         GROUP BY date(s.created_at)
 
@@ -534,7 +534,7 @@ export const reportRepo = {
             )
           ), 0) as cogs
         FROM custom_receipts cr
-        WHERE date(cr.created_at) BETWEEN ? AND ?
+        WHERE cr.created_at BETWEEN ? AND ?
           AND (${customDeptPred})
         GROUP BY date(cr.created_at)
       )
@@ -581,7 +581,7 @@ export const reportRepo = {
              SUM(si.line_total) - SUM(si.cost_price * si.quantity) as profit
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
-      WHERE date(s.created_at) BETWEEN ? AND ? AND s.status != 'voided'
+      WHERE s.created_at BETWEEN ? AND ? AND s.status != 'voided'
       GROUP BY si.product_name, si.product_sku
       ORDER BY total_qty DESC
       LIMIT ?
