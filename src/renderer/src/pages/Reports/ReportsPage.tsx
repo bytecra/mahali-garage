@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { formatCurrency, formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { FeatureGate } from '../../components/FeatureGate'
-import { toast } from 'sonner'
+import { toast } from '../../store/notificationStore'
 import {
   buildDailySalesPdf,
   buildProfitPdf,
@@ -96,6 +96,9 @@ function ReportsPageInner(): JSX.Element {
       resolvedTo = dateTo
     }
 
+    const resolvedFromFull = resolvedFrom + ' 00:00:00'
+    const resolvedToFull = resolvedTo + ' 23:59:59'
+
     const storeRes = await window.electronAPI.settings.get('store_name')
     const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Mahali Garage'
     const currencyRes = await window.electronAPI.settings.get('currency')
@@ -110,7 +113,7 @@ function ReportsPageInner(): JSX.Element {
     setExportingPdf(true)
     try {
       const topProductsRes = tab === 'topproducts'
-        ? await window.electronAPI.reports.topProducts(resolvedFrom, resolvedTo)
+        ? await window.electronAPI.reports.topProducts(resolvedFromFull, resolvedToFull)
         : null
 
       for (let i = 0; i < depts.length; i++) {
@@ -119,7 +122,7 @@ function ReportsPageInner(): JSX.Element {
         let html = ''
 
         if (tab === 'sales') {
-          const salesRes = await window.electronAPI.reports.salesDaily(resolvedFrom, resolvedTo, deptParam)
+          const salesRes = await window.electronAPI.reports.salesDaily(resolvedFromFull, resolvedToFull, deptParam)
           if (!salesRes?.success) throw new Error(salesRes?.error || 'Failed to load daily sales data')
           const salesRows = (salesRes.data as Array<{
             sale_number: string
@@ -143,7 +146,7 @@ function ReportsPageInner(): JSX.Element {
             currency,
           })
         } else if (tab === 'profit') {
-          const profitRes = await window.electronAPI.reports.profit(resolvedFrom, resolvedTo, deptParam)
+          const profitRes = await window.electronAPI.reports.profit(resolvedFromFull, resolvedToFull, deptParam)
           if (!profitRes?.success) throw new Error(profitRes?.error || 'Failed to load profit data')
           const profitRows = (profitRes.data as Array<{
             revenue: number
