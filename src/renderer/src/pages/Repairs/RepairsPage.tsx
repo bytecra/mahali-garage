@@ -20,7 +20,7 @@ const KANBAN_COLS = [
   { status: 'pending',             label: 'Pending',                 color: 'bg-slate-50 dark:bg-slate-950/30',     ring: 'ring-slate-400 dark:ring-slate-500' },
   { status: 'in_progress',         label: 'In Progress',             color: 'bg-blue-50 dark:bg-blue-950/30',       ring: 'ring-blue-400 dark:ring-blue-500' },
   { status: 'waiting_parts',       label: 'Waiting for Parts',       color: 'bg-yellow-50 dark:bg-yellow-950/30',   ring: 'ring-yellow-400 dark:ring-yellow-500' },
-  { status: 'waiting_programming', label: 'Waiting for Programming', color: 'bg-violet-50 dark:bg-violet-950/30',   ring: 'ring-violet-400 dark:ring-violet-500' },
+  { status: 'waiting_for_programming', label: 'Waiting for Programming', color: 'bg-violet-50 dark:bg-violet-950/30',   ring: 'ring-violet-400 dark:ring-violet-500' },
   { status: 'ready',               label: 'Ready for Pickup',        color: 'bg-green-50 dark:bg-green-950/30',     ring: 'ring-green-400 dark:ring-green-500' },
   { status: 'completed_delivered', label: 'Completed / Delivered',   color: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-400 dark:ring-emerald-500' },
 ] as const
@@ -31,7 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending:             'bg-slate-100 text-slate-700 dark:bg-slate-950 dark:text-slate-400',
   in_progress:         'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400',
   waiting_parts:       'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400',
-  waiting_programming: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
+  waiting_for_programming: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
   ready:               'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
   completed_delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
   delivered:           'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400',
@@ -60,7 +60,7 @@ function listDeptLabel(d: string | undefined): string {
 const BAYS = ['Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Bay 6']
 
 const ALL_STATUS_OPTIONS = [
-  'pending', 'in_progress', 'waiting_parts', 'waiting_programming',
+  'pending', 'in_progress', 'waiting_parts', 'waiting_for_programming',
   'ready', 'completed_delivered', 'delivered', 'cancelled',
 ]
 
@@ -69,7 +69,7 @@ function statusLabel(s: string): string {
     pending:             'Pending',
     in_progress:         'In Progress',
     waiting_parts:       'Waiting for Parts',
-    waiting_programming: 'Waiting for Programming',
+    waiting_for_programming: 'Waiting for Programming',
     ready:               'Ready for Pickup',
     completed_delivered: 'Completed / Delivered',
     delivered:           'Delivered (legacy)',

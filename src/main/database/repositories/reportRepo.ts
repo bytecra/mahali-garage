@@ -227,16 +227,16 @@ export const reportRepo = {
     try {
       totalVehicles = (db.prepare('SELECT COUNT(*) as cnt FROM vehicles').get() as { cnt: number }).cnt
       vehiclesInGarage = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards WHERE status IN ('pending','in_progress','waiting_parts','waiting_programming')`
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE status IN ('pending','in_progress','waiting_parts','waiting_for_programming')`
       ).get() as { cnt: number }).cnt
       vehiclesInGarageMechanical = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('pending','in_progress','waiting_parts','waiting_programming')
+         WHERE status IN ('pending','in_progress','waiting_parts','waiting_for_programming')
            AND department IN ('mechanical','both')`
       ).get() as { cnt: number }).cnt
       vehiclesInGarageProgramming = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('pending','in_progress','waiting_parts','waiting_programming')
+         WHERE status IN ('pending','in_progress','waiting_parts','waiting_for_programming')
            AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
       readyForPickup = (db.prepare(

@@ -139,7 +139,7 @@ export const jobCardRepo = {
         j.created_at DESC
     `).all()
     // Note: 'delivered' (legacy) is excluded from the board; 'completed_delivered' (new) IS included.
-    // 'waiting_programming' is also included via the catch-all NOT IN list above.
+    // 'waiting_for_programming' is also included via the catch-all NOT IN list above.
   },
 
   getById(id: number) {

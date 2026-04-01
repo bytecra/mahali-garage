@@ -29,7 +29,26 @@ interface Part { name: string; qty: number; cost: number; catalogId?: number }
 interface JobTypeOption { id: number; name: string }
 
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
-const STATUSES = ['pending', 'in_progress', 'waiting_parts', 'ready', 'delivered', 'cancelled'] as const
+const STATUSES = [
+  'pending',
+  'in_progress',
+  'waiting_parts',
+  'waiting_for_programming',
+  'ready',
+  'completed_delivered',
+  'delivered',
+  'cancelled',
+] as const
+const STATUS_LABELS: Record<(typeof STATUSES)[number], string> = {
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  waiting_parts: 'Waiting for Parts',
+  waiting_for_programming: 'Waiting for Programming',
+  ready: 'Ready',
+  completed_delivered: 'Completed / Delivered',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+}
 const DEPARTMENTS = [
   { value: 'mechanical', label: 'Mechanical' },
   { value: 'programming', label: 'Programming' },
@@ -307,7 +326,7 @@ export default function RepairForm({ open, repairId, onClose, onSaved }: Props):
           <div>
             <label className={labelCls}>Status</label>
             <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
-              {STATUSES.map(v => <option key={v} value={v}>{v.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>)}
+              {STATUSES.map(v => <option key={v} value={v}>{STATUS_LABELS[v]}</option>)}
             </select>
           </div>
         </div>
