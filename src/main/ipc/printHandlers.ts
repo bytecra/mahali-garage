@@ -1,5 +1,6 @@
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
-import { unlinkSync, writeFileSync } from 'fs'
+import { writeFile } from 'fs/promises'
+import { unlinkSync } from 'fs'
 import path from 'path'
 import { authService } from '../services/authService'
 import { settingsRepo } from '../database/repositories/settingsRepo'
@@ -44,7 +45,7 @@ export function registerPrintHandlers(): void {
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
       const htmlPath = path.join(app.getPath('temp'), `mahali-receipt-${Date.now()}.html`)
-      writeFileSync(htmlPath, html, 'utf-8')
+      await writeFile(htmlPath, html, 'utf-8')
 
       const result = await new Promise<boolean>((resolve) => {
         let settled = false
@@ -77,7 +78,7 @@ export function registerPrintHandlers(): void {
                 if (behavior === 'download' && folder) {
                   // Auto-save to pre-selected folder
                   const pdfPath = path.join(folder, `receipt-${Date.now()}.pdf`)
-                  writeFileSync(pdfPath, pdfData)
+                  await writeFile(pdfPath, pdfData)
                   finalize(true)
                   void shell.openExternal(`file://${pdfPath}`)
 
@@ -92,7 +93,7 @@ export function registerPrintHandlers(): void {
                     filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
                   })
                   if (!canceled && filePath) {
-                    writeFileSync(filePath, pdfData)
+                    await writeFile(filePath, pdfData)
                     finalize(true)
                     void shell.openExternal(`file://${filePath}`)
                   } else {
@@ -102,7 +103,7 @@ export function registerPrintHandlers(): void {
                 } else {
                   // 'none' or unknown — open in system PDF viewer from temp dir
                   const pdfPath = path.join(app.getPath('temp'), `receipt-${Date.now()}.pdf`)
-                  writeFileSync(pdfPath, pdfData)
+                  await writeFile(pdfPath, pdfData)
                   finalize(true)
                   void shell.openExternal(`file://${pdfPath}`)
                 }
