@@ -6,14 +6,14 @@ export function migration029(db: Database.Database): void {
       ALTER TABLE users ADD COLUMN auth_type TEXT NOT NULL DEFAULT 'password'
         CHECK(auth_type IN ('password','passcode_4','passcode_6'));
     `)
-  } catch {
-    /* column already exists */
+  } catch (e) {
+    if (!(e instanceof Error) || !e.message.includes('already exists')) throw e
   }
 
   try {
     db.exec(`ALTER TABLE users ADD COLUMN passcode TEXT;`)
-  } catch {
-    /* column already exists */
+  } catch (e) {
+    if (!(e instanceof Error) || !e.message.includes('already exists')) throw e
   }
 }
 

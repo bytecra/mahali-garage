@@ -38,7 +38,13 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    if (!details.url.startsWith('about:')) shell.openExternal(details.url)
+    if (!details.url.startsWith('about:')) {
+      if (details.url.startsWith('https://')) {
+        shell.openExternal(details.url)
+      } else {
+        log.warn(`Blocked non-https external URL: ${details.url}`)
+      }
+    }
     return { action: 'deny' }
   })
 

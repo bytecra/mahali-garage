@@ -10,24 +10,26 @@ export function preUp006(db: Database.Database): void {
 
   db.pragma('foreign_keys = OFF')
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users_tmp006 (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      username      TEXT    NOT NULL UNIQUE,
-      password_hash TEXT    NOT NULL,
-      full_name     TEXT    NOT NULL,
-      role          TEXT    NOT NULL
-                        CHECK(role IN ('owner','manager','cashier','technician','accountant')),
-      is_active     INTEGER NOT NULL DEFAULT 1,
-      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
-      updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
-    )
-  `)
-  db.exec(`INSERT INTO users_tmp006 SELECT * FROM users`)
-  db.exec(`DROP TABLE users`)
-  db.exec(`ALTER TABLE users_tmp006 RENAME TO users`)
-
-  db.pragma('foreign_keys = ON')
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users_tmp006 (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        username      TEXT    NOT NULL UNIQUE,
+        password_hash TEXT    NOT NULL,
+        full_name     TEXT    NOT NULL,
+        role          TEXT    NOT NULL
+                          CHECK(role IN ('owner','manager','cashier','technician','accountant')),
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+      )
+    `)
+    db.exec(`INSERT INTO users_tmp006 SELECT * FROM users`)
+    db.exec(`DROP TABLE users`)
+    db.exec(`ALTER TABLE users_tmp006 RENAME TO users`)
+  } finally {
+    db.pragma('foreign_keys = ON')
+  }
 }
 
 // Role defaults snapshot (must match authService.ts ROLE_DEFAULTS exactly)
