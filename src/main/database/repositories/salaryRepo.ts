@@ -434,7 +434,6 @@ export const salaryRepo = {
 
   totalUnpaidDue(): number {
     try {
-      salaryRepo.syncAllActive()
       const rows = salaryRepo.listPayroll('all')
       return rows.reduce((s, r) => s + (r.month_status === 'paid' ? 0 : r.total_due), 0)
     } catch {
