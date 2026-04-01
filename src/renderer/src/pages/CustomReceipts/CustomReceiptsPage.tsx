@@ -43,6 +43,9 @@ interface Receipt {
   created_by_name: string | null
   created_at: string
   smart_recipe: number
+  discount_type?: string | null
+  discount_value?: number | null
+  discount_amount?: number | null
 }
 
 interface CustomerLite { id: number; name: string; phone: string | null }
@@ -78,6 +81,8 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [carYear, setCarYear] = useState('')
   const [mechanical, setMechanical] = useState<ServiceLine[]>([newLine()])
   const [programming, setProgramming] = useState<ServiceLine[]>([newLine()])
+  const [discountType, setDiscountType] = useState<'percent' | 'fixed' | ''>('')
+  const [discountValue, setDiscountValue] = useState<string>('')
   const [smartStep, setSmartStep] = useState<WizardStep>(1)
   const [smartDepartment, setSmartDepartment] = useState<Department>('mechanical')
   const [customerQuery, setCustomerQuery] = useState('')
@@ -96,6 +101,8 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [newModel, setNewModel] = useState('')
   const [catalogServices, setCatalogServices] = useState<Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>>([])
   const [smartCustomServices, setSmartCustomServices] = useState<SmartCustomServiceLine[]>([])
+  const [smartDiscountType, setSmartDiscountType] = useState<'percent' | 'fixed' | ''>('')
+  const [smartDiscountValue, setSmartDiscountValue] = useState<string>('')
 
   const canCreate = ['owner', 'manager'].includes(role ?? '')
   const canDelete = ['owner', 'manager'].includes(role ?? '')
@@ -213,6 +220,17 @@ export default function CustomReceiptsPage(): JSX.Element {
     return Math.round(sum * 100) / 100
   }, [mechanical, programming])
 
+  const discountValueNum = parseFloat(discountValue) || 0
+
+  const discountAmount =
+    discountType === 'percent'
+      ? Math.min(subtotal * (discountValueNum / 100), subtotal)
+      : discountType === 'fixed'
+        ? Math.min(discountValueNum, subtotal)
+        : 0
+
+  const finalTotal = subtotal - discountAmount
+
   function resetForm(): void {
     setDepartment('both')
     setWalkInCustomer(false)
@@ -228,6 +246,8 @@ export default function CustomReceiptsPage(): JSX.Element {
     setCarYear('')
     setMechanical([newLine()])
     setProgramming([newLine()])
+    setDiscountType('')
+    setDiscountValue('')
   }
 
   function resetSmartFlow(): void {
@@ -249,6 +269,8 @@ export default function CustomReceiptsPage(): JSX.Element {
     setNewModel('')
     setCatalogServices([])
     setSmartCustomServices([])
+    setSmartDiscountType('')
+    setSmartDiscountValue('')
     setPaymentMethod('Cash')
   }
 
@@ -305,7 +327,10 @@ export default function CustomReceiptsPage(): JSX.Element {
         car_year: walkInCar ? null : (carYear.trim() || null),
         mechanical_services: effectiveMechanical,
         programming_services: effectiveProgramming,
-        amount: subtotal,
+        discount_type: discountType || null,
+        discount_value: discountValueNum,
+        discount_amount: discountAmount,
+        amount: finalTotal,
         payment_method: paymentMethod,
         notes: null,
       }
@@ -536,9 +561,47 @@ export default function CustomReceiptsPage(): JSX.Element {
                     <option value="Bank Transfer">{t('customReceipts.transfer', { defaultValue: 'Bank Transfer' })}</option>
                   </select>
                 </div>
-                <div className="flex items-center justify-between text-sm font-semibold">
+                <div>
+                  <label className={labelCls}>Discount</label>
+                  <div className="flex gap-2">
+                    <select
+                      className={`${inputCls} flex-1 min-w-0`}
+                      value={discountType}
+                      onChange={e => {
+                        const v = e.target.value as '' | 'percent' | 'fixed'
+                        setDiscountType(v)
+                        setDiscountValue('')
+                      }}
+                    >
+                      <option value="">No Discount</option>
+                      <option value="percent">Percentage (%)</option>
+                      <option value="fixed">Fixed Amount (AED)</option>
+                    </select>
+                    {discountType !== '' && (
+                      <input
+                        type="number"
+                        min="0"
+                        className={`${inputCls} flex-1 min-w-0`}
+                        placeholder={discountType === 'percent' ? 'e.g. 10' : 'e.g. 20'}
+                        value={discountValue}
+                        onChange={e => setDiscountValue(e.target.value)}
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-sm">
                   <span>{t('customReceipts.subtotal', { defaultValue: 'Subtotal' })}</span>
                   <CurrencyText amount={subtotal} />
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Discount</span>
+                    <span className="text-red-600">- AED {discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm font-bold">
+                  <span>Total</span>
+                  <CurrencyText amount={finalTotal} />
                 </div>
                 <button onClick={() => void saveReceipt(true)} disabled={saving} className="w-full px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
                   {t('customReceipts.createAndPrint', { defaultValue: 'Save & Print' })}
@@ -588,6 +651,10 @@ export default function CustomReceiptsPage(): JSX.Element {
           setCatalogServices={setCatalogServices}
           customServices={smartCustomServices}
           setCustomServices={setSmartCustomServices}
+          smartDiscountType={smartDiscountType}
+          setSmartDiscountType={setSmartDiscountType}
+          smartDiscountValue={smartDiscountValue}
+          setSmartDiscountValue={setSmartDiscountValue}
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
           onLoadVehicles={async (customerId: number) => {
@@ -626,6 +693,14 @@ export default function CustomReceiptsPage(): JSX.Element {
               return
             }
             const subtotalSmart = Math.round(merged.reduce((a, b) => a + b.sell_price, 0) * 100) / 100
+            const smartDiscountValueNum = parseFloat(smartDiscountValue) || 0
+            const smartDiscountAmount =
+              smartDiscountType === 'percent'
+                ? Math.min(subtotalSmart * (smartDiscountValueNum / 100), subtotalSmart)
+                : smartDiscountType === 'fixed'
+                  ? Math.min(smartDiscountValueNum, subtotalSmart)
+                  : 0
+            const smartFinalTotal = subtotalSmart - smartDiscountAmount
             const mech = merged.filter(s => s.department === 'mechanical').map(({ service_name, cost, sell_price }) => ({ service_name, cost, sell_price }))
             const prog = merged.filter(s => s.department === 'programming').map(({ service_name, cost, sell_price }) => ({ service_name, cost, sell_price }))
             const effectiveSmartDepartment =
@@ -708,7 +783,10 @@ export default function CustomReceiptsPage(): JSX.Element {
               car_year: carYearValue,
               mechanical_services: mech,
               programming_services: prog,
-              amount: subtotalSmart,
+              discount_type: smartDiscountType || null,
+              discount_value: smartDiscountValueNum,
+              discount_amount: smartDiscountAmount,
+              amount: smartFinalTotal,
               payment_method: paymentMethod,
               smart_recipe: true,
               notes: null,
@@ -903,6 +981,10 @@ function SmartRecipeWizard(props: {
   setCatalogServices: React.Dispatch<React.SetStateAction<Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>>>
   customServices: SmartCustomServiceLine[]
   setCustomServices: React.Dispatch<React.SetStateAction<SmartCustomServiceLine[]>>
+  smartDiscountType: 'percent' | 'fixed' | ''
+  setSmartDiscountType: (v: 'percent' | 'fixed' | '') => void
+  smartDiscountValue: string
+  setSmartDiscountValue: (v: string) => void
   paymentMethod: 'Cash' | 'Card' | 'Bank Transfer'
   setPaymentMethod: (v: 'Cash' | 'Card' | 'Bank Transfer') => void
   onLoadVehicles: (customerId: number) => Promise<void>
@@ -917,6 +999,7 @@ function SmartRecipeWizard(props: {
     brands, brandSearch, setBrandSearch, selectedBrand, setSelectedBrand,
     modelOptions, selectedModel, setSelectedModel, newModel, setNewModel,
     catalogServices, setCatalogServices, customServices, setCustomServices,
+    smartDiscountType, setSmartDiscountType, smartDiscountValue, setSmartDiscountValue,
     paymentMethod, setPaymentMethod, onLoadVehicles, onCreateCustomer, onSave,
   } = props
   const filteredBrands = brands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase()))
@@ -926,6 +1009,16 @@ function SmartRecipeWizard(props: {
     ...cleanSmartCustomLines(customServices).map(s => ({ service_name: s.service_name, sell_price: s.sell_price })),
   ]
   const subtotal = Math.round(selectedLines.reduce((a, b) => a + b.sell_price, 0) * 100) / 100
+  const smartDiscountValueNum = parseFloat(smartDiscountValue) || 0
+  const smartDiscountAmount =
+    smartDiscountType === 'percent'
+      ? Math.min(subtotal * (smartDiscountValueNum / 100), subtotal)
+      : smartDiscountType === 'fixed'
+        ? Math.min(smartDiscountValueNum, subtotal)
+        : 0
+  const smartFinalTotal = subtotal - smartDiscountAmount
+  const smartLabelCls = 'block text-sm font-medium text-foreground mb-1'
+  const smartInputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
   const handleHeaderBack = (): void => {
     if (step === 5) { setStep(4); return }
     if (step === 4) { setStep(3); return }
@@ -1099,17 +1192,55 @@ function SmartRecipeWizard(props: {
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between font-semibold">
-              <span>Subtotal</span>
-              <CurrencyText amount={subtotal} />
+            <div>
+              <label className={smartLabelCls}>{t('customReceipts.paymentMethod', { defaultValue: 'Payment Method' })}</label>
+              <select className={smartInputCls} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'Cash' | 'Card' | 'Bank Transfer')}>
+                <option value="Cash">{t('customReceipts.cash', { defaultValue: 'Cash' })}</option>
+                <option value="Card">{t('customReceipts.card', { defaultValue: 'Card' })}</option>
+                <option value="Bank Transfer">{t('customReceipts.transfer', { defaultValue: 'Bank Transfer' })}</option>
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Payment method</label>
-              <select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'Cash' | 'Card' | 'Bank Transfer')}>
-                <option value="Cash">Cash</option>
-                <option value="Card">Card</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-              </select>
+              <label className={smartLabelCls}>Discount</label>
+              <div className="flex gap-2">
+                <select
+                  className={`${smartInputCls} flex-1 min-w-0`}
+                  value={smartDiscountType}
+                  onChange={e => {
+                    const v = e.target.value as '' | 'percent' | 'fixed'
+                    setSmartDiscountType(v)
+                    setSmartDiscountValue('')
+                  }}
+                >
+                  <option value="">No Discount</option>
+                  <option value="percent">Percentage (%)</option>
+                  <option value="fixed">Fixed Amount (AED)</option>
+                </select>
+                {smartDiscountType !== '' && (
+                  <input
+                    type="number"
+                    min="0"
+                    className={`${smartInputCls} flex-1 min-w-0`}
+                    placeholder={smartDiscountType === 'percent' ? 'e.g. 10' : 'e.g. 20'}
+                    value={smartDiscountValue}
+                    onChange={e => setSmartDiscountValue(e.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span>{t('customReceipts.subtotal', { defaultValue: 'Subtotal' })}</span>
+              <CurrencyText amount={subtotal} />
+            </div>
+            {smartDiscountAmount > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span>Discount</span>
+                <span className="text-red-600">- AED {smartDiscountAmount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-sm font-bold">
+              <span>Total</span>
+              <CurrencyText amount={smartFinalTotal} />
             </div>
             <button className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground" onClick={() => void onSave(true)}>Save & Print</button>
             <button className="w-full px-4 py-2 rounded-md border border-border" onClick={() => void onSave(false)}>Save Only</button>

@@ -20,6 +20,9 @@ interface CustomReceiptPrintable {
   mechanical_services_json: string | null
   programming_services_json: string | null
   services_description?: string | null
+  discount_type?: string | null
+  discount_value?: number | null
+  discount_amount?: number | null
 }
 
 function escapeHtml(v: string): string {
@@ -108,6 +111,13 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
   }
 
   const subtotal = Number(receipt.amount || 0)
+  const discountAmount = receipt.discount_amount ?? 0
+  const hasDiscount = discountAmount > 0
+  const preDiscountSubtotal = subtotal + discountAmount
+  const discountLabel =
+    receipt.discount_type === 'percent'
+      ? `Discount (${receipt.discount_value ?? 0}%)`
+      : 'Discount'
   const vatAmount = taxEnabled ? (subtotal * (Number.isFinite(taxRate) ? taxRate : 0) / 100) : 0
   const totalDue = subtotal + vatAmount
 
@@ -222,7 +232,8 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
       : ''}
 
     <section class="totals">
-      <div class="r"><span>Subtotal</span><span>${currency(subtotal, currencySymbol)}</span></div>
+      <div class="r"><span>Subtotal</span><span>${currency(hasDiscount ? preDiscountSubtotal : subtotal, currencySymbol)}</span></div>
+      ${hasDiscount ? `<div class="r" style="color:#dc2626;"><span>${discountLabel}</span><span>- ${currency(discountAmount, currencySymbol)}</span></div>` : ''}
       ${taxEnabled && showVat ? `<div class="r"><span>VAT (${Number.isFinite(taxRate) ? taxRate : 0}%)</span><span>${currency(vatAmount, currencySymbol)}</span></div>` : ''}
       <div class="r grand"><span>Total Amount Due</span><span>${currency(totalDue, currencySymbol)}</span></div>
     </section>

@@ -27,6 +27,9 @@ export interface CustomReceiptInput {
   cash_received?: number | null
   notes?: string | null
   smart_recipe?: boolean
+  discount_type?: string | null
+  discount_value?: number | null
+  discount_amount?: number | null
   created_by: number
 }
 
@@ -87,6 +90,9 @@ export const customReceiptRepo = {
       push('services_description', servicesText)
       push('mechanical_services_json', JSON.stringify(mechanical))
       push('programming_services_json', JSON.stringify(programming))
+      push('discount_type', input.discount_type ?? null)
+      push('discount_value', input.discount_value ?? 0)
+      push('discount_amount', input.discount_amount ?? 0)
       push('amount', input.amount)
       push('payment_method', input.payment_method || 'Cash')
       push('notes', cleanText(input.notes))
