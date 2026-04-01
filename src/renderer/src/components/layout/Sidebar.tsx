@@ -20,7 +20,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard',     icon: LayoutDashboard, labelKey: 'nav.dashboard' },
   { to: '/custom-receipts?mode=smart', icon: ReceiptText, labelKey: 'nav.smartRecipe', permission: 'sales.view' },
-  { to: '/custom-receipts', icon: ReceiptText,  labelKey: 'nav.customReceipts', permission: 'sales.view' },
   { to: '/job-cards',     icon: Wrench,          labelKey: 'nav.jobCards',     permission: 'repairs.view',   feature: 'job_cards.view' },
   { to: '/vehicles',      icon: Car,             labelKey: 'nav.vehicles',     permission: 'repairs.view',   feature: 'vehicles.view' },
   { to: '/service-catalog', icon: ClipboardList, labelKey: 'nav.serviceCatalog', permission: 'repairs.view', feature: 'job_cards.view' },
