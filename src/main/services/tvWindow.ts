@@ -1,9 +1,20 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
+import { settingsRepo } from '../database/repositories/settingsRepo'
 
 let tvWindow: BrowserWindow | null = null
+
+function resolveTargetDisplayIndex(): number {
+  const displays = screen.getAllDisplays()
+  if (displays.length <= 1) return 0
+
+  const saved = settingsRepo.get('tv_display_screen')
+  const parsed = Number(saved ?? '')
+  if (Number.isInteger(parsed) && parsed >= 0 && parsed < displays.length) return parsed
+  return 1
+}
 
 export function openTvWindow(): void {
   if (tvWindow && !tvWindow.isDestroyed()) {
@@ -12,11 +23,20 @@ export function openTvWindow(): void {
     return
   }
 
+  const displays = screen.getAllDisplays()
+  const displayIndex = resolveTargetDisplayIndex()
+  const targetDisplay = displays[displayIndex] ?? screen.getPrimaryDisplay()
+  const { x, y, width, height } = targetDisplay.bounds
+
   tvWindow = new BrowserWindow({
+    x,
+    y,
+    width,
+    height,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#0b1220',
-    fullscreen: true,
+    fullscreen: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -28,6 +48,7 @@ export function openTvWindow(): void {
 
   tvWindow.on('ready-to-show', () => {
     if (!tvWindow) return
+    tvWindow.setBounds({ x, y, width, height })
     tvWindow.show()
     tvWindow.maximize()
   })

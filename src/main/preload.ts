@@ -329,6 +329,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   tv: {
     open: () => invoke('tv:open'),
+    listDisplays: () => invoke('tv:listDisplays'),
   },
 
   // ── Tasks ─────────────────────────────────────────────────────────────────

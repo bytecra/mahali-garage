@@ -13,7 +13,7 @@ const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -35,6 +35,13 @@ interface LicenseStatus {
   expiresAt?: number | null
 }
 
+interface TvDisplayOption {
+  index: number
+  id: number
+  label: string
+  bounds: { x: number; y: number; width: number; height: number }
+}
+
 export default function SettingsPage(): JSX.Element {
   const { t } = useTranslation()
   const { theme, setTheme } = useThemeStore()
@@ -52,6 +59,7 @@ export default function SettingsPage(): JSX.Element {
   const [hwId, setHwId] = useState('')
   const [activating, setActivating] = useState(false)
   const [brands, setBrands] = useState<CarBrand[]>([])
+  const [tvDisplays, setTvDisplays] = useState<TvDisplayOption[]>([])
 
   // Activity log state
   const [activityRows, setActivityRows]   = useState<ActivityRow[]>([])
@@ -80,6 +88,10 @@ export default function SettingsPage(): JSX.Element {
       ])
       if (statusRes.success) setLicStatus(statusRes.data as LicenseStatus)
       if (hwRes.success) setHwId(hwRes.data as string)
+    }
+    if (tab === 'tv-display') {
+      const dRes = await window.electronAPI.tv.listDisplays()
+      if (dRes.success && dRes.data) setTvDisplays(dRes.data as TvDisplayOption[])
     }
   }
 
@@ -205,6 +217,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
     { key: 'car-brands', label: t('settings.carBrands', { defaultValue: 'Car Brands' }), guard: canSettings },
     { key: 'dashboard',  label: 'Dashboard', guard: canSettings },
+    { key: 'tv-display', label: t('settings.tvDisplay', { defaultValue: 'TV Display' }), guard: canSettings },
     { key: 'payroll',    label: t('settings.payroll', { defaultValue: 'Payroll' }), guard: canSettings },
     { key: 'backup',     label: t('settings.backup'),         guard: canBackup },
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
@@ -657,6 +670,37 @@ export default function SettingsPage(): JSX.Element {
               ))}
             </div>
             <button onClick={() => save(['dashboard_widgets'])} disabled={saving} className={saveBtnCls}>
+              {saving ? t('common.loading') : t('common.save')}
+            </button>
+          </div>
+        )}
+
+        {tab === 'tv-display' && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                {t('settings.tvDisplayScreen', { defaultValue: 'TV Display Screen' })}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t('settings.tvDisplayScreenHint', { defaultValue: 'Choose which connected display to use when opening TV Display mode.' })}
+              </p>
+            </div>
+            <div>
+              <label className={labelCls}>{t('settings.tvDisplayScreen', { defaultValue: 'TV Display Screen' })}</label>
+              <select
+                className={inputCls}
+                value={settings['tv_display_screen'] ?? ''}
+                onChange={e => set('tv_display_screen', e.target.value)}
+              >
+                <option value="">
+                  {t('settings.tvDisplayAuto', { defaultValue: 'Auto (Secondary display, or primary if only one)' })}
+                </option>
+                {tvDisplays.map(d => (
+                  <option key={d.id} value={String(d.index)}>{d.label}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={() => save(['tv_display_screen'])} disabled={saving} className={saveBtnCls}>
               {saving ? t('common.loading') : t('common.save')}
             </button>
           </div>

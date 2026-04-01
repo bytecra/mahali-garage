@@ -238,6 +238,12 @@ declare global {
       }
       tv: {
         open: () => Promise<IpcResponse<{ success: boolean }>>
+        listDisplays: () => Promise<IpcResponse<Array<{
+          index: number
+          id: number
+          label: string
+          bounds: { x: number; y: number; width: number; height: number }
+        }>>>
       }
       tasks: {
         list:           (filters?: unknown) => Promise<IpcResponse<{ rows: unknown[]; total: number; page: number; pageSize: number }>>
