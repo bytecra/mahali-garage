@@ -107,6 +107,12 @@ export const authService = {
     sessions.delete(senderId)
   },
 
+  cloneSession(fromSenderId: number, toSenderId: number): void {
+    const s = sessions.get(fromSenderId)
+    if (!s) return
+    sessions.set(toSenderId, { ...s, permissions: [...s.permissions] })
+  },
+
   hasPermission(senderId: number, permission: string): boolean {
     const session = sessions.get(senderId)
     const roleAllowed = session?.permissions.includes(permission) ?? false

@@ -8,6 +8,7 @@ import { useBrandingStore } from '../../store/brandingStore'
 import { useCurrencyStore } from '../../store/currencyStore'
 import { usePermission } from '../../hooks/usePermission'
 import { DASHBOARD_WIDGETS, parseDashboardWidgets } from '../../lib/dashboardWidgets'
+import { TV_DISPLAY_WIDGETS, parseTvDisplayWidgets } from '../../lib/tvDisplayWidgets'
 
 const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
@@ -228,10 +229,18 @@ export default function SettingsPage(): JSX.Element {
   const labelCls = 'block text-sm font-medium mb-1 text-foreground'
   const saveBtnCls = 'px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-60'
   const dashboardWidgets = parseDashboardWidgets(settings['dashboard_widgets'])
+  const tvDisplayWidgets = parseTvDisplayWidgets(settings['tv_display_widgets'])
 
   const toggleDashboardWidget = (widgetId: string): void => {
     const next = { ...dashboardWidgets, [widgetId]: !dashboardWidgets[widgetId as keyof typeof dashboardWidgets] }
     set('dashboard_widgets', JSON.stringify(next))
+  }
+
+  const toggleTvDisplayWidget = (widgetId: string): void => {
+    if (widgetId === 'current_time_date') return
+    const next = { ...tvDisplayWidgets, [widgetId]: !tvDisplayWidgets[widgetId as keyof typeof tvDisplayWidgets] }
+    next.current_time_date = true
+    set('tv_display_widgets', JSON.stringify(next))
   }
 
   return (
@@ -676,7 +685,7 @@ export default function SettingsPage(): JSX.Element {
         )}
 
         {tab === 'tv-display' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-1">
                 {t('settings.tvDisplayScreen', { defaultValue: 'TV Display Screen' })}
@@ -700,7 +709,34 @@ export default function SettingsPage(): JSX.Element {
                 ))}
               </select>
             </div>
-            <button onClick={() => save(['tv_display_screen'])} disabled={saving} className={saveBtnCls}>
+            <div className="pt-2 border-t border-border">
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                {t('settings.tvDisplayWidgets', { defaultValue: 'TV Display Widgets' })}
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                {t('settings.tvDisplayWidgetsHint', { defaultValue: 'Choose which widgets are visible on the TV display.' })}
+              </p>
+              <div className="space-y-2">
+                {TV_DISPLAY_WIDGETS.map((widget) => {
+                  const locked = widget.id === 'current_time_date'
+                  return (
+                    <label key={widget.id} className="flex items-center justify-between gap-3 p-3 rounded-md border border-border">
+                      <span className="text-sm text-foreground">{widget.label}</span>
+                      <button
+                        type="button"
+                        disabled={locked}
+                        onClick={() => toggleTvDisplayWidget(widget.id)}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${tvDisplayWidgets[widget.id] ? 'bg-primary' : 'bg-muted-foreground/30'} ${locked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        title={locked ? t('settings.tvDisplayWidgetAlwaysOn', { defaultValue: 'Always shown' }) : undefined}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${tvDisplayWidgets[widget.id] ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+            <button onClick={() => save(['tv_display_screen', 'tv_display_widgets'])} disabled={saving} className={saveBtnCls}>
               {saving ? t('common.loading') : t('common.save')}
             </button>
           </div>

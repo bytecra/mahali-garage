@@ -16,11 +16,11 @@ function resolveTargetDisplayIndex(): number {
   return 1
 }
 
-export function openTvWindow(): void {
+export function openTvWindow(): BrowserWindow {
   if (tvWindow && !tvWindow.isDestroyed()) {
     tvWindow.show()
     tvWindow.focus()
-    return
+    return tvWindow
   }
 
   const displays = screen.getAllDisplays()
@@ -63,5 +63,7 @@ export function openTvWindow(): void {
     const base = pathToFileURL(join(__dirname, '../renderer/index.html')).href
     tvWindow.loadURL(`${base}#/tv-display`)
   }
+
+  return tvWindow
 }
 

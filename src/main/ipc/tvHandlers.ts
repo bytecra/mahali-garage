@@ -2,6 +2,7 @@ import { ipcMain, screen } from 'electron'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
 import { openTvWindow } from '../services/tvWindow'
+import { authService } from '../services/authService'
 
 export function registerTvHandlers(): void {
   ipcMain.handle('tv:listDisplays', () => {
@@ -21,9 +22,13 @@ export function registerTvHandlers(): void {
     }
   })
 
-  ipcMain.handle('tv:open', () => {
+  ipcMain.handle('tv:open', (event) => {
     try {
-      openTvWindow()
+      const openerSession = authService.getSession(event.sender.id)
+      if (!openerSession) return err('Forbidden', 'ERR_FORBIDDEN')
+
+      const win = openTvWindow()
+      authService.cloneSession(event.sender.id, win.webContents.id)
       return ok({ success: true })
     } catch (e) {
       log.error('tv:open', e)
