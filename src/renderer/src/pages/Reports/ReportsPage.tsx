@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download } from 'lucide-react'
+import { Download, FileText, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts'
 import { formatCurrency, formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
@@ -46,6 +46,29 @@ function ReportsPageInner(): JSX.Element {
   const [departmentPreset, setDepartmentPreset] = useState<DepartmentPreset>('month')
   const [assetsFooter, setAssetsFooter] = useState<{ total_purchase: number; total_current: number } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportPeriod, setExportPeriod] = useState<'weekly' | 'monthly' | 'custom'>('monthly')
+  const [exportDateFrom, setExportDateFrom] = useState('')
+  const [exportDateTo, setExportDateTo] = useState('')
+  const [exportWeekDate, setExportWeekDate] = useState('')
+  const [exportDepartment, setExportDepartment] = useState<'mechanical' | 'programming' | 'both'>('both')
+
+  async function handleExportPdf(
+    period: 'weekly' | 'monthly' | 'custom',
+    dateFrom: string,
+    dateTo: string,
+    department: 'mechanical' | 'programming' | 'both',
+    weekDate?: string,
+  ): Promise<void> {
+    void period
+    void dateFrom
+    void dateTo
+    void department
+    void weekDate
+    // TODO: implement in next commit
+    setShowExportModal(false)
+  }
 
   const applyDepartmentPreset = (preset: DepartmentPreset): void => {
     const now = new Date()
@@ -127,15 +150,24 @@ function ReportsPageInner(): JSX.Element {
 
   const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly', 'department_reports'].includes(tab)
   const showDeptFilter = ['sales', 'profit', 'debts', 'expenses_category', 'expenses_monthly'].includes(tab)
+  const canExportPdf = ['sales', 'profit', 'topproducts'].includes(tab)
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-foreground">{t('reports.title')}</h1>
-        <button onClick={() => exportCsv(data as Record<string, unknown>[], `${tab}-report.csv`)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
-          <Download className="w-4 h-4" />{t('reports.exportCsv')}
-        </button>
+        <div className="flex items-center gap-2">
+          {canExportPdf && (
+            <button onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
+              <FileText className="w-4 h-4" />Export PDF
+            </button>
+          )}
+          <button onClick={() => exportCsv(data as Record<string, unknown>[], `${tab}-report.csv`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
+            <Download className="w-4 h-4" />{t('reports.exportCsv')}
+          </button>
+        </div>
       </div>
 
       {/* Tab nav */}
@@ -281,6 +313,139 @@ function ReportsPageInner(): JSX.Element {
             <ReportTable tab={tab} data={data} reportDept={reportDept} assetsFooter={assetsFooter} />
           )}
         </>
+      )}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-background border border-border rounded-xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-base">Export PDF Report</h2>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="p-1 rounded-md hover:bg-muted"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-2">Time Period</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {([
+                  ['weekly', 'Weekly'],
+                  ['monthly', 'Monthly'],
+                  ['custom', 'Custom'],
+                ] as const).map(([value, label]) => (
+                  <label key={value} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="export-period"
+                      value={value}
+                      checked={exportPeriod === value}
+                      onChange={() => setExportPeriod(value)}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              {exportPeriod === 'weekly' && (
+                <div className="mt-3">
+                  <label className="block text-xs text-muted-foreground mb-1">Pick any day in the week</label>
+                  <input
+                    type="date"
+                    value={exportWeekDate}
+                    onChange={e => setExportWeekDate(e.target.value)}
+                    className="border border-border rounded-md px-2 py-1.5 text-sm bg-background w-full"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">The full Mon–Sun week will be exported</p>
+                </div>
+              )}
+              {exportPeriod === 'custom' && (
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">From</label>
+                    <input
+                      type="date"
+                      value={exportDateFrom}
+                      onChange={e => setExportDateFrom(e.target.value)}
+                      className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">To</label>
+                    <input
+                      type="date"
+                      value={exportDateTo}
+                      onChange={e => setExportDateTo(e.target.value)}
+                      className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring w-full"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-5">
+              <p className="text-sm font-medium mb-2">Department</p>
+              <div className="flex items-center gap-4 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="export-department"
+                    value="mechanical"
+                    checked={exportDepartment === 'mechanical'}
+                    onChange={() => setExportDepartment('mechanical')}
+                  />
+                  <span>Mechanical</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="export-department"
+                    value="programming"
+                    checked={exportDepartment === 'programming'}
+                    onChange={() => setExportDepartment('programming')}
+                  />
+                  <span>Programming</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="export-department"
+                    value="both"
+                    checked={exportDepartment === 'both'}
+                    onChange={() => setExportDepartment('both')}
+                  />
+                  <span>Both</span>
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">(generates 2 files)</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={exportingPdf}
+                onClick={() => {
+                  setExportingPdf(true)
+                  void handleExportPdf(exportPeriod, exportDateFrom, exportDateTo, exportDepartment, exportWeekDate).finally(() => {
+                    setExportingPdf(false)
+                  })
+                  setShowExportModal(false)
+                }}
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                {exportingPdf ? 'Generating...' : 'Generate PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
