@@ -42,7 +42,7 @@ const DEFAULT_LOYALTY = {
   showOnReceipt: true,
 }
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'about'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -97,6 +97,22 @@ export default function SettingsPage(): JSX.Element {
     displayName: string
     isDefault: boolean
   }>>([])
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState<{
+    checked: boolean
+    checking: boolean
+    hasUpdate: boolean
+    latestVersion?: string
+    releaseName?: string
+    releaseUrl?: string
+    publishedAt?: string
+    releaseNotes?: string
+    error?: string
+  }>({
+    checked: false,
+    checking: false,
+    hasUpdate: false,
+  })
 
   const setLC = <K extends keyof typeof DEFAULT_LOYALTY>(
     key: K,
@@ -151,6 +167,12 @@ export default function SettingsPage(): JSX.Element {
     if (tab === 'tv-display') {
       const dRes = await window.electronAPI.tv.listDisplays()
       if (dRes.success && dRes.data) setTvDisplays(dRes.data as TvDisplayOption[])
+    }
+    if (tab === 'about') {
+      try {
+        const v = await window.electronAPI.app.getVersion()
+        if (v) setAppVersion(String(v))
+      } catch { /* ignore */ }
     }
   }
 
@@ -313,6 +335,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'backup',     label: t('settings.backup'),         guard: canBackup },
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
     { key: 'license',    label: 'License' },
+    { key: 'about', label: 'About' },
   ]
 
   const inputCls = 'w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring'
@@ -390,6 +413,38 @@ export default function SettingsPage(): JSX.Element {
     }
   }
 
+  async function checkForUpdates(): Promise<void> {
+    setUpdateStatus(prev => ({
+      ...prev,
+      checking: true,
+      checked: false,
+      error: undefined,
+    }))
+    try {
+      const res = await window.electronAPI.app.checkForUpdates()
+      if (res?.data) {
+        setUpdateStatus({
+          checking: false,
+          checked: true,
+          hasUpdate: res.data.hasUpdate ?? false,
+          latestVersion: res.data.latestVersion,
+          releaseName: res.data.releaseName,
+          releaseUrl: res.data.releaseUrl,
+          publishedAt: res.data.publishedAt,
+          releaseNotes: res.data.releaseNotes,
+          error: res.data.error,
+        })
+      }
+    } catch {
+      setUpdateStatus({
+        checking: false,
+        checked: true,
+        hasUpdate: false,
+        error: 'Failed to check for updates',
+      })
+    }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground mb-6">{t('settings.title')}</h1>
@@ -404,7 +459,7 @@ export default function SettingsPage(): JSX.Element {
         ))}
       </div>
 
-      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'car-brands' || tab === 'invoice' ? 'max-w-3xl' : 'max-w-2xl'}`}>
+      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'car-brands' || tab === 'invoice' ? 'max-w-3xl' : tab === 'about' ? 'max-w-md' : 'max-w-2xl'}`}>
 
         {tab === 'store' && (
           <div className="space-y-4">
@@ -1492,6 +1547,107 @@ export default function SettingsPage(): JSX.Element {
                   ? 'Update License'
                   : 'Activate License'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {tab === 'about' && (
+          <div className="space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shrink-0">
+                <span className="text-2xl font-black text-primary-foreground">M</span>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Mahali Garage</h2>
+                <p className="text-sm text-muted-foreground">Version {appVersion || '...'}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">By Bytecra</p>
+              </div>
+            </div>
+
+            <div className="border-t border-border" />
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Software Updates</p>
+                  <p className="text-xs text-muted-foreground">Current version: v{appVersion}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void checkForUpdates()}
+                  disabled={updateStatus.checking}
+                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {updateStatus.checking ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                      Checking...
+                    </>
+                  ) : (
+                    'Check for Updates'
+                  )}
+                </button>
+              </div>
+
+              {updateStatus.checked && (
+                <div
+                  className={`rounded-lg p-4 border ${
+                    updateStatus.hasUpdate
+                      ? 'border-primary/30 bg-primary/5'
+                      : updateStatus.error
+                        ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
+                        : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30'
+                  }`}
+                >
+                  {updateStatus.error ? (
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-400">⚠️ Could not check for updates</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-500">{updateStatus.error}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Connect to internet and try again.</p>
+                    </div>
+                  ) : updateStatus.hasUpdate ? (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-bold text-primary">🎉 New version available!</p>
+                        <p className="text-sm font-medium mt-1">
+                          {updateStatus.releaseName || `v${updateStatus.latestVersion}`}
+                        </p>
+                        {updateStatus.publishedAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Released: {new Date(updateStatus.publishedAt).toLocaleDateString()}
+                          </p>
+                        )}
+                        {updateStatus.releaseNotes && (
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{updateStatus.releaseNotes}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (updateStatus.releaseUrl) {
+                            void window.electronAPI.shell.openExternal(updateStatus.releaseUrl)
+                          }
+                        }}
+                        className="w-full py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium"
+                      >
+                        Download v{updateStatus.latestVersion} →
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-medium text-green-700 dark:text-green-400">✅ You&apos;re up to date</p>
+                      <p className="text-xs text-muted-foreground mt-1">v{appVersion} is the latest version.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-border" />
+
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">© 2026 Bytecra. All rights reserved.</p>
+              <p className="text-xs text-muted-foreground">Built for UAE garage management.</p>
             </div>
           </div>
         )}

@@ -29,8 +29,10 @@ import { registerAssetHandlers } from './assetHandlers'
 import { registerPrintHandlers } from './printHandlers'
 import { registerTvHandlers } from './tvHandlers'
 import { registerLoyaltyHandlers } from './loyaltyHandlers'
+import { registerAppHandlers } from './appHandlers'
 
 export function registerAllHandlers(): void {
+  registerAppHandlers()
   registerAuthHandlers()
   registerSettingsHandlers()
   registerCategoryHandlers()

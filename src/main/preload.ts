@@ -331,6 +331,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── App (activation window) ───────────────────────────────────────────────
   app: {
     licenseActivated: () => ipcRenderer.send('app:licenseActivated'),
+    getVersion: () => invoke<string>('app:getVersion'),
+    checkForUpdates: () =>
+      invoke<{
+        success: boolean
+        data: {
+          hasUpdate: boolean
+          currentVersion: string
+          latestVersion?: string
+          releaseName?: string
+          releaseUrl?: string
+          publishedAt?: string
+          releaseNotes?: string
+          error?: string
+        }
+      }>('app:checkForUpdates'),
+  },
+
+  shell: {
+    openExternal: (url: string) => invoke<void>('shell:openExternal', url),
   },
 
   tv: {

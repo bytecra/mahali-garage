@@ -237,6 +237,23 @@ declare global {
       }
       app: {
         licenseActivated: () => void
+        getVersion: () => Promise<string>
+        checkForUpdates: () => Promise<{
+          success: boolean
+          data: {
+            hasUpdate: boolean
+            currentVersion: string
+            latestVersion?: string
+            releaseName?: string
+            releaseUrl?: string
+            publishedAt?: string
+            releaseNotes?: string
+            error?: string
+          }
+        }>
+      }
+      shell: {
+        openExternal: (url: string) => Promise<void>
       }
       tv: {
         open: () => Promise<IpcResponse<{ success: boolean }>>
