@@ -92,6 +92,11 @@ export default function SettingsPage(): JSX.Element {
   const [shortcutsState, setShortcutsState] = useState<Record<string, string>>(() => ({ ...APP_SHORTCUT_DEFAULTS }))
   const [loyaltyConfig, setLoyaltyConfig] = useState(DEFAULT_LOYALTY)
   const [loyaltySaving, setLoyaltySaving] = useState(false)
+  const [printerList, setPrinterList] = useState<Array<{
+    name: string
+    displayName: string
+    isDefault: boolean
+  }>>([])
 
   const setLC = <K extends keyof typeof DEFAULT_LOYALTY>(
     key: K,
@@ -106,6 +111,15 @@ export default function SettingsPage(): JSX.Element {
   const [actToDate, setActToDate]         = useState('')
   const ACTIVITY_PAGE_SIZE = 50
   const MAX_LOGO_BYTES = 1_500_000
+
+  async function loadPrinters(): Promise<void> {
+    try {
+      const res = await window.electronAPI.print.listPrinters()
+      if (res?.success && Array.isArray(res.data)) {
+        setPrinterList(res.data)
+      }
+    } catch { /* non-fatal */ }
+  }
 
   const load = async () => {
     const res = await window.electronAPI.settings.getAll()
@@ -124,6 +138,7 @@ export default function SettingsPage(): JSX.Element {
     if (tab === 'invoice') {
       const bRes = await window.electronAPI.carBrands.list()
       if (bRes.success && bRes.data) setBrands(bRes.data as CarBrand[])
+      void loadPrinters()
     }
     if (tab === 'license') {
       const [statusRes, hwRes] = await Promise.all([
@@ -155,6 +170,11 @@ export default function SettingsPage(): JSX.Element {
   }, [actFromDate, actToDate])
 
   useEffect(() => { load() }, [tab])
+  useEffect(() => {
+    if (tab === 'invoice' && (settings['receipt.programming_print_mode'] ?? 'a4_only') === 'a4_or_thermal') {
+      void loadPrinters()
+    }
+  }, [tab, settings['receipt.programming_print_mode']])
   useEffect(() => { if (tab === 'activity') loadActivity(0) }, [tab, loadActivity])
 
   useEffect(() => {
@@ -215,6 +235,13 @@ export default function SettingsPage(): JSX.Element {
       'receipt.brands_title':       settings['receipt.brands_title']       ?? '',
       'receipt.terms':              settings['receipt.terms']              ?? '',
       'receipt.programming_print_mode': settings['receipt.programming_print_mode'] ?? 'a4_only',
+      'printer.name': settings['printer.name'] ?? '',
+      'printer.thermal_show_logo': settings['printer.thermal_show_logo'] ?? 'true',
+      'printer.thermal_show_customer': settings['printer.thermal_show_customer'] ?? 'true',
+      'printer.thermal_show_car': settings['printer.thermal_show_car'] ?? 'true',
+      'printer.thermal_show_services': settings['printer.thermal_show_services'] ?? 'true',
+      'printer.thermal_show_total': settings['printer.thermal_show_total'] ?? 'true',
+      'printer.thermal_show_footer': settings['printer.thermal_show_footer'] ?? 'true',
     }
     const res = await window.electronAPI.settings.setBulk(entries)
     setSaving(false)
@@ -673,7 +700,7 @@ export default function SettingsPage(): JSX.Element {
               <div className="space-y-2">
                 {([
                   ['a4_only',       'A4 only'],
-                  ['a4_or_thermal', 'A4 or Thermal (thermal printer config coming in hardware phase)'],
+                  ['a4_or_thermal', 'A4 or Thermal'],
                 ] as const).map(([value, label]) => (
                   <label key={value} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -688,6 +715,67 @@ export default function SettingsPage(): JSX.Element {
                 ))}
               </div>
             </div>
+
+            {(settings['receipt.programming_print_mode'] ?? 'a4_only') === 'a4_or_thermal' && (
+              <div className="space-y-4 pl-4 border-l-2 border-primary/30">
+                <div>
+                  <label className="text-sm font-medium block mb-1">
+                    Thermal Printer
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={settings['printer.name'] ?? ''}
+                      onChange={e => set('printer.name', e.target.value)}
+                      className="flex-1 border border-border rounded-md px-3 py-2 text-sm bg-background"
+                    >
+                      <option value="">— Select printer —</option>
+                      {printerList.map(p => (
+                        <option key={p.name} value={p.name}>
+                          {p.displayName}
+                          {p.isDefault ? ' (Default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void loadPrinters()}
+                      className="px-3 py-2 text-sm border border-border rounded-md hover:bg-muted/50"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  {settings['printer.name'] && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Selected: {settings['printer.name']}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium block mb-2">
+                    Thermal Receipt Content
+                  </label>
+                  {([
+                    ['printer.thermal_show_logo', 'Show store logo'],
+                    ['printer.thermal_show_customer', 'Show customer name'],
+                    ['printer.thermal_show_car', 'Show car info'],
+                    ['printer.thermal_show_services', 'Show services list'],
+                    ['printer.thermal_show_total', 'Show total amount'],
+                    ['printer.thermal_show_footer', 'Show footer/terms'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 text-sm cursor-pointer mb-1">
+                      <input
+                        type="checkbox"
+                        checked={(settings[key] ?? 'true') !== 'false'}
+                        onChange={e => set(key, e.target.checked ? 'true' : 'false')}
+                        className="w-4 h-4"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <button type="button" onClick={() => void saveInvoiceSettings()} disabled={saving} className={saveBtnCls}>
               {saving ? t('common.loading') : t('common.save')}

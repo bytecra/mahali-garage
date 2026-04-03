@@ -147,4 +147,93 @@ export function registerPrintHandlers(): void {
       return err('Failed to open folder dialog')
     }
   })
+
+  // ── print:listPrinters ─────────────────────────────────────────────────────
+  ipcMain.handle('print:listPrinters', async (event) => {
+    try {
+      if (!authService.getSession(event.sender.id))
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) return err('No window')
+      const printers = await win.webContents.getPrintersAsync()
+      return ok(printers.map(p => ({
+        name: p.name,
+        displayName: p.displayName || p.name,
+        isDefault: p.isDefault,
+        status: p.status,
+      })))
+    } catch (e) {
+      log.error('print:listPrinters', e)
+      return err('Failed to list printers')
+    }
+  })
+
+  // ── print:thermal ──────────────────────────────────────────────────────────
+  ipcMain.handle('print:thermal', async (event, html: unknown, printerName: unknown) => {
+    try {
+      if (!authService.hasPermission(event.sender.id, 'sales.view'))
+        return err('Forbidden', 'ERR_FORBIDDEN')
+
+      if (typeof html !== 'string' || html.trim() === '')
+        return err('Invalid HTML', 'ERR_VALIDATION')
+
+      if (typeof printerName !== 'string' || printerName.trim() === '')
+        return err('No printer selected', 'ERR_VALIDATION')
+
+      const parent = BrowserWindow.fromWebContents(event.sender) ?? null
+      const win = createPrintWindow(parent)
+      win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+      const htmlPath = path.join(app.getPath('temp'), `mahali-thermal-${Date.now()}.html`)
+      await writeFile(htmlPath, html, 'utf-8')
+
+      const result = await new Promise<boolean>((resolve) => {
+        let settled = false
+        const finalize = (success: boolean): void => {
+          if (settled) return
+          settled = true
+          try { unlinkSync(htmlPath) } catch { /* ignore */ }
+          try { if (!win.isDestroyed()) win.close() } catch { /* ignore */ }
+          resolve(success)
+        }
+
+        const timeout = setTimeout(() => finalize(false), 30000)
+
+        win.webContents.once('did-finish-load', () => {
+          win.webContents.on('will-navigate', (e) => e.preventDefault())
+          setTimeout(() => {
+            win.webContents.print(
+              {
+                silent: true,
+                printBackground: true,
+                deviceName: printerName.trim(),
+                margins: { marginType: 'none' },
+                pageSize: { width: 80000, height: 297000 },
+              },
+              (success, failureReason) => {
+                clearTimeout(timeout)
+                if (!success) {
+                  log.error('print:thermal failed:', failureReason)
+                }
+                finalize(success)
+              }
+            )
+          }, 500)
+        })
+
+        win.webContents.once('did-fail-load', () => {
+          clearTimeout(timeout)
+          finalize(false)
+        })
+
+        void win.loadFile(htmlPath)
+      })
+
+      if (!result) return err('Thermal print failed or cancelled')
+      return ok(true)
+    } catch (e) {
+      log.error('print:thermal', e)
+      return err('Failed to print thermal receipt')
+    }
+  })
 }

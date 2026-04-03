@@ -350,6 +350,13 @@ declare global {
       print: {
         receipt:              (html: string) => Promise<IpcResponse<boolean>>
         chooseDownloadFolder: ()             => Promise<IpcResponse<string | null>>
+        listPrinters:         () => Promise<IpcResponse<Array<{
+          name: string
+          displayName: string
+          isDefault: boolean
+          status: number
+        }>>>
+        thermal:              (html: string, printerName: string) => Promise<IpcResponse<boolean>>
       }
       employees: {
         list:            (filters?: unknown) => Promise<IpcResponse<unknown[]>>

@@ -81,6 +81,229 @@ function deptParamForLoyalty(d: Department): 'mechanical' | 'programming' | unde
   return d
 }
 
+function escapeThermalHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+async function buildThermalHtml(receipt: Receipt): Promise<string> {
+  const getS = async (key: string, def = ''): Promise<string> => {
+    try {
+      const r = await window.electronAPI.settings.get(key)
+      if (!r?.success) return def
+      const v = r.data
+      return v != null && v !== '' ? String(v) : def
+    } catch {
+      return def
+    }
+  }
+
+  const [
+    storeName,
+    showLogo,
+    showCustomer,
+    showCar,
+    showServices,
+    showTotal,
+    showFooter,
+    footerText,
+    currencySymbol,
+  ] = await Promise.all([
+    getS('store.name', 'Mahali Garage'),
+    getS('printer.thermal_show_logo', 'true'),
+    getS('printer.thermal_show_customer', 'true'),
+    getS('printer.thermal_show_car', 'true'),
+    getS('printer.thermal_show_services', 'true'),
+    getS('printer.thermal_show_total', 'true'),
+    getS('printer.thermal_show_footer', 'true'),
+    getS('receipt.terms', 'Thank you for your business!'),
+    getS('store.currency_symbol', 'د.إ'),
+  ])
+
+  const show = (key: string): boolean => key !== 'false'
+
+  const services = (() => {
+    try {
+      const mechRaw = receipt.mechanical_services_json
+        ? (JSON.parse(receipt.mechanical_services_json) as unknown[])
+        : []
+      const progRaw = receipt.programming_services_json
+        ? (JSON.parse(receipt.programming_services_json) as unknown[])
+        : []
+      const norm = (arr: unknown[]): Array<{ service_name: string; sell_price: number }> =>
+        arr.map(row => {
+          const x = row as { service_name?: string; name?: string; sell_price?: number }
+          return {
+            service_name: String(x.service_name ?? x.name ?? '').trim(),
+            sell_price: Number(x.sell_price ?? 0),
+          }
+        }).filter(s => s.service_name !== '')
+      return [...norm(mechRaw), ...norm(progRaw)]
+    } catch {
+      return []
+    }
+  })()
+
+  const date = new Date(receipt.created_at).toLocaleDateString()
+  const time = new Date(receipt.created_at).toLocaleTimeString()
+
+  const rows = services
+    .map(
+      s => `<div style="display:flex;justify-content:space-between;">
+        <span style="max-width:50mm;word-break:break-word;">
+          ${escapeThermalHtml(s.service_name)}
+        </span>
+        <span>${escapeThermalHtml(currencySymbol)}
+          ${Number(s.sell_price).toFixed(2)}
+        </span>
+      </div>`
+    )
+    .join('')
+
+  const carLine = [receipt.car_company, receipt.car_model].filter(Boolean).join(' ')
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: 80mm auto;
+      margin: 2mm 3mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      width: 74mm;
+      margin: 0;
+      color: #000;
+      background: #fff;
+    }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    .large { font-size: 14px; }
+    .line {
+      border-top: 1px dashed #000;
+      margin: 3px 0;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 13px;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  ${show(showLogo)
+    ? `
+    <div class="center bold large">
+      ${escapeThermalHtml(storeName)}
+    </div>
+    <div class="center" style="font-size:9px;margin-bottom:2px;">
+      Programming Department
+    </div>
+  `
+    : ''}
+
+  <div class="line"></div>
+
+  <div class="row">
+    <span>Receipt:</span>
+    <span class="bold">
+      ${escapeThermalHtml(receipt.receipt_number)}
+    </span>
+  </div>
+  <div class="row">
+    <span>Date:</span>
+    <span>${escapeThermalHtml(date)}</span>
+  </div>
+  <div class="row">
+    <span>Time:</span>
+    <span>${escapeThermalHtml(time)}</span>
+  </div>
+
+  ${show(showCustomer) &&
+  receipt.customer_name &&
+  receipt.customer_name !== 'Walk-in Customer'
+    ? `
+    <div class="line"></div>
+    <div class="row">
+      <span>Customer:</span>
+      <span>${escapeThermalHtml(receipt.customer_name)}</span>
+    </div>
+  `
+    : ''}
+
+  ${show(showCar) && (receipt.car_company || receipt.plate_number)
+    ? `
+    <div class="row">
+      <span>Car:</span>
+      <span>
+        ${escapeThermalHtml(carLine)}
+      </span>
+    </div>
+    ${receipt.plate_number
+      ? `
+      <div class="row">
+        <span>Plate:</span>
+        <span class="bold">
+          ${escapeThermalHtml(receipt.plate_number)}
+        </span>
+      </div>
+    `
+      : ''}
+  `
+    : ''}
+
+  ${show(showServices) && services.length > 0
+    ? `
+    <div class="line"></div>
+    <div class="bold" style="margin-bottom:2px;">
+      Services:
+    </div>
+    ${rows}
+  `
+    : ''}
+
+  ${show(showTotal)
+    ? `
+    <div class="line"></div>
+    <div class="total-row">
+      <span>TOTAL:</span>
+      <span>${escapeThermalHtml(currencySymbol)}
+        ${Number(receipt.amount).toFixed(2)}
+      </span>
+    </div>
+  `
+    : ''}
+
+  ${show(showFooter) && footerText
+    ? `
+    <div class="line"></div>
+    <div class="center" style="font-size:10px;margin-top:2px;">
+      ${escapeThermalHtml(footerText)}
+    </div>
+  `
+    : ''}
+
+  <div style="margin-top:8px;"></div>
+
+</body>
+</html>`
+}
+
 export default function CustomReceiptsPage(): JSX.Element {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -132,6 +355,9 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [smartDiscountValue, setSmartDiscountValue] = useState<string>('')
   const [selectedCustomerLoyalty, setSelectedCustomerLoyalty] = useState<SelectedCustomerLoyalty | null>(null)
   const [loyaltyCfgCache, setLoyaltyCfgCache] = useState<LoyaltyCfgCache | null>(null)
+  const [printChoiceOpen, setPrintChoiceOpen] = useState(false)
+  const [pendingPrintReceipt, setPendingPrintReceipt] = useState<Receipt | null>(null)
+  const [thermalPrinting, setThermalPrinting] = useState(false)
 
   const canCreate = ['owner', 'manager'].includes(role ?? '')
   const canDelete = ['owner', 'manager'].includes(role ?? '')
@@ -402,6 +628,59 @@ export default function CustomReceiptsPage(): JSX.Element {
     }
   }
 
+  async function offerPrintAfterSave(fullReceiptData: Receipt): Promise<void> {
+    const progMode = await window.electronAPI.settings.get('receipt.programming_print_mode')
+    const mode = progMode?.data ?? 'a4_only'
+    const isProgramming =
+      fullReceiptData.department === 'programming' ||
+      fullReceiptData.department === 'both'
+    if (isProgramming && mode === 'a4_or_thermal') {
+      setPendingPrintReceipt(fullReceiptData)
+      setPrintChoiceOpen(true)
+    } else {
+      await handlePrint(fullReceiptData)
+    }
+  }
+
+  async function handlePrintA4(): Promise<void> {
+    if (!pendingPrintReceipt) return
+    setPrintChoiceOpen(false)
+    await handlePrint(pendingPrintReceipt)
+    setPendingPrintReceipt(null)
+  }
+
+  async function handlePrintThermal(): Promise<void> {
+    if (!pendingPrintReceipt) return
+    setThermalPrinting(true)
+    try {
+      const html = await buildThermalHtml(pendingPrintReceipt)
+      const printerRes = await window.electronAPI.settings.get('printer.name')
+      const printerName = printerRes?.data ?? ''
+      if (!printerName) {
+        toast.error(
+          'No thermal printer configured. ' +
+            'Set it in Settings → Invoice Settings.'
+        )
+        return
+      }
+      await window.electronAPI.print.thermal(html, printerName)
+    } catch {
+      toast.error('Thermal print failed')
+    } finally {
+      setThermalPrinting(false)
+      setPrintChoiceOpen(false)
+      setPendingPrintReceipt(null)
+    }
+  }
+
+  async function handlePrintBoth(): Promise<void> {
+    if (!pendingPrintReceipt) return
+    setPrintChoiceOpen(false)
+    await handlePrint(pendingPrintReceipt)
+    await handlePrintThermal()
+    setPendingPrintReceipt(null)
+  }
+
   async function handleDelete(): Promise<void> {
     if (deleteId == null) return
     const res = await window.electronAPI.customReceipts.delete(deleteId)
@@ -467,7 +746,7 @@ export default function CustomReceiptsPage(): JSX.Element {
           success: boolean
           data?: Receipt
         }
-        if (full.success && full.data) await handlePrint(full.data)
+        if (full.success && full.data) await offerPrintAfterSave(full.data)
       }
       toast.success(t('common.saved'))
       resetForm()
@@ -969,7 +1248,7 @@ export default function CustomReceiptsPage(): JSX.Element {
             }
             if (andPrint) {
               const full = await window.electronAPI.customReceipts.getById(res.data.id) as { success: boolean; data?: Receipt }
-              if (full.success && full.data) await handlePrint(full.data)
+              if (full.success && full.data) await offerPrintAfterSave(full.data)
             }
             toast.success(t('common.saved'))
             resetSmartFlow()
@@ -1026,6 +1305,53 @@ export default function CustomReceiptsPage(): JSX.Element {
           </div>
         )}
       </Modal>
+
+      {printChoiceOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-background border border-border rounded-xl p-6 w-full max-w-sm shadow-xl space-y-4">
+            <h3 className="font-semibold text-base">Print Receipt</h3>
+            <p className="text-sm text-muted-foreground">
+              Choose print format for this Programming receipt.
+            </p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => void handlePrintA4()}
+                className="w-full py-2.5 px-4 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 text-left"
+              >
+                🖨️ Print A4 (PDF)
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePrintThermal()}
+                disabled={thermalPrinting}
+                className="w-full py-2.5 px-4 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 text-left disabled:opacity-50"
+              >
+                🧾 Print Thermal (80mm)
+                {thermalPrinting && ' — printing...'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePrintBoth()}
+                disabled={thermalPrinting}
+                className="w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 text-left disabled:opacity-50"
+              >
+                🖨️🧾 Print Both
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPrintChoiceOpen(false)
+                setPendingPrintReceipt(null)
+              }}
+              className="w-full text-sm text-muted-foreground hover:text-foreground"
+            >
+              Skip printing
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
