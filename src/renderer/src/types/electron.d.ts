@@ -249,29 +249,46 @@ declare global {
         }>>>
       }
       loyalty: {
-        get: (customerId: number) => Promise<IpcResponse<{
+        get: (customerId: number, department?: string) => Promise<IpcResponse<{
+          id: number
           customer_id: number
+          department: 'all' | 'mechanical' | 'programming'
           points: number
           stamps: number
           total_visits: number
           tier_level: number
-          id?: number
-          updated_at?: string
+          updated_at: string
         }>>
+        getAllDepts: (customerId: number) => Promise<IpcResponse<Array<{
+          id: number
+          customer_id: number
+          department: 'all' | 'mechanical' | 'programming'
+          points: number
+          stamps: number
+          total_visits: number
+          tier_level: number
+          updated_at: string
+        }>>>
         addTransaction: (data: {
           customer_id: number
-          type: string
+          department?: 'all' | 'mechanical' | 'programming'
+          type: 'earn_points' | 'earn_stamps' | 'redeem' | 'manual_adjust'
           points_delta: number
           stamps_delta: number
           visits_delta: number
-          source?: string
+          source?: 'invoice' | 'receipt' | 'manual'
           source_id?: number
           note?: string
           created_by?: number
         }) => Promise<IpcResponse<null>>
-        getTransactions: (customerId: number, limit?: number) => Promise<IpcResponse<Array<{
+        getTransactions: (
+          customerId: number,
+          department?: string,
+          limit?: number
+        ) => Promise<IpcResponse<Array<{
           id: number
           customer_id: number
+          department: string
           type: string
           points_delta: number
           stamps_delta: number
@@ -283,11 +300,18 @@ declare global {
           created_at: string
         }>>>
         processAutoEarn: (params: {
-          customerId: number
+          customer_id: number
           amount: number
           source: 'invoice' | 'receipt'
-          sourceId: number
-          createdBy: number
+          source_id: number
+          created_by: number
+          department?: 'mechanical' | 'programming'
+        }) => Promise<IpcResponse<null>>
+        redeemReward: (params: {
+          customer_id: number
+          department: 'all' | 'mechanical' | 'programming'
+          note: string
+          created_by: number
         }) => Promise<IpcResponse<null>>
       }
       tasks: {

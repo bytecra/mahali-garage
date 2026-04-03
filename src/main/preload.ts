@@ -337,11 +337,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   loyalty: {
-    get: (customerId: number) => invoke('loyalty:get', customerId),
-    addTransaction: (data: unknown) => invoke('loyalty:addTransaction', data),
-    getTransactions: (customerId: number, limit?: number) =>
-      invoke('loyalty:getTransactions', customerId, limit),
-    processAutoEarn: (params: unknown) => invoke('loyalty:processAutoEarn', params),
+    get: (customerId: number, department?: string) =>
+      invoke('loyalty:get', customerId, department),
+    getAllDepts: (customerId: number) =>
+      invoke('loyalty:getAllDepts', customerId),
+    addTransaction: (data: unknown) =>
+      invoke('loyalty:addTransaction', data),
+    getTransactions: (
+      customerId: number,
+      department?: string,
+      limit?: number
+    ) => invoke(
+      'loyalty:getTransactions',
+      customerId,
+      department,
+      limit
+    ),
+    processAutoEarn: (params: unknown) =>
+      invoke('loyalty:processAutoEarn', params),
+    redeemReward: (params: unknown) =>
+      invoke('loyalty:redeemReward', params),
   },
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
