@@ -77,7 +77,8 @@
     "calendar": "Calendar",
     "invoices": "Invoices",
     "customReceipts": "Custom Receipts",
-    "employees": "Employees"
+    "employees": "Employees",
+    "aiAssistant": "AI Assistant"
   },
   "auth": {
     "login": "Login",

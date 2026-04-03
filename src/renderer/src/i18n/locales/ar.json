@@ -77,7 +77,8 @@
     "calendar": "التقويم",
     "invoices": "الفواتير",
     "customReceipts": "إيصالات مخصصة",
-    "employees": "الموظفون"
+    "employees": "الموظفون",
+    "aiAssistant": "مساعد الذكاء الاصطناعي"
   },
   "auth": {
     "login": "تسجيل الدخول",

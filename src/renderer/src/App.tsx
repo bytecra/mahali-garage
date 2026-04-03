@@ -28,6 +28,7 @@ const ServiceCatalogPage = lazy(() => import('./pages/ServiceCatalog/ServiceCata
 const CustomReceiptsPage = lazy(() => import('./pages/CustomReceipts/CustomReceiptsPage'))
 const EmployeesPage     = lazy(() => import('./pages/Employees/EmployeesPage'))
 const AssetsPage        = lazy(() => import('./pages/Assets/AssetsPage'))
+const AiAssistantPage   = lazy(() => import('./pages/AiAssistant/AiAssistantPage'))
 const TvDisplayPage     = lazy(() => import('./pages/TV/TvDisplayPage'))
 
 function LoadingFallback(): JSX.Element {
@@ -149,6 +150,9 @@ export default function App(): JSX.Element {
             } />
             <Route path="/employees" element={
               <Suspense fallback={<LoadingFallback />}><EmployeesPage /></Suspense>
+            } />
+            <Route path="/ai-assistant" element={
+              <Suspense fallback={<LoadingFallback />}><AiAssistantPage /></Suspense>
             } />
           </Route>
         </Route>
