@@ -26,6 +26,13 @@ interface CustomReceiptPrintable {
   loyalty_points?: number | null
   loyalty_stamps?: number | null
   loyalty_visits?: number | null
+  loyalty_config?: {
+    pointsLabel?: string
+    stampsForReward?: number
+    type?: string
+    enabled?: boolean
+    showOnReceipt?: boolean
+  } | null
 }
 
 function escapeHtml(v: string): string {
@@ -90,20 +97,24 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
   const showCarInfo      = (settings['receipt.show_car_info']      ?? 'true') === 'true'
 
   const loyaltyRaw = settings['loyalty.config'] ?? ''
-  const loyaltyConfig = (() => {
+  const loyaltyCfg = (() => {
     try {
-      return loyaltyRaw ? JSON.parse(loyaltyRaw) as {
-        enabled?: boolean
-        showOnReceipt?: boolean
-        pointsLabel?: string
-        stampsForReward?: number
-      } : null
+      return loyaltyRaw ? JSON.parse(loyaltyRaw) : null
     } catch {
       return null
     }
-  })()
+  })() as {
+    pointsLabel?: string
+    stampsForReward?: number
+    type?: string
+    enabled?: boolean
+    showOnReceipt?: boolean
+  } | null
   const showLoyaltyOnReceipt =
-    Boolean(loyaltyConfig?.enabled && loyaltyConfig?.showOnReceipt)
+    loyaltyCfg?.enabled === true &&
+    loyaltyCfg?.showOnReceipt !== false &&
+    (receipt.loyalty_points != null ||
+      receipt.loyalty_stamps != null)
 
   // Brands: prefer receipt.supported_brands, fall back to invoice.supported_brands
   const supportedBrandsRaw = settings['receipt.supported_brands']
@@ -273,44 +284,45 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
       <div class="r grand"><span>Total Amount Due</span><span>${currency(totalDue, currencySymbol)}</span></div>
     </section>
 
-    ${showLoyaltyOnReceipt &&
-      (receipt.loyalty_points != null || receipt.loyalty_stamps != null)
-      ? `
+    ${showLoyaltyOnReceipt ? `
     <div style="border-top:1px solid #e2e8f0;
-      margin-top:10px;padding-top:8px;">
-      <div style="font-size:11px;
-        font-weight:700;margin-bottom:4px;
-        color:#334155;">
+      margin-top:8px;padding-top:8px;">
+      <p style="font-size:10px;font-weight:700;
+        color:#334155;margin:0 0 4px;">
         ${escapeHtml(
-          loyaltyConfig?.pointsLabel || 'Loyalty'
+          loyaltyCfg?.pointsLabel || 'Loyalty'
         )}
-      </div>
-      ${receipt.loyalty_points != null
-        ? `<div style="display:flex;
-            justify-content:space-between;
-            font-size:11px;">
-            <span>
-              ${escapeHtml(
-                loyaltyConfig?.pointsLabel
-                || 'Points'
-              )}
-            </span>
-            <span style="font-weight:700;">
-              ${receipt.loyalty_points}
-            </span>
-           </div>`
-        : ''}
-      ${receipt.loyalty_stamps != null
-        ? `<div style="display:flex;
-            justify-content:space-between;
-            font-size:11px;">
-            <span>Stamps</span>
-            <span style="font-weight:700;">
-              ${receipt.loyalty_stamps} /
-              ${loyaltyConfig?.stampsForReward ?? 10}
-            </span>
-           </div>`
-        : ''}
+      </p>
+      ${receipt.loyalty_points != null ? `
+        <div style="display:flex;
+          justify-content:space-between;
+          font-size:10px;">
+          <span>${escapeHtml(
+            loyaltyCfg?.pointsLabel || 'Points'
+          )}</span>
+          <span style="font-weight:700;">
+            ${receipt.loyalty_points}
+          </span>
+        </div>` : ''}
+      ${receipt.loyalty_stamps != null ? `
+        <div style="display:flex;
+          justify-content:space-between;
+          font-size:10px;">
+          <span>Stamps</span>
+          <span style="font-weight:700;">
+            ${receipt.loyalty_stamps} /
+            ${loyaltyCfg?.stampsForReward || 10}
+          </span>
+        </div>` : ''}
+      ${receipt.loyalty_visits != null ? `
+        <div style="display:flex;
+          justify-content:space-between;
+          font-size:10px;">
+          <span>Total Visits</span>
+          <span style="font-weight:700;">
+            ${receipt.loyalty_visits}
+          </span>
+        </div>` : ''}
     </div>
   ` : ''}
 

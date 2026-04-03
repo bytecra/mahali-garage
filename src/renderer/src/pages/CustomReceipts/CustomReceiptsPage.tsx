@@ -297,24 +297,29 @@ export default function CustomReceiptsPage(): JSX.Element {
         }
       })() as { enabled?: boolean; showOnReceipt?: boolean } | null
 
-      let dataToPrint: Receipt = { ...fullData }
+      let printableReceipt: Receipt = { ...fullData }
       if (
         loyaltyConfig?.enabled &&
         loyaltyConfig?.showOnReceipt &&
-        fullData.customer_id
+        printableReceipt.customer_id
       ) {
-        const lr = await window.electronAPI.loyalty.get(fullData.customer_id)
-        if (lr?.success && lr.data) {
-          dataToPrint = {
-            ...dataToPrint,
-            loyalty_points: lr.data.points,
-            loyalty_stamps: lr.data.stamps,
-            loyalty_visits: lr.data.total_visits,
+        try {
+          const lr = await window.electronAPI.loyalty.get(
+            printableReceipt.customer_id,
+            printableReceipt.department || 'all'
+          )
+          if (lr?.success && lr.data) {
+            printableReceipt = {
+              ...printableReceipt,
+              loyalty_points: lr.data.points,
+              loyalty_stamps: lr.data.stamps,
+              loyalty_visits: lr.data.total_visits,
+            }
           }
-        }
+        } catch { /* non-fatal */ }
       }
 
-      await printCustomReceiptA4(dataToPrint)
+      await printCustomReceiptA4(printableReceipt)
     } catch (e) {
       console.error('Receipt print failed', e)
       toast.error(t('common.error'))
