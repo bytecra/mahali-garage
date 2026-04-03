@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { saleRepo } from '../database/repositories/saleRepo'
-import * as loyaltyRepo from '../database/repositories/loyaltyRepo'
+import { loyaltyRepo } from '../database/repositories/loyaltyRepo'
 import { authService } from '../services/authService'
 import { activityLogRepo } from '../database/repositories/activityLogRepo'
 import { ok, err } from '../utils/ipcResponse'
@@ -39,13 +39,13 @@ export function registerSaleHandlers(): void {
       } catch { /* non-critical */ }
       if (input.customer_id && result.sale_id) {
         try {
-          loyaltyRepo.processAutoEarn(
-            input.customer_id,
-            input.total_amount,
-            'invoice',
-            result.sale_id,
-            session!.userId
-          )
+          loyaltyRepo.processAutoEarn({
+            customer_id: Number(input.customer_id),
+            amount: Number(input.total_amount) || 0,
+            source: 'invoice',
+            source_id: Number(result.sale_id),
+            created_by: session!.userId,
+          })
         } catch { /* non-fatal */ }
       }
       return ok(result)
