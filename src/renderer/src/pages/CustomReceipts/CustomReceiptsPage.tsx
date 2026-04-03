@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Check, ChevronRight, Code2, Eye, Plus, Printer, Trash2, Wrench } from 'lucide-react'
@@ -58,6 +58,29 @@ interface BrandLite { id: number; name: string; logo: string | null }
 interface CatalogService { id: number; service_name: string; model: string; price: number; department: 'mechanical' | 'programming' }
 type WizardStep = 1 | 2 | 3 | 4 | 5
 
+type LoyaltyCfgCache = {
+  enabled: boolean
+  type: string
+  pointsLabel: string
+  stampsForReward: number
+  deptMode: string
+  stampRewardDesc: string
+}
+
+type SelectedCustomerLoyalty = {
+  points: number
+  stamps: number
+  total_visits: number
+  tier_level: number
+  department: string
+  customer_id: number
+}
+
+function deptParamForLoyalty(d: Department): 'mechanical' | 'programming' | undefined {
+  if (d === 'both') return undefined
+  return d
+}
+
 export default function CustomReceiptsPage(): JSX.Element {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -107,9 +130,56 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [smartCustomServices, setSmartCustomServices] = useState<SmartCustomServiceLine[]>([])
   const [smartDiscountType, setSmartDiscountType] = useState<'percent' | 'fixed' | ''>('')
   const [smartDiscountValue, setSmartDiscountValue] = useState<string>('')
+  const [selectedCustomerLoyalty, setSelectedCustomerLoyalty] = useState<SelectedCustomerLoyalty | null>(null)
+  const [loyaltyCfgCache, setLoyaltyCfgCache] = useState<LoyaltyCfgCache | null>(null)
 
   const canCreate = ['owner', 'manager'].includes(role ?? '')
   const canDelete = ['owner', 'manager'].includes(role ?? '')
+
+  const loadCustomerLoyalty = useCallback(async (
+    customerId: number,
+    department?: 'mechanical' | 'programming'
+  ): Promise<void> => {
+    try {
+      let cfg = loyaltyCfgCache
+      if (!cfg) {
+        const lcRes = await window.electronAPI.settings.get('loyalty.config')
+        if (lcRes?.success && lcRes.data) {
+          const raw = JSON.parse(lcRes.data) as Record<string, unknown>
+          if (!raw.enabled) return
+          cfg = {
+            enabled: Boolean(raw.enabled),
+            type: String(raw.type ?? ''),
+            pointsLabel: String(raw.pointsLabel ?? 'Points'),
+            stampsForReward: Number(raw.stampsForReward) || 10,
+            deptMode: String(raw.deptMode ?? 'all'),
+            stampRewardDesc: String(raw.stampRewardDesc ?? ''),
+          }
+          setLoyaltyCfgCache(cfg)
+        } else return
+      }
+      if (!cfg?.enabled) return
+      const deptArg = cfg.deptMode === 'per_dept' && department ? department : 'all'
+      const lr = await window.electronAPI.loyalty.get(customerId, deptArg)
+      if (lr?.success && lr.data) {
+        const d = lr.data
+        setSelectedCustomerLoyalty({
+          points: d.points,
+          stamps: d.stamps,
+          total_visits: d.total_visits,
+          tier_level: d.tier_level,
+          department: d.department,
+          customer_id: d.customer_id,
+        })
+      }
+    } catch { /* non-fatal */ }
+  }, [loyaltyCfgCache])
+
+  useEffect(() => {
+    if (mode !== 'custom' || walkInCustomer || !selectedCustomer?.id) return
+    void loadCustomerLoyalty(selectedCustomer.id, deptParamForLoyalty(department))
+    // Intentionally omit loadCustomerLoyalty: it changes when loyaltyCfgCache is first set and would double-fetch.
+  }, [mode, walkInCustomer, selectedCustomer?.id, department])
 
   const load = useCallback(async () => {
     try {
@@ -150,7 +220,8 @@ export default function CustomReceiptsPage(): JSX.Element {
   }, [searchParams])
 
   useEffect(() => {
-    if (mode !== 'smart' || smartStep !== 2) return
+    const searchActive = mode === 'custom' || (mode === 'smart' && smartStep === 2)
+    if (!searchActive) return
     if (!customerQuery.trim()) { setCustomerResults([]); return }
     let cancelled = false
     ;(async () => {
@@ -252,6 +323,10 @@ export default function CustomReceiptsPage(): JSX.Element {
     setProgramming([newLine()])
     setDiscountType('')
     setDiscountValue('')
+    setSelectedCustomer(null)
+    setCustomerQuery('')
+    setCustomerResults([])
+    setSelectedCustomerLoyalty(null)
   }
 
   function resetSmartFlow(): void {
@@ -276,6 +351,7 @@ export default function CustomReceiptsPage(): JSX.Element {
     setSmartDiscountType('')
     setSmartDiscountValue('')
     setPaymentMethod('Cash')
+    setSelectedCustomerLoyalty(null)
   }
 
   async function handlePrint(receipt: Receipt): Promise<void> {
@@ -405,6 +481,19 @@ export default function CustomReceiptsPage(): JSX.Element {
   const inputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
   const labelCls = 'block text-sm font-medium text-foreground mb-1'
 
+  const loyaltyWidget: ReactNode = useMemo(() => {
+    if (!selectedCustomerLoyalty || !loyaltyCfgCache?.enabled) return null
+    return (
+      <LoyaltySummaryWidget
+        selectedCustomerLoyalty={selectedCustomerLoyalty}
+        loyaltyCfgCache={loyaltyCfgCache}
+        customerIdFallback={selectedCustomer?.id ?? null}
+        userId={user?.userId}
+        setSelectedCustomerLoyalty={setSelectedCustomerLoyalty}
+      />
+    )
+  }, [selectedCustomerLoyalty, loyaltyCfgCache, selectedCustomer?.id, user?.userId])
+
   return (
     <div>
       {mode === 'list' && (
@@ -523,7 +612,13 @@ export default function CustomReceiptsPage(): JSX.Element {
                 <input
                   type="checkbox"
                   checked={walkInCustomer}
-                  onChange={e => setWalkInCustomer(e.target.checked)}
+                  onChange={e => {
+                    setWalkInCustomer(e.target.checked)
+                    if (e.target.checked) {
+                      setSelectedCustomer(null)
+                      setSelectedCustomerLoyalty(null)
+                    }
+                  }}
                   className="h-4 w-4 rounded border-border"
                 />
                 {t('customReceipts.walkInCustomer', { defaultValue: 'Walk-in Customer' })}
@@ -546,6 +641,34 @@ export default function CustomReceiptsPage(): JSX.Element {
                 {!walkInCustomer && (
                   <section className="rounded-lg border border-border bg-card p-4">
                     <h2 className="text-base font-semibold mb-4">{t('customReceipts.customerInfo', { defaultValue: 'Customer Info' })}</h2>
+                    <div className="space-y-3 mb-4">
+                      <div>
+                        <label className={labelCls}>{t('common.search', { defaultValue: 'Search customer' })}</label>
+                        <input
+                          className={inputCls}
+                          value={customerQuery}
+                          onChange={e => setCustomerQuery(e.target.value)}
+                          placeholder={t('customReceipts.searchCustomerPlaceholder', { defaultValue: 'Name or phone' })}
+                        />
+                        <div className="mt-2 space-y-1 max-h-48 overflow-auto">
+                          {customerResults.map(c => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className={`w-full text-left px-3 py-2 rounded border text-sm ${selectedCustomer?.id === c.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'}`}
+                              onClick={() => {
+                                setSelectedCustomer(c)
+                                setCustomerName(c.name)
+                                setCustomerPhone(c.phone ?? '')
+                              }}
+                            >
+                              <p className="font-medium">{c.name}</p>
+                              <p className="text-xs text-muted-foreground">{c.phone || '—'}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                     <div className="space-y-3">
                       <div><label className={labelCls}>{t('employees.fullName', { defaultValue: 'Full Name' })}</label><input className={inputCls} value={customerName} onChange={e => setCustomerName(e.target.value)} /></div>
                       <div><label className={labelCls}>{t('employees.phone', { defaultValue: 'Phone Number' })}</label><input className={inputCls} value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} /></div>
@@ -596,6 +719,7 @@ export default function CustomReceiptsPage(): JSX.Element {
                   <span className="text-muted-foreground">{t('customReceipts.department', { defaultValue: 'Department' })}</span>
                   <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{prettyDepartment(department)}</span>
                 </div>
+                {loyaltyWidget}
                 <div>
                   <label className={labelCls}>{t('customReceipts.paymentMethod', { defaultValue: 'Payment Method' })}</label>
                   <select className={inputCls} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'Cash' | 'Card' | 'Bank Transfer')}>
@@ -665,6 +789,9 @@ export default function CustomReceiptsPage(): JSX.Element {
           setStep={setSmartStep}
           department={smartDepartment}
           setDepartment={setSmartDepartment}
+          loadCustomerLoyalty={loadCustomerLoyalty}
+          clearLoyaltyOnWalkIn={() => setSelectedCustomerLoyalty(null)}
+          loyaltyWidget={loyaltyWidget}
           customerQuery={customerQuery}
           setCustomerQuery={setCustomerQuery}
           customerResults={customerResults}
@@ -719,6 +846,7 @@ export default function CustomReceiptsPage(): JSX.Element {
             const created: CustomerLite = { id: data.id, name: newCustomerName.trim(), phone: newCustomerPhone.trim() || null }
             setSelectedCustomer(created)
             setCustomerVehicles([])
+            void loadCustomerLoyalty(created.id, deptParamForLoyalty(smartDepartment))
             return created
           }}
           onSave={async (andPrint: boolean) => {
@@ -902,6 +1030,73 @@ export default function CustomReceiptsPage(): JSX.Element {
   )
 }
 
+function LoyaltySummaryWidget({
+  selectedCustomerLoyalty,
+  loyaltyCfgCache,
+  customerIdFallback,
+  userId,
+  setSelectedCustomerLoyalty,
+}: {
+  selectedCustomerLoyalty: SelectedCustomerLoyalty
+  loyaltyCfgCache: LoyaltyCfgCache
+  customerIdFallback: number | null
+  userId: number | undefined
+  setSelectedCustomerLoyalty: Dispatch<SetStateAction<SelectedCustomerLoyalty | null>>
+}): JSX.Element {
+  const dept = selectedCustomerLoyalty.department as 'all' | 'mechanical' | 'programming'
+  const redeemCustomerId = selectedCustomerLoyalty.customer_id || customerIdFallback
+  return (
+    <div className="border border-border rounded-lg p-3 space-y-1.5">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-semibold">🏆 Loyalty</span>
+        {(loyaltyCfgCache.type === 'points' || loyaltyCfgCache.type === 'all') && (
+          <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+            {selectedCustomerLoyalty.points} {loyaltyCfgCache.pointsLabel}
+          </span>
+        )}
+        {(loyaltyCfgCache.type === 'stamps' || loyaltyCfgCache.type === 'all') && (
+          <span className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full">
+            🎫 {selectedCustomerLoyalty.stamps}/{loyaltyCfgCache.stampsForReward}
+          </span>
+        )}
+      </div>
+      {(loyaltyCfgCache.type === 'stamps' || loyaltyCfgCache.type === 'all') &&
+        selectedCustomerLoyalty.stamps >= loyaltyCfgCache.stampsForReward - 1 &&
+        selectedCustomerLoyalty.stamps < loyaltyCfgCache.stampsForReward && (
+        <p className="text-xs text-amber-600 font-medium">⚠️ 1 stamp away from a reward!</p>
+      )}
+      {(loyaltyCfgCache.type === 'stamps' || loyaltyCfgCache.type === 'all') &&
+        selectedCustomerLoyalty.stamps >= loyaltyCfgCache.stampsForReward && (
+        <div className="space-y-1">
+          <p className="text-xs text-green-600 font-medium">
+            🎉 Reward earned: {loyaltyCfgCache.stampRewardDesc}
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              if (redeemCustomerId == null || userId == null) return
+              try {
+                await window.electronAPI.loyalty.redeemReward({
+                  customer_id: redeemCustomerId,
+                  department: dept,
+                  note: 'Reward redeemed at checkout',
+                  created_by: userId,
+                })
+                setSelectedCustomerLoyalty(prev =>
+                  prev ? { ...prev, stamps: 0 } : null
+                )
+              } catch { /* non-fatal */ }
+            }}
+            className="w-full text-xs py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Apply Reward
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ServiceSection({
   title,
   lines,
@@ -1033,6 +1228,9 @@ function SmartRecipeWizard(props: {
   onLoadVehicles: (customerId: number) => Promise<void>
   onCreateCustomer: () => Promise<CustomerLite | null>
   onSave: (andPrint: boolean) => Promise<void>
+  loadCustomerLoyalty: (customerId: number, dept?: 'mechanical' | 'programming') => void
+  clearLoyaltyOnWalkIn: () => void
+  loyaltyWidget: ReactNode
 }): JSX.Element {
   const {
     t, step, setStep, department, setDepartment,
@@ -1044,6 +1242,7 @@ function SmartRecipeWizard(props: {
     catalogServices, setCatalogServices, customServices, setCustomServices,
     smartDiscountType, setSmartDiscountType, smartDiscountValue, setSmartDiscountValue,
     paymentMethod, setPaymentMethod, onLoadVehicles, onCreateCustomer, onSave,
+    loadCustomerLoyalty, clearLoyaltyOnWalkIn, loyaltyWidget,
   } = props
   const filteredBrands = brands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase()))
   const chosenModel = selectedModel || newModel
@@ -1109,7 +1308,17 @@ function SmartRecipeWizard(props: {
       {step === 2 && (
         <div className="space-y-4 rounded-lg border border-border bg-card p-4">
           <label className="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={walkInCustomer} onChange={e => setWalkInCustomer(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={walkInCustomer}
+              onChange={e => {
+                setWalkInCustomer(e.target.checked)
+                if (e.target.checked) {
+                  setSelectedCustomer(null)
+                  clearLoyaltyOnWalkIn()
+                }
+              }}
+            />
             {t('customReceipts.walkInCustomer', { defaultValue: 'Walk-in Customer' })}
           </label>
           {!walkInCustomer && (
@@ -1118,7 +1327,7 @@ function SmartRecipeWizard(props: {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-2 max-h-56 overflow-auto">
                   {customerResults.map(c => (
-                    <button key={c.id} className={`w-full text-left px-3 py-2 rounded border ${selectedCustomer?.id === c.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'}`} onClick={() => { setSelectedCustomer(c); void onLoadVehicles(c.id) }}>
+                    <button key={c.id} className={`w-full text-left px-3 py-2 rounded border ${selectedCustomer?.id === c.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'}`} onClick={() => { setSelectedCustomer(c); void onLoadVehicles(c.id); void loadCustomerLoyalty(c.id, deptParamForLoyalty(department)) }}>
                       <p className="font-medium">{c.name}</p>
                       <p className="text-xs text-muted-foreground">{c.phone || '—'}</p>
                     </button>
@@ -1235,6 +1444,7 @@ function SmartRecipeWizard(props: {
                 </div>
               ))}
             </div>
+            {loyaltyWidget}
             <div>
               <label className={smartLabelCls}>{t('customReceipts.paymentMethod', { defaultValue: 'Payment Method' })}</label>
               <select className={smartInputCls} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'Cash' | 'Card' | 'Bank Transfer')}>
