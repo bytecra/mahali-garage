@@ -248,6 +248,48 @@ declare global {
           bounds: { x: number; y: number; width: number; height: number }
         }>>>
       }
+      loyalty: {
+        get: (customerId: number) => Promise<IpcResponse<{
+          customer_id: number
+          points: number
+          stamps: number
+          total_visits: number
+          tier_level: number
+          id?: number
+          updated_at?: string
+        }>>
+        addTransaction: (data: {
+          customer_id: number
+          type: string
+          points_delta: number
+          stamps_delta: number
+          visits_delta: number
+          source?: string
+          source_id?: number
+          note?: string
+          created_by?: number
+        }) => Promise<IpcResponse<null>>
+        getTransactions: (customerId: number, limit?: number) => Promise<IpcResponse<Array<{
+          id: number
+          customer_id: number
+          type: string
+          points_delta: number
+          stamps_delta: number
+          visits_delta: number
+          source: string | null
+          source_id: number | null
+          note: string | null
+          created_by: number | null
+          created_at: string
+        }>>>
+        processAutoEarn: (params: {
+          customerId: number
+          amount: number
+          source: 'invoice' | 'receipt'
+          sourceId: number
+          createdBy: number
+        }) => Promise<IpcResponse<null>>
+      }
       tasks: {
         list:           (filters?: unknown) => Promise<IpcResponse<{ rows: unknown[]; total: number; page: number; pageSize: number }>>
         getById:        (id: number) => Promise<IpcResponse<unknown>>

@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { customReceiptRepo } from '../database/repositories/customReceiptRepo'
+import * as loyaltyRepo from '../database/repositories/loyaltyRepo'
 import { authService } from '../services/authService'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
@@ -38,6 +39,17 @@ export function registerCustomReceiptHandlers(): void {
         ...data,
         created_by: session.userId,
       })
+      if (data.customer_id && result.id) {
+        try {
+          loyaltyRepo.processAutoEarn(
+            data.customer_id,
+            data.amount,
+            'receipt',
+            result.id,
+            session.userId
+          )
+        } catch { /* non-fatal, don't fail receipt */ }
+      }
       return ok(result)
     } catch (e) {
       log.error('customReceipts:create', e)

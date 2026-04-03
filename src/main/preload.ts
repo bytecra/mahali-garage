@@ -336,6 +336,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listDisplays: () => invoke('tv:listDisplays'),
   },
 
+  loyalty: {
+    get: (customerId: number) => invoke('loyalty:get', customerId),
+    addTransaction: (data: unknown) => invoke('loyalty:addTransaction', data),
+    getTransactions: (customerId: number, limit?: number) =>
+      invoke('loyalty:getTransactions', customerId, limit),
+    processAutoEarn: (params: unknown) => invoke('loyalty:processAutoEarn', params),
+  },
+
   // ── Tasks ─────────────────────────────────────────────────────────────────
   tasks: {
     list:            (filters?: unknown)                      => invoke('tasks:list', filters),

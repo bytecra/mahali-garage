@@ -46,6 +46,10 @@ interface Receipt {
   discount_type?: string | null
   discount_value?: number | null
   discount_amount?: number | null
+  customer_id?: number | null
+  loyalty_points?: number | null
+  loyalty_stamps?: number | null
+  loyalty_visits?: number | null
 }
 
 interface CustomerLite { id: number; name: string; phone: string | null }
@@ -276,7 +280,41 @@ export default function CustomReceiptsPage(): JSX.Element {
 
   async function handlePrint(receipt: Receipt): Promise<void> {
     try {
-      await printCustomReceiptA4(receipt)
+      const full = await window.electronAPI.customReceipts.getById(receipt.id) as {
+        success: boolean
+        data?: Receipt
+      }
+      const fullData = full.success && full.data ? full.data : receipt
+
+      const loyaltyRawRes = await window.electronAPI.settings.get('loyalty.config')
+      const loyaltyRaw =
+        loyaltyRawRes.success && loyaltyRawRes.data != null ? loyaltyRawRes.data : ''
+      const loyaltyConfig = (() => {
+        try {
+          return loyaltyRaw ? JSON.parse(loyaltyRaw) : null
+        } catch {
+          return null
+        }
+      })() as { enabled?: boolean; showOnReceipt?: boolean } | null
+
+      let dataToPrint: Receipt = { ...fullData }
+      if (
+        loyaltyConfig?.enabled &&
+        loyaltyConfig?.showOnReceipt &&
+        fullData.customer_id
+      ) {
+        const lr = await window.electronAPI.loyalty.get(fullData.customer_id)
+        if (lr?.success && lr.data) {
+          dataToPrint = {
+            ...dataToPrint,
+            loyalty_points: lr.data.points,
+            loyalty_stamps: lr.data.stamps,
+            loyalty_visits: lr.data.total_visits,
+          }
+        }
+      }
+
+      await printCustomReceiptA4(dataToPrint)
     } catch (e) {
       console.error('Receipt print failed', e)
       toast.error(t('common.error'))

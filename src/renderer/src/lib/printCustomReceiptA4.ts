@@ -23,6 +23,9 @@ interface CustomReceiptPrintable {
   discount_type?: string | null
   discount_value?: number | null
   discount_amount?: number | null
+  loyalty_points?: number | null
+  loyalty_stamps?: number | null
+  loyalty_visits?: number | null
 }
 
 function escapeHtml(v: string): string {
@@ -85,6 +88,22 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
   const showLogo         = (settings['receipt.show_logo']          ?? 'true') === 'true'
   const showCustomerInfo = (settings['receipt.show_customer_info'] ?? 'true') === 'true'
   const showCarInfo      = (settings['receipt.show_car_info']      ?? 'true') === 'true'
+
+  const loyaltyRaw = settings['loyalty.config'] ?? ''
+  const loyaltyConfig = (() => {
+    try {
+      return loyaltyRaw ? JSON.parse(loyaltyRaw) as {
+        enabled?: boolean
+        showOnReceipt?: boolean
+        pointsLabel?: string
+        stampsForReward?: number
+      } : null
+    } catch {
+      return null
+    }
+  })()
+  const showLoyaltyOnReceipt =
+    Boolean(loyaltyConfig?.enabled && loyaltyConfig?.showOnReceipt)
 
   // Brands: prefer receipt.supported_brands, fall back to invoice.supported_brands
   const supportedBrandsRaw = settings['receipt.supported_brands']
@@ -253,6 +272,47 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
       ${taxEnabled && showVat ? `<div class="r"><span>VAT (${Number.isFinite(taxRate) ? taxRate : 0}%)</span><span>${currency(vatAmount, currencySymbol)}</span></div>` : ''}
       <div class="r grand"><span>Total Amount Due</span><span>${currency(totalDue, currencySymbol)}</span></div>
     </section>
+
+    ${showLoyaltyOnReceipt &&
+      (receipt.loyalty_points != null || receipt.loyalty_stamps != null)
+      ? `
+    <div style="border-top:1px solid #e2e8f0;
+      margin-top:10px;padding-top:8px;">
+      <div style="font-size:11px;
+        font-weight:700;margin-bottom:4px;
+        color:#334155;">
+        ${escapeHtml(
+          loyaltyConfig?.pointsLabel || 'Loyalty'
+        )}
+      </div>
+      ${receipt.loyalty_points != null
+        ? `<div style="display:flex;
+            justify-content:space-between;
+            font-size:11px;">
+            <span>
+              ${escapeHtml(
+                loyaltyConfig?.pointsLabel
+                || 'Points'
+              )}
+            </span>
+            <span style="font-weight:700;">
+              ${receipt.loyalty_points}
+            </span>
+           </div>`
+        : ''}
+      ${receipt.loyalty_stamps != null
+        ? `<div style="display:flex;
+            justify-content:space-between;
+            font-size:11px;">
+            <span>Stamps</span>
+            <span style="font-weight:700;">
+              ${receipt.loyalty_stamps} /
+              ${loyaltyConfig?.stampsForReward ?? 10}
+            </span>
+           </div>`
+        : ''}
+    </div>
+  ` : ''}
 
     <footer class="foot">
       ${showBrands && (hasLogoImages || supportedBrands.length > 0) ? `

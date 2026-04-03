@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Phone, Pencil, ChevronRight, Car, Plus, Eye, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Phone, Pencil, ChevronRight, Car, Plus, Eye, AlertCircle, Gift } from 'lucide-react'
 import { formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { usePermission } from '../../hooks/usePermission'
@@ -9,6 +9,7 @@ import { toast } from '../../store/notificationStore'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import CustomerForm from './CustomerForm'
 import Modal from '../../components/shared/Modal'
+import { useAuthStore } from '../../store/authStore'
 
 interface SummaryStats {
   total_spent: number
@@ -62,6 +63,8 @@ export default function CustomerProfile(): JSX.Element {
   const { t } = useTranslation()
   const canEdit   = usePermission('customers.edit')
   const canDelete = usePermission('customers.delete')
+  const user = useAuthStore(s => s.user)
+  const canManualAdjustLoyalty = ['owner', 'manager'].includes(user?.role ?? '')
 
   const [customer, setCustomer]               = useState<CustomerDetail | null>(null)
   const [vehicles, setVehicles]               = useState<OwnerVehicleRow[]>([])
@@ -75,9 +78,40 @@ export default function CustomerProfile(): JSX.Element {
   const [vehicleForm, setVehicleForm]         = useState(emptyVehicleForm)
   const [savingVehicle, setSavingVehicle]     = useState(false)
 
+  const [loyalty, setLoyalty] = useState<{
+    points: number
+    stamps: number
+    total_visits: number
+    tier_level: number
+  } | null>(null)
+  const [loyaltyConfig, setLoyaltyConfig] = useState<{
+    enabled: boolean
+    type?: 'points' | 'stamps' | 'tiers' | 'all'
+    pointsLabel?: string
+    stampsForReward?: number
+  } | null>(null)
+  const [loyaltyTxs, setLoyaltyTxs] = useState<
+    Array<{
+      id: number
+      type: string
+      points_delta: number
+      stamps_delta: number
+      note: string | null
+      created_at: string
+    }>
+  >([])
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [adjustNote, setAdjustNote] = useState('')
+  const [adjustPoints, setAdjustPoints] = useState(0)
+  const [adjustStamps, setAdjustStamps] = useState(0)
+  const [adjustSaving, setAdjustSaving] = useState(false)
+
   const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
+    setLoyalty(null)
+    setLoyaltyTxs([])
+    setLoyaltyConfig(null)
     const cid = Number(id)
     const [custRes, vehRes] = await Promise.all([
       window.electronAPI.customers.getById(cid),
@@ -90,6 +124,56 @@ export default function CustomerProfile(): JSX.Element {
       if (prev && vehs.some(v => v.id === prev)) return prev
       return vehs.length > 0 ? vehs[0].id : null
     })
+
+    const configRes = await window.electronAPI.settings.get('loyalty.config')
+    let parsedLoyalty: {
+      enabled: boolean
+      type?: 'points' | 'stamps' | 'tiers' | 'all'
+      pointsLabel?: string
+      stampsForReward?: number
+    } | null = null
+    if (configRes?.success && configRes.data) {
+      try {
+        parsedLoyalty = JSON.parse(configRes.data) as typeof parsedLoyalty
+        setLoyaltyConfig(parsedLoyalty)
+      } catch {
+        setLoyaltyConfig(null)
+      }
+    }
+
+    if (parsedLoyalty?.enabled && custRes.success) {
+      const lr = await window.electronAPI.loyalty.get(cid)
+      if (lr?.success && lr.data) {
+        const d = lr.data as { points: number; stamps: number; total_visits: number; tier_level: number }
+        setLoyalty({
+          points: d.points,
+          stamps: d.stamps,
+          total_visits: d.total_visits,
+          tier_level: d.tier_level,
+        })
+      }
+      const txr = await window.electronAPI.loyalty.getTransactions(cid, 10)
+      if (txr?.success && Array.isArray(txr.data)) {
+        setLoyaltyTxs(
+          (txr.data as Array<{
+            id: number
+            type: string
+            points_delta: number
+            stamps_delta: number
+            note: string | null
+            created_at: string
+          }>).map(r => ({
+            id: r.id,
+            type: r.type,
+            points_delta: r.points_delta,
+            stamps_delta: r.stamps_delta,
+            note: r.note,
+            created_at: r.created_at,
+          }))
+        )
+      }
+    }
+
     setLoading(false)
   }, [id])
 
@@ -135,6 +219,75 @@ export default function CustomerProfile(): JSX.Element {
     void load()
   }
 
+  const refreshLoyaltyData = useCallback(async () => {
+    if (!customer || !loyaltyConfig?.enabled) return
+    const lr = await window.electronAPI.loyalty.get(customer.id)
+    if (lr.success && lr.data) {
+      const d = lr.data as { points: number; stamps: number; total_visits: number; tier_level: number }
+      setLoyalty({
+        points: d.points,
+        stamps: d.stamps,
+        total_visits: d.total_visits,
+        tier_level: d.tier_level,
+      })
+    }
+    const txr = await window.electronAPI.loyalty.getTransactions(customer.id, 10)
+    if (txr.success && Array.isArray(txr.data)) {
+      setLoyaltyTxs(
+        (txr.data as Array<{
+          id: number
+          type: string
+          points_delta: number
+          stamps_delta: number
+          note: string | null
+          created_at: string
+        }>).map(r => ({
+          id: r.id,
+          type: r.type,
+          points_delta: r.points_delta,
+          stamps_delta: r.stamps_delta,
+          note: r.note,
+          created_at: r.created_at,
+        }))
+      )
+    }
+  }, [customer, loyaltyConfig?.enabled])
+
+  const handleLoyaltyAdjustSubmit = async () => {
+    if (!customer) return
+    const note = adjustNote.trim()
+    if (!note) {
+      toast.error('Note is required')
+      return
+    }
+    if (!user) {
+      toast.error(t('common.error'))
+      return
+    }
+    setAdjustSaving(true)
+    const res = await window.electronAPI.loyalty.addTransaction({
+      customer_id: customer.id,
+      type: 'manual_adjust',
+      points_delta: adjustPoints,
+      stamps_delta: adjustStamps,
+      visits_delta: 0,
+      source: 'manual',
+      note,
+      created_by: user.userId,
+    })
+    setAdjustSaving(false)
+    if (!res.success) {
+      toast.error(res.error ?? t('common.error'))
+      return
+    }
+    toast.success(t('common.success'))
+    setAdjustOpen(false)
+    setAdjustNote('')
+    setAdjustPoints(0)
+    setAdjustStamps(0)
+    void refreshLoyaltyData()
+  }
+
   if (loading) return (
     <div className="flex justify-center py-16">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -148,6 +301,14 @@ export default function CustomerProfile(): JSX.Element {
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId) ?? null
   const inputCls = 'w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring'
   const labelCls = 'block text-sm font-medium mb-1 text-foreground'
+
+  const progType = loyaltyConfig?.type ?? 'points'
+  const showPointsRow = progType === 'points' || progType === 'all'
+  const showStampsRow = progType === 'stamps' || progType === 'all'
+  const showVisitsRow = progType === 'stamps' || progType === 'tiers' || progType === 'all'
+  const showTierRow = progType === 'tiers' || progType === 'all'
+  const pointsLabel = loyaltyConfig?.pointsLabel?.trim() || 'Points'
+  const stampsForReward = loyaltyConfig?.stampsForReward ?? 10
 
   return (
     <div>
@@ -236,6 +397,155 @@ export default function CustomerProfile(): JSX.Element {
           </div>
         </div>
       </div>
+
+      {/* ── Loyalty Program ── */}
+      {loyaltyConfig?.enabled && (
+        <div className="bg-card border border-border rounded-xl p-4 mb-5">
+          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Gift className="w-4 h-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold text-foreground">Loyalty Program</h2>
+            </div>
+            {canManualAdjustLoyalty && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAdjustOpen(o => !o)
+                  setAdjustNote('')
+                  setAdjustPoints(0)
+                  setAdjustStamps(0)
+                }}
+                className="px-2.5 py-1.5 text-xs border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                Manual Adjust
+              </button>
+            )}
+          </div>
+
+          {loyalty && (
+            <div className="rounded-lg border border-border bg-muted/20 p-4 mb-4 space-y-2 text-sm">
+              {showPointsRow && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">{pointsLabel}</span>
+                  <span className="font-semibold tabular-nums text-foreground">{loyalty.points}</span>
+                </div>
+              )}
+              {showStampsRow && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Stamps</span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {loyalty.stamps} / {stampsForReward}
+                  </span>
+                </div>
+              )}
+              {showVisitsRow && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Visits</span>
+                  <span className="font-semibold tabular-nums text-foreground">{loyalty.total_visits}</span>
+                </div>
+              )}
+              {showTierRow && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Tier</span>
+                  <span className="font-semibold tabular-nums text-foreground">{loyalty.tier_level}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {adjustOpen && canManualAdjustLoyalty && (
+            <div className="rounded-lg border border-border p-4 mb-4 space-y-3 bg-muted/10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Points adjustment</label>
+                  <input
+                    type="number"
+                    value={adjustPoints}
+                    onChange={e => setAdjustPoints(Number(e.target.value))}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Stamps adjustment</label>
+                  <input
+                    type="number"
+                    value={adjustStamps}
+                    onChange={e => setAdjustStamps(Number(e.target.value))}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>
+                  Note <span className="text-destructive">*</span>
+                </label>
+                <input
+                  value={adjustNote}
+                  onChange={e => setAdjustNote(e.target.value)}
+                  placeholder="Reason for adjustment"
+                  className={inputCls}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdjustOpen(false)
+                    setAdjustNote('')
+                    setAdjustPoints(0)
+                    setAdjustStamps(0)
+                  }}
+                  className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleLoyaltyAdjustSubmit()}
+                  disabled={adjustSaving}
+                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-60 transition-colors"
+                >
+                  {adjustSaving ? 'Saving…' : 'Submit'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Recent transactions</h3>
+          {loyaltyTxs.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">No loyalty transactions yet.</p>
+          ) : (
+            <div className="bg-card border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-muted-foreground">
+                  <tr>
+                    <th className="text-start px-4 py-3 font-medium">Date</th>
+                    <th className="text-start px-4 py-3 font-medium">Type</th>
+                    <th className="text-end px-4 py-3 font-medium">Points</th>
+                    <th className="text-end px-4 py-3 font-medium">Stamps</th>
+                    <th className="text-start px-4 py-3 font-medium">Note</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {loyaltyTxs.map(tx => (
+                    <tr key={tx.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {formatDate(tx.created_at)}
+                      </td>
+                      <td className="px-4 py-3 text-foreground">{tx.type}</td>
+                      <td className="px-4 py-3 text-end tabular-nums">{tx.points_delta}</td>
+                      <td className="px-4 py-3 text-end tabular-nums">{tx.stamps_delta}</td>
+                      <td className="px-4 py-3 text-muted-foreground max-w-[12rem] truncate" title={tx.note ?? ''}>
+                        {tx.note ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Vehicles tabs ── */}
       <div className="bg-card border border-border rounded-xl p-4 mb-5">

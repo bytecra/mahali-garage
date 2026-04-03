@@ -28,6 +28,7 @@ import { registerCashDrawerHandlers } from './cashDrawerHandlers'
 import { registerAssetHandlers } from './assetHandlers'
 import { registerPrintHandlers } from './printHandlers'
 import { registerTvHandlers } from './tvHandlers'
+import { registerLoyaltyHandlers } from './loyaltyHandlers'
 
 export function registerAllHandlers(): void {
   registerAuthHandlers()
@@ -60,4 +61,5 @@ export function registerAllHandlers(): void {
   registerAssetHandlers()
   registerPrintHandlers()
   registerTvHandlers()
+  registerLoyaltyHandlers()
 }
