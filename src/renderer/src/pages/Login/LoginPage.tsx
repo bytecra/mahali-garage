@@ -21,6 +21,14 @@ export default function LoginPage(): JSX.Element {
   const [authType, setAuthType] = useState<AuthType>('password')
   const [passcode, setPasscode] = useState('')
   const [shake, setShake] = useState(false)
+  const [showReset, setShowReset] = useState(false)
+  const [resetCode, setResetCode] = useState('')
+  const [resetUsername, setResetUsername] = useState('')
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetConfirm, setResetConfirm] = useState('')
+  const [resetError, setResetError] = useState('')
+  const [resetSuccess, setResetSuccess] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
 
   const passcodeLength = authType === 'passcode_4' ? 4 : 6
   const isPasscodeMode = authType !== 'password'
@@ -71,6 +79,51 @@ export default function LoginPage(): JSX.Element {
     e.preventDefault()
     if (!username.trim() || !password.trim()) return
     await submitLogin(password)
+  }
+
+  async function handlePasswordReset(): Promise<void> {
+    setResetError('')
+    if (!resetCode.trim()) {
+      setResetError('Enter the reset code')
+      return
+    }
+    if (!resetUsername.trim()) {
+      setResetError('Enter your username')
+      return
+    }
+    if (resetPassword.length < 4) {
+      setResetError('Password must be at least 4 characters')
+      return
+    }
+    if (resetPassword !== resetConfirm) {
+      setResetError('Passwords do not match')
+      return
+    }
+    setResetLoading(true)
+    try {
+      const res = await (
+        window.electronAPI.auth as typeof window.electronAPI.auth & {
+          resetPassword: (params: {
+            code: string
+            username: string
+            newPassword: string
+          }) => Promise<{ success: boolean; error?: string }>
+        }
+      ).resetPassword({
+        code: resetCode.trim(),
+        username: resetUsername.trim(),
+        newPassword: resetPassword,
+      })
+      if (res?.success) {
+        setResetSuccess(true)
+      } else {
+        setResetError(res?.error || 'Invalid reset code')
+      }
+    } catch {
+      setResetError('Failed to reset password')
+    } finally {
+      setResetLoading(false)
+    }
   }
 
   const onPressDigit = (d: string): void => {
@@ -240,9 +293,136 @@ export default function LoginPage(): JSX.Element {
                 {t('auth.loginButton')}
               </button>
             )}
+            {!isPasscodeMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReset(true)
+                  setResetError('')
+                  setResetSuccess(false)
+                }}
+                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+              >
+                Forgot password?
+              </button>
+            )}
           </form>
         </div>
       </div>
+
+      {showReset && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background border border-border rounded-xl p-6 w-full max-w-sm shadow-xl space-y-4">
+
+            {resetSuccess ? (
+              <div className="text-center space-y-3">
+                <div className="text-4xl">✅</div>
+                <p className="font-semibold">
+                  Password Reset Successfully
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  You can now login with
+                  your new password.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReset(false)
+                    setResetSuccess(false)
+                    setResetCode('')
+                    setResetPassword('')
+                    setResetConfirm('')
+                    setResetUsername('')
+                  }}
+                  className="w-full py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium"
+                >
+                  Back to Login
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">
+                    Reset Password
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowReset(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Contact your system administrator
+                  to get a reset code for your account.
+                </p>
+
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={resetUsername}
+                    onChange={e => {
+                      setResetUsername(e.target.value)
+                      setResetError('')
+                    }}
+                    className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Reset code (MH-XXXXXX-XXXXXX)"
+                    value={resetCode}
+                    onChange={e => {
+                      setResetCode(e.target.value.toUpperCase())
+                      setResetError('')
+                    }}
+                    className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <input
+                    type="password"
+                    placeholder="New password"
+                    value={resetPassword}
+                    onChange={e => {
+                      setResetPassword(e.target.value)
+                      setResetError('')
+                    }}
+                    className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={resetConfirm}
+                    onChange={e => {
+                      setResetConfirm(e.target.value)
+                      setResetError('')
+                    }}
+                    className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+
+                {resetError && (
+                  <p className="text-xs text-destructive">
+                    {resetError}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={resetLoading}
+                  className="w-full py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {resetLoading
+                    ? 'Resetting...'
+                    : 'Reset Password'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

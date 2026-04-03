@@ -33,6 +33,7 @@ import { migration030 } from './030_performance_indexes'
 import { migration031 } from './031_custom_receipt_discount'
 import { migration032 } from './032_seed_car_brands'
 import { migration033 } from './033_loyalty'
+import { migration034 } from './034_dev_reset_codes'
 
 interface Migration {
   version: number
@@ -76,6 +77,7 @@ const migrations: Migration[] = [
   { version: 31, name: '031_custom_receipt_discount', up: migration031 },
   { version: 32, name: '032_seed_car_brands', up: migration032 },
   { version: 33, name: '033_loyalty', up: migration033 },
+  { version: 34, name: '034_dev_reset_codes', up: migration034 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

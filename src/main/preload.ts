@@ -13,6 +13,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     changePassword: (data: { currentPassword: string; newPassword: string }) =>
                       invoke('auth:changePassword', data),
     getAuthType:    (username: string) => invoke('auth:getAuthType', username),
+    generateResetCode: (username: string) =>
+      ipcRenderer.invoke('auth:generateResetCode', username),
+    resetPassword: (params: {
+      code: string
+      username: string
+      newPassword: string
+    }) => ipcRenderer.invoke('auth:resetPassword', params),
   },
 
   // ── Settings ─────────────────────────────────────────────────────────────
