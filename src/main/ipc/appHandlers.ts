@@ -13,6 +13,19 @@ function getResetHmacSecret(): string {
   return process.env.LICENSE_HMAC_SECRET || LICENSE_HMAC_FALLBACK
 }
 
+function compareVersions(current: string, latest: string): boolean {
+  const c = current.split('.').map(Number)
+  const l = latest.split('.').map(Number)
+  const len = Math.max(c.length, l.length)
+  for (let i = 0; i < len; i++) {
+    const cv = c[i] ?? 0
+    const lv = l[i] ?? 0
+    if (lv > cv) return true
+    if (lv < cv) return false
+  }
+  return false
+}
+
 export function registerAppHandlers(): void {
   ipcMain.handle('app:getVersion', () => app.getVersion())
 
@@ -48,19 +61,7 @@ export function registerAppHandlers(): void {
       }
       const latestVersion = data.tag_name.replace(/^v/, '')
 
-      const parseV = (v: string): [number, number, number] => {
-        const p = v.split('.').map(part => {
-          const n = Number(part)
-          return Number.isFinite(n) ? n : 0
-        })
-        return [p[0] ?? 0, p[1] ?? 0, p[2] ?? 0]
-      }
-      const [ma, mi, pa] = parseV(currentVersion)
-      const [la, li, lp] = parseV(latestVersion)
-      const hasUpdate =
-        la > ma ||
-        (la === ma && li > mi) ||
-        (la === ma && li === mi && lp > pa)
+      const hasUpdate = compareVersions(currentVersion, latestVersion)
 
       return {
         success: true,
