@@ -23,30 +23,26 @@ const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty'
-
-type LoyaltyProgramType = 'points' | 'stamps' | 'tiers' | 'all'
-
-interface LoyaltyConfigState {
-  enabled: boolean
-  type: LoyaltyProgramType
-  pointsPerAed: number
-  pointsLabel: string
-  stampsPerVisit: number
-  stampsForReward: number
-  stampRewardDesc: string
-  tier1Visits: number
-  tier1Discount: number
-  tier2Visits: number
-  tier2Discount: number
-  tier3Visits: number
-  tier3Discount: number
-  autoEarnInvoice: boolean
-  autoEarnReceipt: boolean
-  allowManualAdjust: boolean
-  showInProfile: boolean
-  showOnReceipt: boolean
+const DEFAULT_LOYALTY = {
+  enabled: false,
+  deptMode: 'combined' as 'combined' | 'per_dept',
+  type: 'points' as 'points' | 'stamps' | 'tiers' | 'all',
+  pointsPerAed: 1,
+  pointsLabel: 'Points',
+  stampsPerVisit: 1,
+  stampsForReward: 10,
+  stampRewardDesc: 'Free service',
+  tier1Visits: 5, tier1Discount: 5,
+  tier2Visits: 10, tier2Discount: 10,
+  tier3Visits: 20, tier3Discount: 15,
+  autoEarnInvoice: true,
+  autoEarnReceipt: true,
+  allowManualAdjust: true,
+  showInProfile: true,
+  showOnReceipt: true,
 }
+
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -94,27 +90,13 @@ export default function SettingsPage(): JSX.Element {
   const [brands, setBrands] = useState<CarBrand[]>([])
   const [tvDisplays, setTvDisplays] = useState<TvDisplayOption[]>([])
   const [shortcutsState, setShortcutsState] = useState<Record<string, string>>(() => ({ ...APP_SHORTCUT_DEFAULTS }))
-  const [loyaltyConfig, setLoyaltyConfig] = useState<LoyaltyConfigState>({
-    enabled: false,
-    type: 'points',
-    pointsPerAed: 1,
-    pointsLabel: 'Points',
-    stampsPerVisit: 1,
-    stampsForReward: 10,
-    stampRewardDesc: 'Free service',
-    tier1Visits: 5,
-    tier1Discount: 5,
-    tier2Visits: 10,
-    tier2Discount: 10,
-    tier3Visits: 20,
-    tier3Discount: 15,
-    autoEarnInvoice: true,
-    autoEarnReceipt: true,
-    allowManualAdjust: true,
-    showInProfile: true,
-    showOnReceipt: true,
-  })
+  const [loyaltyConfig, setLoyaltyConfig] = useState(DEFAULT_LOYALTY)
   const [loyaltySaving, setLoyaltySaving] = useState(false)
+
+  const setLC = <K extends keyof typeof DEFAULT_LOYALTY>(
+    key: K,
+    val: (typeof DEFAULT_LOYALTY)[K]
+  ) => setLoyaltyConfig(prev => ({ ...prev, [key]: val }))
 
   // Activity log state
   const [activityRows, setActivityRows]   = useState<ActivityRow[]>([])
@@ -131,6 +113,13 @@ export default function SettingsPage(): JSX.Element {
       const data = res.data as Record<string, string>
       setSettings(data)
       syncCurrency(data)
+    }
+    const lcRes = await window.electronAPI.settings.get('loyalty.config')
+    if (lcRes?.success && lcRes.data) {
+      try {
+        const parsed = JSON.parse(lcRes.data) as Partial<typeof DEFAULT_LOYALTY>
+        setLoyaltyConfig(prev => ({ ...prev, ...parsed }))
+      } catch { /* use defaults */ }
     }
     if (tab === 'invoice') {
       const bRes = await window.electronAPI.carBrands.list()
@@ -180,18 +169,6 @@ export default function SettingsPage(): JSX.Element {
         }
       } else {
         setShortcutsState({ ...APP_SHORTCUT_DEFAULTS })
-      }
-    })()
-  }, [])
-
-  useEffect(() => {
-    void (async () => {
-      const res = await window.electronAPI.settings.get('loyalty.config')
-      if (res.success && res.data) {
-        try {
-          const parsed = JSON.parse(res.data) as Partial<LoyaltyConfigState>
-          setLoyaltyConfig(prev => ({ ...prev, ...parsed }))
-        } catch { /* use defaults */ }
       }
     })()
   }, [])
@@ -299,7 +276,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'tax',        label: t('settings.tax'),       guard: canSettings },
     { key: 'appearance', label: t('settings.appearance') },
     { key: 'shortcuts', label: 'Shortcuts', guard: canSettings },
-    { key: 'loyalty', label: 'Loyalty Program' },
+    { key: 'loyalty', label: 'Loyalty' },
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
     { key: 'car-brands', label: t('settings.carBrands', { defaultValue: 'Car Brands' }), guard: canSettings },
@@ -371,19 +348,14 @@ export default function SettingsPage(): JSX.Element {
     set('tv_display_widgets', JSON.stringify(next))
   }
 
-  async function saveLoyaltyConfig(): Promise<void> {
+  async function saveLoyalty(): Promise<void> {
     setLoyaltySaving(true)
     try {
-      const res = await window.electronAPI.settings.set(
+      await window.electronAPI.settings.set(
         'loyalty.config',
         JSON.stringify(loyaltyConfig)
       )
-      if (res.success) {
-        toast.success('Loyalty settings saved')
-        setSettings(s => ({ ...s, 'loyalty.config': JSON.stringify(loyaltyConfig) }))
-      } else {
-        toast.error(res.error ?? 'Failed to save loyalty settings')
-      }
+      toast.success('Loyalty settings saved')
     } catch {
       toast.error('Failed to save loyalty settings')
     } finally {
@@ -880,242 +852,293 @@ export default function SettingsPage(): JSX.Element {
         )}
 
         {tab === 'loyalty' && (
-          <div className="space-y-6">
-            {/* ── Program Status ── */}
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-1">Loyalty Program</h3>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4"
-                  checked={loyaltyConfig.enabled}
-                  onChange={e => setLoyaltyConfig(c => ({ ...c, enabled: e.target.checked }))}
-                />
-                <span className="text-sm">{t('common.enabled', { defaultValue: 'Enabled' })}</span>
-              </label>
-              {!loyaltyConfig.enabled && (
-                <p className="text-sm text-muted-foreground mt-2">Enable to configure loyalty settings</p>
-              )}
+          <div className="space-y-6 max-w-2xl">
+
+            {/* Enable toggle */}
+            <div className="flex items-center
+      justify-between p-4 border border-border
+      rounded-lg">
+              <div>
+                <p className="font-medium text-sm">
+                  Loyalty Program
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Reward customers for their visits
+                </p>
+              </div>
+              <input type="checkbox"
+                checked={loyaltyConfig.enabled}
+                onChange={e =>
+                  setLC('enabled', e.target.checked)}
+                className="w-4 h-4 cursor-pointer"
+              />
             </div>
 
-            {loyaltyConfig.enabled && (
-              <>
-                {/* ── Program Type ── */}
-                <div className="pt-2 border-t border-border">
-                  <label className={labelCls}>Program Type</label>
-                  <div className="space-y-2 mt-2">
-                    {([
-                      ['points', 'Points per AED spent'],
-                      ['stamps', 'Stamp Card'],
-                      ['tiers', 'Discount Tiers'],
-                      ['all', 'All Combined'],
-                    ] as const).map(([value, label]) => (
-                      <label key={value} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="loyalty_program_type"
-                          className="w-4 h-4"
-                          checked={loyaltyConfig.type === value}
-                          onChange={() => setLoyaltyConfig(c => ({ ...c, type: value }))}
-                        />
-                        <span className="text-sm">{label}</span>
+            {loyaltyConfig.enabled && (<>
+
+              {/* Department Mode */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Department Tracking
+                </p>
+                <div className="space-y-2">
+                  {([
+                    ['combined',
+                      'Combined — one balance for all departments'],
+                    ['per_dept',
+                      'Per Department — separate Mechanical and Programming balances'],
+                  ] as const).map(([val, label]) => (
+                    <label key={val}
+                      className="flex items-center gap-2
+              text-sm cursor-pointer">
+                      <input type="radio"
+                        name="deptMode"
+                        value={val}
+                        checked={loyaltyConfig.deptMode === val}
+                        onChange={() => setLC('deptMode', val)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Program Type */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Program Type
+                </p>
+                <div className="space-y-2">
+                  {([
+                    ['points', 'Points per AED spent'],
+                    ['stamps', 'Stamp Card'],
+                    ['tiers', 'Discount Tiers'],
+                    ['all', 'All Combined'],
+                  ] as const).map(([val, label]) => (
+                    <label key={val}
+                      className="flex items-center gap-2
+              text-sm cursor-pointer">
+                      <input type="radio"
+                        name="loyaltyType"
+                        value={val}
+                        checked={loyaltyConfig.type === val}
+                        onChange={() => setLC('type', val)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Points Settings */}
+              {(loyaltyConfig.type === 'points' ||
+                loyaltyConfig.type === 'all') && (
+                <div className="space-y-3 p-4 border
+          border-border rounded-lg">
+                  <p className="text-sm font-semibold">
+                    Points Settings
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs
+                text-muted-foreground mb-1 block">
+                        Points per AED
                       </label>
-                    ))}
-                  </div>
-                </div>
-
-                {(loyaltyConfig.type === 'points' || loyaltyConfig.type === 'all') && (
-                  <div className="pt-2 border-t border-border space-y-3">
-                    <h3 className="text-sm font-semibold text-foreground">Points Settings</h3>
-                    <div>
-                      <label className={labelCls}>Points per AED</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        className={inputCls}
+                      <input type="number" min="0.1"
+                        step="0.1"
                         value={loyaltyConfig.pointsPerAed}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, pointsPerAed: Number(e.target.value) || 0 }))}
+                        onChange={e => setLC('pointsPerAed',
+                          parseFloat(e.target.value) || 1)}
+                        className="w-full border border-border
+                  rounded-md px-3 py-1.5 text-sm
+                  bg-background"
                       />
                     </div>
                     <div>
-                      <label className={labelCls}>Points label</label>
-                      <input
-                        type="text"
-                        className={inputCls}
+                      <label className="text-xs
+                text-muted-foreground mb-1 block">
+                        Points label
+                      </label>
+                      <input type="text"
                         value={loyaltyConfig.pointsLabel}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, pointsLabel: e.target.value }))}
+                        onChange={e =>
+                          setLC('pointsLabel', e.target.value)}
+                        className="w-full border border-border
+                  rounded-md px-3 py-1.5 text-sm
+                  bg-background"
                       />
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                {(loyaltyConfig.type === 'stamps' || loyaltyConfig.type === 'all') && (
-                  <div className="pt-2 border-t border-border space-y-3">
-                    <h3 className="text-sm font-semibold text-foreground">Stamp Card Settings</h3>
+              {/* Stamp Settings */}
+              {(loyaltyConfig.type === 'stamps' ||
+                loyaltyConfig.type === 'all') && (
+                <div className="space-y-3 p-4 border
+          border-border rounded-lg">
+                  <p className="text-sm font-semibold">
+                    Stamp Card Settings
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={labelCls}>Stamps per visit</label>
-                      <input
-                        type="number"
-                        min={0}
-                        className={inputCls}
+                      <label className="text-xs
+                text-muted-foreground mb-1 block">
+                        Stamps per visit
+                      </label>
+                      <input type="number" min="1"
                         value={loyaltyConfig.stampsPerVisit}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, stampsPerVisit: Number(e.target.value) || 0 }))}
+                        onChange={e => setLC('stampsPerVisit',
+                          parseInt(e.target.value, 10) || 1)}
+                        className="w-full border border-border
+                  rounded-md px-3 py-1.5 text-sm
+                  bg-background"
                       />
                     </div>
                     <div>
-                      <label className={labelCls}>Stamps needed for reward</label>
-                      <input
-                        type="number"
-                        min={0}
-                        className={inputCls}
+                      <label className="text-xs
+                text-muted-foreground mb-1 block">
+                        Stamps for reward
+                      </label>
+                      <input type="number" min="1"
                         value={loyaltyConfig.stampsForReward}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, stampsForReward: Number(e.target.value) || 0 }))}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Reward description</label>
-                      <input
-                        type="text"
-                        className={inputCls}
-                        value={loyaltyConfig.stampRewardDesc}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, stampRewardDesc: e.target.value }))}
+                        onChange={e => setLC('stampsForReward',
+                          parseInt(e.target.value, 10) || 10)}
+                        className="w-full border border-border
+                  rounded-md px-3 py-1.5 text-sm
+                  bg-background"
                       />
                     </div>
                   </div>
-                )}
-
-                {(loyaltyConfig.type === 'tiers' || loyaltyConfig.type === 'all') && (
-                  <div className="pt-2 border-t border-border space-y-3">
-                    <h3 className="text-sm font-semibold text-foreground">Discount Tiers</h3>
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
-                      <span>After</span>
-                      <input
-                        type="number"
-                        min={0}
-                        className={`${inputCls} w-24`}
-                        value={loyaltyConfig.tier1Visits}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, tier1Visits: Number(e.target.value) || 0 }))}
-                      />
-                      <span>visits →</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className={`${inputCls} w-24`}
-                        value={loyaltyConfig.tier1Discount}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, tier1Discount: Number(e.target.value) || 0 }))}
-                      />
-                      <span>% discount</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
-                      <span>After</span>
-                      <input
-                        type="number"
-                        min={0}
-                        className={`${inputCls} w-24`}
-                        value={loyaltyConfig.tier2Visits}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, tier2Visits: Number(e.target.value) || 0 }))}
-                      />
-                      <span>visits →</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className={`${inputCls} w-24`}
-                        value={loyaltyConfig.tier2Discount}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, tier2Discount: Number(e.target.value) || 0 }))}
-                      />
-                      <span>% discount</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
-                      <span>After</span>
-                      <input
-                        type="number"
-                        min={0}
-                        className={`${inputCls} w-24`}
-                        value={loyaltyConfig.tier3Visits}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, tier3Visits: Number(e.target.value) || 0 }))}
-                      />
-                      <span>visits →</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className={`${inputCls} w-24`}
-                        value={loyaltyConfig.tier3Discount}
-                        onChange={e => setLoyaltyConfig(c => ({ ...c, tier3Discount: Number(e.target.value) || 0 }))}
-                      />
-                      <span>% discount</span>
-                    </div>
+                  <div>
+                    <label className="text-xs
+              text-muted-foreground mb-1 block">
+                      Reward description
+                    </label>
+                    <input type="text"
+                      value={loyaltyConfig.stampRewardDesc}
+                      onChange={e =>
+                        setLC('stampRewardDesc', e.target.value)}
+                      className="w-full border border-border
+                rounded-md px-3 py-1.5 text-sm
+                bg-background"
+                    />
                   </div>
-                )}
-
-                {/* ── Earning Method ── */}
-                <div className="pt-2 border-t border-border space-y-2">
-                  <h3 className="text-sm font-semibold text-foreground mb-1">How points/stamps are earned</h3>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4"
-                      checked={loyaltyConfig.autoEarnInvoice}
-                      onChange={e => setLoyaltyConfig(c => ({ ...c, autoEarnInvoice: e.target.checked }))}
-                    />
-                    <span className="text-sm">Automatically on every invoice</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4"
-                      checked={loyaltyConfig.autoEarnReceipt}
-                      onChange={e => setLoyaltyConfig(c => ({ ...c, autoEarnReceipt: e.target.checked }))}
-                    />
-                    <span className="text-sm">Automatically on every receipt</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4"
-                      checked={loyaltyConfig.allowManualAdjust}
-                      onChange={e => setLoyaltyConfig(c => ({ ...c, allowManualAdjust: e.target.checked }))}
-                    />
-                    <span className="text-sm">Allow manual adjustment by staff</span>
-                  </label>
                 </div>
+              )}
 
-                {/* ── Visibility ── */}
-                <div className="pt-2 border-t border-border space-y-2">
-                  <h3 className="text-sm font-semibold text-foreground mb-1">Where to show loyalty info</h3>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4"
-                      checked={loyaltyConfig.showInProfile}
-                      onChange={e => setLoyaltyConfig(c => ({ ...c, showInProfile: e.target.checked }))}
-                    />
-                    <span className="text-sm">Customer profile</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4"
-                      checked={loyaltyConfig.showOnReceipt}
-                      onChange={e => setLoyaltyConfig(c => ({ ...c, showOnReceipt: e.target.checked }))}
-                    />
-                    <span className="text-sm">Printed receipts</span>
-                  </label>
+              {/* Discount Tiers */}
+              {(loyaltyConfig.type === 'tiers' ||
+                loyaltyConfig.type === 'all') && (
+                <div className="space-y-3 p-4 border
+          border-border rounded-lg">
+                  <p className="text-sm font-semibold">
+                    Discount Tiers
+                  </p>
+                  {([
+                    ['tier1Visits', 'tier1Discount', 'Tier 1'],
+                    ['tier2Visits', 'tier2Discount', 'Tier 2'],
+                    ['tier3Visits', 'tier3Discount', 'Tier 3'],
+                  ] as const).map(([vKey, dKey, label]) => (
+                    <div key={label}
+                      className="flex items-center gap-2
+              text-sm">
+                      <span className="w-12 shrink-0
+                font-medium">{label}</span>
+                      <span className="text-muted-foreground">
+                        After
+                      </span>
+                      <input type="number" min="1"
+                        value={loyaltyConfig[vKey]}
+                        onChange={e => setLC(vKey,
+                          parseInt(e.target.value, 10) || 1)}
+                        className="w-16 border border-border
+                  rounded-md px-2 py-1 text-sm
+                  bg-background text-center"
+                      />
+                      <span className="text-muted-foreground">
+                        visits →
+                      </span>
+                      <input type="number" min="1" max="100"
+                        value={loyaltyConfig[dKey]}
+                        onChange={e => setLC(dKey,
+                          parseInt(e.target.value, 10) || 1)}
+                        className="w-16 border border-border
+                  rounded-md px-2 py-1 text-sm
+                  bg-background text-center"
+                      />
+                      <span className="text-muted-foreground">
+                        % off
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              </>
-            )}
+              )}
 
+              {/* Earning Method */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Earning Method
+                </p>
+                {([
+                  ['autoEarnInvoice',
+                    'Automatically on every invoice'],
+                  ['autoEarnReceipt',
+                    'Automatically on every receipt'],
+                  ['allowManualAdjust',
+                    'Allow manual adjustment by staff'],
+                ] as const).map(([key, label]) => (
+                  <label key={key}
+                    className="flex items-center gap-2
+            text-sm cursor-pointer">
+                    <input type="checkbox"
+                      checked={loyaltyConfig[key]}
+                      onChange={e =>
+                        setLC(key, e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+
+              {/* Visibility */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Visibility
+                </p>
+                {([
+                  ['showInProfile', 'Customer profile'],
+                  ['showOnReceipt', 'Printed receipts'],
+                ] as const).map(([key, label]) => (
+                  <label key={key}
+                    className="flex items-center gap-2
+            text-sm cursor-pointer">
+                    <input type="checkbox"
+                      checked={loyaltyConfig[key]}
+                      onChange={e =>
+                        setLC(key, e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+
+            </>)}
+
+            {/* Save */}
             <button
               type="button"
-              onClick={() => void saveLoyaltyConfig()}
+              onClick={() => void saveLoyalty()}
               disabled={loyaltySaving}
-              className={saveBtnCls}
-            >
+              className="px-4 py-2 bg-primary
+        text-primary-foreground rounded-md
+        text-sm font-medium hover:bg-primary/90
+        disabled:opacity-50">
               {loyaltySaving ? 'Saving...' : 'Save'}
             </button>
+
           </div>
         )}
 
