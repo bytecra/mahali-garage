@@ -6,6 +6,7 @@ export const TV_DISPLAY_WIDGETS = [
   { id: 'cash_in_hand', label: 'Cash in Hand' },
   { id: 'today_sales', label: "Today's Sales" },
   { id: 'job_cards_kanban', label: 'Job Cards Kanban' },
+  { id: 'employees_available_today', label: 'Employees Available Today' },
   { id: 'current_time_date', label: 'Current Time & Date' }, // always enabled
 ] as const
 

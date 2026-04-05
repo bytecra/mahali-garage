@@ -746,7 +746,7 @@ export default function DashboardPage(): JSX.Element {
       </div>
 
       {/* Employees Available Today */}
-      {employeesAvailability && (
+      {widgets.employees_available_today && employeesAvailability && (
         <div className="bg-card border border-border rounded-xl p-4 space-y-3 mb-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">👥 Employees Available Today</h3>

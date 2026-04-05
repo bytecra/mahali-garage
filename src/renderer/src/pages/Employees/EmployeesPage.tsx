@@ -1686,7 +1686,7 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                 <div className="grid grid-cols-2 gap-2">
                   <div className="p-3 bg-muted/30 rounded-lg text-center">
                     <p className="text-xs text-muted-foreground">
-                      {t('employees.attendanceRate', { defaultValue: 'Attendance rate' })}
+                      {t('employees.attendanceRate')}
                     </p>
                     <p className="text-xl font-bold text-primary">
                       {Math.round(attendanceSummary.attendance_rate * 100)}%
@@ -1694,7 +1694,7 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                   </div>
                   <div className="p-3 bg-muted/30 rounded-lg text-center">
                     <p className="text-xs text-muted-foreground">
-                      {t('employees.presentDays', { defaultValue: 'Present days' })}
+                      {t('employees.workingVsMarked')}
                     </p>
                     <p className="text-xl font-bold text-foreground">
                       {attendanceSummary.present_days}

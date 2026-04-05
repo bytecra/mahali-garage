@@ -19,6 +19,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'sales_trend_7_days', label: 'Sales Trend (7 days)' },
   { id: 'top_parts', label: 'Top Parts' },
   { id: 'unpaid_salaries', label: 'Unpaid Salaries' },
+  { id: 'employees_available_today', label: 'Employees Available Today' },
 ] as const
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]['id']

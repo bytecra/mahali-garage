@@ -35,6 +35,7 @@ export interface CustomReceiptInput {
   hours_worked?: number | null
   work_start_time?: string | null
   work_end_time?: string | null
+  inspection_data?: string | null
   created_by: number
 }
 
@@ -109,6 +110,7 @@ export const customReceiptRepo = {
       push('hours_worked', input.hours_worked ?? null)
       push('work_start_time', cleanText(input.work_start_time))
       push('work_end_time', cleanText(input.work_end_time))
+      push('inspection_data', cleanText(input.inspection_data))
 
       const placeholders = cols.map(() => '?').join(', ')
       const sql = `INSERT INTO custom_receipts (${cols.join(', ')}) VALUES (${placeholders})`

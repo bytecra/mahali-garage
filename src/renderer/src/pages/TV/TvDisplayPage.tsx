@@ -27,6 +27,22 @@ type TvJobCard = {
   technician_name: string | null
 }
 
+type EmployeesAvailabilityData = {
+  mechanical_total: number
+  mechanical_available: number
+  programming_total: number
+  programming_available: number
+  both_total: number
+  both_available: number
+  not_marked: number
+  unavailable_reason: Array<{
+    employee_id: string
+    full_name: string
+    department: string
+    reason: string
+  }>
+}
+
 const TV_COLUMNS = [
   { key: 'in_progress', label: 'In Progress', color: 'border-blue-500' },
   { key: 'waiting_parts', label: 'Waiting for Parts', color: 'border-amber-500' },
@@ -50,14 +66,16 @@ export default function TvDisplayPage(): JSX.Element {
   const [now, setNow] = useState(new Date())
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [widgets, setWidgets] = useState(() => parseTvDisplayWidgets())
+  const [employeesAvailability, setEmployeesAvailability] = useState<EmployeesAvailabilityData | null>(null)
 
   async function loadData(): Promise<void> {
     try {
-      const [settingsRes, dashRes, cashRes, jobsRes] = await Promise.all([
+      const [settingsRes, dashRes, cashRes, jobsRes, availRes] = await Promise.all([
         window.electronAPI.settings.getAll(),
         window.electronAPI.dashboard.getSummary(),
         window.electronAPI.reports.cashByMethod(new Date().toISOString().slice(0, 10)),
         window.electronAPI.jobCards.getByStatus(),
+        window.electronAPI.dashboard.employeesAvailability(),
       ])
 
       if (settingsRes.success && settingsRes.data) {
@@ -68,6 +86,7 @@ export default function TvDisplayPage(): JSX.Element {
       if (dashRes.success && dashRes.data) setDashboard(dashRes.data as DashboardData)
       if (cashRes.success && cashRes.data) setCash(cashRes.data as CashMethod)
       if (jobsRes.success && jobsRes.data) setJobs(jobsRes.data as TvJobCard[])
+      if (availRes?.success && availRes.data) setEmployeesAvailability(availRes.data as EmployeesAvailabilityData)
       setLastUpdated(new Date())
     } catch {
       // keep existing snapshot on transient failures
@@ -128,7 +147,7 @@ export default function TvDisplayPage(): JSX.Element {
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
         {widgets.vehicles_in_garage && <div className={statCls}>
           <div className="text-xl text-slate-300">Vehicles in Garage</div>
           <div className="text-5xl font-bold text-emerald-400 mt-2">
@@ -162,6 +181,30 @@ export default function TvDisplayPage(): JSX.Element {
           <div className="text-xl text-slate-300">Today's Sales</div>
           <div className="text-5xl font-bold text-green-400 mt-2">{formatCurrency(dashboard?.todayRevenue ?? 0)}</div>
         </div>}
+        {widgets.employees_available_today && employeesAvailability && (
+          <div className={statCls}>
+            <div className="text-xl text-slate-300">Employees Available Today</div>
+            <div className="text-3xl font-bold text-cyan-400 mt-2 leading-tight space-y-1">
+              <div>
+                M: {employeesAvailability.mechanical_available}
+                <span className="text-slate-500 font-normal">/{employeesAvailability.mechanical_total}</span>
+              </div>
+              <div>
+                P: {employeesAvailability.programming_available}
+                <span className="text-slate-500 font-normal">/{employeesAvailability.programming_total}</span>
+              </div>
+              <div>
+                B: {employeesAvailability.both_available}
+                <span className="text-slate-500 font-normal">/{employeesAvailability.both_total}</span>
+              </div>
+            </div>
+            {employeesAvailability.not_marked > 0 && (
+              <p className="text-slate-400 text-base mt-2">
+                ⚠ {employeesAvailability.not_marked} not marked today
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {widgets.job_cards_kanban && (

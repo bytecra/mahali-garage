@@ -33,6 +33,7 @@ interface CustomReceiptPrintable {
     enabled?: boolean
     showOnReceipt?: boolean
   } | null
+  inspection_data?: string | null
 }
 
 function escapeHtml(v: string): string {
@@ -70,6 +71,164 @@ function dateLabel(input: string): string {
   const d = new Date(input)
   if (Number.isNaN(d.getTime())) return input
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function buildInspectionSection(inspectionData: string | null | undefined): string {
+  if (!inspectionData) return ''
+  try {
+    const inspection = JSON.parse(inspectionData) as {
+      markers?: Array<{ x: number; y: number; type: string; note: string }>
+      notes?: string
+    }
+    const markers = inspection.markers ?? []
+    const notes = typeof inspection.notes === 'string' ? inspection.notes.trim() : ''
+    if (!markers.length && !notes) return ''
+
+    const markerColors: Record<string, string> = {
+      scratch: '#ef4444',
+      dent: '#f97316',
+      broken: '#1e293b',
+      other: '#eab308',
+    }
+
+    const markerSvg = markers
+      .map((m, i) => {
+        const cx = (m.x / 100) * 200
+        const cy = (m.y / 100) * 350
+        const color = markerColors[m.type] || '#64748b'
+        return `
+            <circle cx="${cx}" cy="${cy}"
+              r="8" fill="${color}"
+              stroke="white" stroke-width="1.5"/>
+            <text x="${cx}" y="${cy + 4}"
+              text-anchor="middle"
+              font-size="8" fill="white"
+              font-weight="bold">${i + 1}</text>
+          `
+      })
+      .join('')
+
+    const legendItems = markers
+      .map(
+        (m, i) => `
+          <div style="display:flex;
+            align-items:center;gap:6px;
+            margin-bottom:3px;">
+            <div style="width:16px;height:16px;
+              border-radius:50%;
+              background:${markerColors[m.type] || '#64748b'};
+              display:flex;align-items:center;
+              justify-content:center;
+              color:white;font-size:9px;
+              font-weight:bold;flex-shrink:0;">
+              ${i + 1}
+            </div>
+            <span style="font-size:11px;
+              text-transform:capitalize;">
+              ${escapeHtml(m.type)}
+              ${m.note ? ` — ${escapeHtml(m.note)}` : ''}
+            </span>
+          </div>
+        `,
+      )
+      .join('')
+
+    return `
+        <div style="margin:16px 0;
+          border-top:1px solid #e2e8f0;
+          padding-top:12px;">
+          <p style="font-size:12px;
+            font-weight:600;
+            margin-bottom:8px;
+            color:#334155;">
+            Car Condition at Arrival
+          </p>
+          <div style="display:flex;
+            gap:16px;align-items:flex-start;">
+            
+            <div style="flex-shrink:0;">
+              <svg viewBox="0 0 200 350"
+                width="80" height="140"
+                xmlns="http://www.w3.org/2000/svg">
+                <rect x="40" y="60" width="120"
+                  height="230" rx="20"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2.5"/>
+                <rect x="55" y="75" width="90"
+                  height="50" rx="8"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2"/>
+                <rect x="55" y="225" width="90"
+                  height="50" rx="8"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2"/>
+                <rect x="50" y="30" width="100"
+                  height="35" rx="10"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2"/>
+                <rect x="50" y="285" width="100"
+                  height="35" rx="10"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2"/>
+                <rect x="15" y="55" width="25"
+                  height="45" rx="5"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2"/>
+                <rect x="160" y="55" width="25"
+                  height="45" rx="5"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2"/>
+                <rect x="15" y="250" width="25"
+                  height="45" rx="5"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2"/>
+                <rect x="160" y="250" width="25"
+                  height="45" rx="5"
+                  fill="none" stroke="#94a3b8"
+                  stroke-width="2"/>
+                <line x1="40" y1="175"
+                  x2="160" y2="175"
+                  stroke="#94a3b8"
+                  stroke-width="1.5"
+                  stroke-dasharray="4 2"/>
+                ${markerSvg}
+              </svg>
+            </div>
+
+            <div style="flex:1;">
+              ${legendItems}
+              ${notes ? `
+                <p style="font-size:11px;
+                  color:#64748b;margin-top:6px;
+                  font-style:italic;">
+                  Note: ${escapeHtml(notes)}
+                </p>
+              ` : ''}
+            </div>
+          </div>
+
+          <div style="margin-top:12px;
+            display:flex;gap:40px;">
+            <div style="flex:1;
+              border-top:1px solid #94a3b8;
+              padding-top:6px;
+              text-align:center;
+              font-size:10px;color:#64748b;">
+              Customer Signature
+            </div>
+            <div style="flex:1;
+              border-top:1px solid #94a3b8;
+              padding-top:6px;
+              text-align:center;
+              font-size:10px;color:#64748b;">
+              Technician Signature
+            </div>
+          </div>
+        </div>
+      `
+  } catch {
+    return ''
+  }
 }
 
 export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Promise<void> {
@@ -269,6 +428,8 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
         ` : ''}
       </div>
     </section>
+
+    ${buildInspectionSection(receipt.inspection_data)}
 
     ${(receipt.department !== 'programming') && mechanical.length > 0
       ? section('Mechanical Services', mechanical)

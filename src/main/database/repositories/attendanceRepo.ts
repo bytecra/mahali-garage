@@ -53,8 +53,11 @@ export interface AttendanceRecordRow {
   marked_at: string
 }
 
+/** Denominator = days with any attendance mark; numerator = marks where status.counts_as_working = 1. */
 export interface AttendanceSummary {
+  /** Days in month with at least one attendance record (rate denominator). */
   total_working_days: number
+  /** Days marked with a status that counts as working (rate numerator). */
   present_days: number
   attendance_rate: number
   by_status: Array<{
@@ -290,8 +293,8 @@ export const attendanceRepo = {
     const agg = db
       .prepare(
         `SELECT
-           SUM(CASE WHEN st.name = 'Present' THEN 1 ELSE 0 END) AS present_days,
-           SUM(CASE WHEN st.counts_as_working = 1 THEN 1 ELSE 0 END) AS total_working_days
+           COUNT(*) AS days_marked,
+           COALESCE(SUM(CASE WHEN st.counts_as_working = 1 THEN 1 ELSE 0 END), 0) AS working_days
          FROM employee_attendance ea
          JOIN attendance_status_types st ON st.id = ea.status_type_id
          WHERE ea.employee_id = ?
@@ -299,17 +302,17 @@ export const attendanceRepo = {
            AND ea.date < ?`
       )
       .get(employeeId, from, toExclusive) as {
-      present_days: number | null
-      total_working_days: number | null
+      days_marked: number | null
+      working_days: number | null
     }
 
-    const presentDays = Number(agg.present_days ?? 0)
-    const totalWorking = Number(agg.total_working_days ?? 0)
-    const attendanceRate = totalWorking > 0 ? presentDays / totalWorking : 0
+    const daysMarked = Number(agg.days_marked ?? 0)
+    const workingDays = Number(agg.working_days ?? 0)
+    const attendanceRate = daysMarked > 0 ? workingDays / daysMarked : 0
 
     return {
-      total_working_days: totalWorking,
-      present_days: presentDays,
+      total_working_days: daysMarked,
+      present_days: workingDays,
       attendance_rate: attendanceRate,
       by_status: byStatus.map(r => ({
         status_name: r.status_name,

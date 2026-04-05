@@ -81,6 +81,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     search:  (query: string)             => invoke('customers:search', query),
   },
 
+  appointments: {
+    list: (params: { from: string; to: string; department?: string; status?: string }) =>
+      invoke('appointments:list', params),
+    create: (data: unknown) => invoke('appointments:create', data),
+    getById: (id: number) => invoke('appointments:getById', id),
+    updateStatus: (id: number, status: string) => invoke('appointments:updateStatus', id, status),
+    convertToJobCard: (id: number, jobCardId: number) =>
+      invoke('appointments:convertToJobCard', id, jobCardId),
+    delete: (id: number) => invoke('appointments:delete', id),
+  },
+
   // ── Sales ─────────────────────────────────────────────────────────────────
   sales: {
     list:    (filters?: unknown)          => invoke('sales:list', filters),

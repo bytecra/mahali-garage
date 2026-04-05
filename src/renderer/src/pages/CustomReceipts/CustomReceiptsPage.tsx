@@ -50,6 +50,7 @@ interface Receipt {
   loyalty_points?: number | null
   loyalty_stamps?: number | null
   loyalty_visits?: number | null
+  inspection_data?: string | null
 }
 
 interface ReceiptEmployeePickerRow {
@@ -311,6 +312,229 @@ async function buildThermalHtml(receipt: Receipt): Promise<string> {
 </html>`
 }
 
+type InspectionMarkerType = 'scratch' | 'dent' | 'broken' | 'other'
+
+interface InspectionMarker {
+  x: number
+  y: number
+  type: InspectionMarkerType
+  note: string
+}
+
+function CarTopViewSvg(): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 200 350"
+      xmlns="http://www.w3.org/2000/svg"
+      className="w-full h-full max-h-48 text-foreground"
+      style={{ maxWidth: '160px' }}
+    >
+      <rect x="40" y="60" width="120" height="230" rx="20" fill="none" stroke="currentColor" strokeWidth="2.5" />
+      <rect x="55" y="75" width="90" height="50" rx="8" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="55" y="225" width="90" height="50" rx="8" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="50" y="30" width="100" height="35" rx="10" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="50" y="285" width="100" height="35" rx="10" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="15" y="55" width="25" height="45" rx="5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="160" y="55" width="25" height="45" rx="5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="15" y="250" width="25" height="45" rx="5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <rect x="160" y="250" width="25" height="45" rx="5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <line x1="40" y1="175" x2="160" y2="175" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 2" />
+      <rect x="43" y="148" width="14" height="5" rx="2" fill="currentColor" opacity="0.4" />
+      <rect x="143" y="148" width="14" height="5" rx="2" fill="currentColor" opacity="0.4" />
+      <rect x="43" y="195" width="14" height="5" rx="2" fill="currentColor" opacity="0.4" />
+      <rect x="143" y="195" width="14" height="5" rx="2" fill="currentColor" opacity="0.4" />
+      <text x="100" y="22" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">
+        FRONT
+      </text>
+      <text x="100" y="338" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">
+        REAR
+      </text>
+    </svg>
+  )
+}
+
+function CarInspectionPanel(props: {
+  showInspection: boolean
+  setShowInspection: Dispatch<SetStateAction<boolean>>
+  inspectionMarkers: InspectionMarker[]
+  setInspectionMarkers: Dispatch<SetStateAction<InspectionMarker[]>>
+  inspectionNotes: string
+  setInspectionNotes: Dispatch<SetStateAction<string>>
+  selectedMarkerType: InspectionMarkerType
+  setSelectedMarkerType: Dispatch<SetStateAction<InspectionMarkerType>>
+  t: (key: string, opts?: { defaultValue?: string }) => string
+}): JSX.Element {
+  const {
+    showInspection,
+    setShowInspection,
+    inspectionMarkers,
+    setInspectionMarkers,
+    inspectionNotes,
+    setInspectionNotes,
+    selectedMarkerType,
+    setSelectedMarkerType,
+    t,
+  } = props
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setShowInspection((p) => !p)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 text-sm font-medium"
+      >
+        <span className="flex items-center gap-2">
+          🚗 Car Inspection Diagram
+          {inspectionMarkers.length > 0 && (
+            <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
+              {inspectionMarkers.length} mark
+              {inspectionMarkers.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </span>
+        <span className="text-muted-foreground">{showInspection ? '▲' : '▼'}</span>
+      </button>
+
+      {showInspection && (
+        <div className="p-4 space-y-3">
+          <div className="flex gap-2 flex-wrap">
+            {(
+              [
+                ['scratch', '🔴', 'Scratch'],
+                ['dent', '🟠', 'Dent'],
+                ['broken', '⚫', 'Broken'],
+                ['other', '🟡', 'Other'],
+              ] as const
+            ).map(([type, emoji, label]) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setSelectedMarkerType(type)}
+                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                  selectedMarkerType === type
+                    ? 'bg-primary/10 border-primary text-primary font-medium'
+                    : 'border-border hover:bg-muted/50'
+                }`}
+              >
+                {emoji} {label}
+              </button>
+            ))}
+          </div>
+
+          <p className="text-xs text-muted-foreground">{t('customReceipts.inspectionHint', { defaultValue: 'Click on the car diagram to mark damage' })}</p>
+
+          <div
+            className="relative border border-border rounded-lg bg-white dark:bg-slate-900 cursor-crosshair select-none"
+            style={{ paddingBottom: '60%' }}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              const x = ((e.clientX - rect.left) / rect.width) * 100
+              const y = ((e.clientY - rect.top) / rect.height) * 100
+              setInspectionMarkers((prev) => [
+                ...prev,
+                {
+                  x: Math.round(x * 10) / 10,
+                  y: Math.round(y * 10) / 10,
+                  type: selectedMarkerType,
+                  note: '',
+                },
+              ])
+            }}
+          >
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+              <CarTopViewSvg />
+            </div>
+
+            {inspectionMarkers.map((marker, i) => (
+              <div
+                key={i}
+                className="absolute w-5 h-5 rounded-full flex items-center justify-center text-xs cursor-pointer transform -translate-x-1/2 -translate-y-1/2 border-2 border-white shadow-md"
+                style={{
+                  left: `${marker.x}%`,
+                  top: `${marker.y}%`,
+                  backgroundColor:
+                    marker.type === 'scratch'
+                      ? '#ef4444'
+                      : marker.type === 'dent'
+                        ? '#f97316'
+                        : marker.type === 'broken'
+                          ? '#1e293b'
+                          : '#eab308',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setInspectionMarkers((prev) => prev.filter((_, idx) => idx !== i))
+                }}
+                title="Click to remove"
+              >
+                {i + 1}
+              </div>
+            ))}
+          </div>
+
+          {inspectionMarkers.length > 0 && (
+            <div className="space-y-1">
+              {inspectionMarkers.map((m, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                    style={{
+                      backgroundColor:
+                        m.type === 'scratch'
+                          ? '#ef4444'
+                          : m.type === 'dent'
+                            ? '#f97316'
+                            : m.type === 'broken'
+                              ? '#1e293b'
+                              : '#eab308',
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="capitalize font-medium">{m.type}</span>
+                  <input
+                    type="text"
+                    placeholder="Note (optional)"
+                    value={m.note}
+                    onChange={(e) => {
+                      const updated = [...inspectionMarkers]
+                      updated[i] = { ...updated[i], note: e.target.value }
+                      setInspectionMarkers(updated)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 border border-input rounded px-2 py-1 bg-background text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setInspectionMarkers((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input
+            type="text"
+            placeholder="General inspection notes..."
+            value={inspectionNotes}
+            onChange={(e) => setInspectionNotes(e.target.value)}
+            className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+          />
+
+          {inspectionMarkers.length > 0 && (
+            <button type="button" onClick={() => setInspectionMarkers([])} className="text-xs text-muted-foreground hover:text-destructive">
+              Clear all markers
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CustomReceiptsPage(): JSX.Element {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -372,6 +596,10 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [hoursWorked, setHoursWorked] = useState('')
   const [workStartTime, setWorkStartTime] = useState('')
   const [workEndTime, setWorkEndTime] = useState('')
+  const [showInspection, setShowInspection] = useState(false)
+  const [inspectionMarkers, setInspectionMarkers] = useState<InspectionMarker[]>([])
+  const [inspectionNotes, setInspectionNotes] = useState('')
+  const [selectedMarkerType, setSelectedMarkerType] = useState<InspectionMarkerType>('scratch')
 
   const canCreate = ['owner', 'manager'].includes(role ?? '')
   const canDelete = ['owner', 'manager'].includes(role ?? '')
@@ -624,6 +852,9 @@ export default function CustomReceiptsPage(): JSX.Element {
     setHoursWorked('')
     setWorkStartTime('')
     setWorkEndTime('')
+    setInspectionMarkers([])
+    setInspectionNotes('')
+    setShowInspection(false)
   }
 
   function resetSmartFlow(): void {
@@ -654,6 +885,9 @@ export default function CustomReceiptsPage(): JSX.Element {
     setHoursWorked('')
     setWorkStartTime('')
     setWorkEndTime('')
+    setInspectionMarkers([])
+    setInspectionNotes('')
+    setShowInspection(false)
   }
 
   async function handlePrint(receipt: Receipt): Promise<void> {
@@ -675,7 +909,10 @@ export default function CustomReceiptsPage(): JSX.Element {
         }
       })() as { enabled?: boolean; showOnReceipt?: boolean } | null
 
-      let printableReceipt: Receipt = { ...fullData }
+      let printableReceipt: Receipt = {
+        ...fullData,
+        inspection_data: fullData.inspection_data ?? null,
+      }
       if (
         loyaltyConfig?.enabled &&
         loyaltyConfig?.showOnReceipt &&
@@ -812,6 +1049,13 @@ export default function CustomReceiptsPage(): JSX.Element {
         hours_worked: parseFloat(hoursWorked) || undefined,
         work_start_time: workStartTime || undefined,
         work_end_time: workEndTime || undefined,
+        inspection_data:
+          inspectionMarkers.length > 0
+            ? JSON.stringify({
+                markers: inspectionMarkers,
+                notes: inspectionNotes,
+              })
+            : undefined,
       }
       const createRes = await window.electronAPI.customReceipts.create(payload) as {
         success: boolean
@@ -1051,6 +1295,18 @@ export default function CustomReceiptsPage(): JSX.Element {
                 )}
               </div>
 
+              <CarInspectionPanel
+                showInspection={showInspection}
+                setShowInspection={setShowInspection}
+                inspectionMarkers={inspectionMarkers}
+                setInspectionMarkers={setInspectionMarkers}
+                inspectionNotes={inspectionNotes}
+                setInspectionNotes={setInspectionNotes}
+                selectedMarkerType={selectedMarkerType}
+                setSelectedMarkerType={setSelectedMarkerType}
+                t={t}
+              />
+
               {(department === 'mechanical' || department === 'both') && (
                 <ServiceSection
                   title={t('customReceipts.mechanicalServices', { defaultValue: 'Mechanical Services' })}
@@ -1251,6 +1507,14 @@ export default function CustomReceiptsPage(): JSX.Element {
           workEndTime={workEndTime}
           setWorkEndTime={setWorkEndTime}
           hoursWorked={hoursWorked}
+          showInspection={showInspection}
+          setShowInspection={setShowInspection}
+          inspectionMarkers={inspectionMarkers}
+          setInspectionMarkers={setInspectionMarkers}
+          inspectionNotes={inspectionNotes}
+          setInspectionNotes={setInspectionNotes}
+          selectedMarkerType={selectedMarkerType}
+          setSelectedMarkerType={setSelectedMarkerType}
           onLoadVehicles={async (customerId: number) => {
             const vres = await window.electronAPI.vehicles.list({ owner_id: customerId, page: 1, pageSize: 100 })
             if (vres.success && vres.data) {
@@ -1390,6 +1654,13 @@ export default function CustomReceiptsPage(): JSX.Element {
               hours_worked: parseFloat(hoursWorked) || undefined,
               work_start_time: workStartTime || undefined,
               work_end_time: workEndTime || undefined,
+              inspection_data:
+                inspectionMarkers.length > 0
+                  ? JSON.stringify({
+                      markers: inspectionMarkers,
+                      notes: inspectionNotes,
+                    })
+                  : undefined,
             }
             const res = await window.electronAPI.customReceipts.create(payload) as { success: boolean; data?: { id: number }; error?: string }
             if (!res.success || !res.data) {
@@ -1717,6 +1988,14 @@ function SmartRecipeWizard(props: {
   workEndTime: string
   setWorkEndTime: (v: string) => void
   hoursWorked: string
+  showInspection: boolean
+  setShowInspection: Dispatch<SetStateAction<boolean>>
+  inspectionMarkers: InspectionMarker[]
+  setInspectionMarkers: Dispatch<SetStateAction<InspectionMarker[]>>
+  inspectionNotes: string
+  setInspectionNotes: Dispatch<SetStateAction<string>>
+  selectedMarkerType: InspectionMarkerType
+  setSelectedMarkerType: Dispatch<SetStateAction<InspectionMarkerType>>
 }): JSX.Element {
   const {
     t, step, setStep, department, setDepartment,
@@ -1739,6 +2018,14 @@ function SmartRecipeWizard(props: {
     workEndTime,
     setWorkEndTime,
     hoursWorked,
+    showInspection,
+    setShowInspection,
+    inspectionMarkers,
+    setInspectionMarkers,
+    inspectionNotes,
+    setInspectionNotes,
+    selectedMarkerType,
+    setSelectedMarkerType,
   } = props
   const filteredBrands = brands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase()))
   const chosenModel = selectedModel || newModel
@@ -1907,6 +2194,18 @@ function SmartRecipeWizard(props: {
               </div>
               {selectedBrand?.logo && <img src={selectedBrand.logo} className="h-10 object-contain" />}
             </div>
+
+            <CarInspectionPanel
+              showInspection={showInspection}
+              setShowInspection={setShowInspection}
+              inspectionMarkers={inspectionMarkers}
+              setInspectionMarkers={setInspectionMarkers}
+              inspectionNotes={inspectionNotes}
+              setInspectionNotes={setInspectionNotes}
+              selectedMarkerType={selectedMarkerType}
+              setSelectedMarkerType={setSelectedMarkerType}
+              t={t}
+            />
 
             <div className="rounded-lg border border-border bg-card p-4 space-y-3">
               <h3 className="font-semibold">Catalog services</h3>

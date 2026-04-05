@@ -742,6 +742,8 @@
     "tab_employment": "التوظيف",
     "tab_vacation": "الإجازات",
     "tab_attendance": "الحضور",
+    "attendanceRate": "معدل الحضور",
+    "workingVsMarked": "أيام عمل / أيام مسجّلة",
     "tab_documents": "المستندات",
     "status_all": "الكل",
     "status_active": "نشط",

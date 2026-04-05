@@ -118,6 +118,19 @@ declare global {
         delete: (id: number) => Promise<IpcResponse<null>>
         search: (query: string) => Promise<IpcResponse<unknown[]>>
       }
+      appointments: {
+        list: (params: {
+          from: string
+          to: string
+          department?: string
+          status?: string
+        }) => Promise<IpcResponse<unknown[]>>
+        create: (data: unknown) => Promise<IpcResponse<{ id: number }>>
+        getById: (id: number) => Promise<IpcResponse<unknown>>
+        updateStatus: (id: number, status: string) => Promise<IpcResponse<null>>
+        convertToJobCard: (id: number, jobCardId: number) => Promise<IpcResponse<null>>
+        delete: (id: number) => Promise<IpcResponse<null>>
+      }
       sales: {
         list: (filters?: unknown) => Promise<IpcResponse<unknown>>
         getById: (id: number) => Promise<IpcResponse<unknown>>
@@ -594,7 +607,9 @@ declare global {
           month: number
         ) => Promise<
           IpcResponse<{
+            /** Days with any attendance mark in the month (denominator). */
             total_working_days: number
+            /** Days marked with counts_as_working = 1 (numerator). */
             present_days: number
             attendance_rate: number
             by_status: Array<{

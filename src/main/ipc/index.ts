@@ -5,6 +5,7 @@ import { registerBrandHandlers }    from './brandHandlers'
 import { registerSupplierHandlers } from './supplierHandlers'
 import { registerProductHandlers }  from './productHandlers'
 import { registerCustomerHandlers } from './customerHandlers'
+import { registerAppointmentHandlers } from './appointmentHandlers'
 import { registerSaleHandlers }     from './saleHandlers'
 import { registerRepairHandlers }   from './repairHandlers'
 import { registerReportHandlers }   from './reportHandlers'
@@ -42,6 +43,7 @@ export function registerAllHandlers(): void {
   registerSupplierHandlers()
   registerProductHandlers()
   registerCustomerHandlers()
+  registerAppointmentHandlers()
   registerSaleHandlers()
   registerRepairHandlers()
   registerReportHandlers()
