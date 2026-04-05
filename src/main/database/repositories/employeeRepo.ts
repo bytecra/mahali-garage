@@ -1,5 +1,12 @@
 import { getDb } from '../index'
 
+function normalizeStoredDepartment(dept: string | null | undefined): string | null {
+  if (dept == null) return null
+  const t = String(dept).trim()
+  if (t === '') return null
+  return t.toLowerCase()
+}
+
 /* ── Interfaces ──────────────────────────────────────────────────────────── */
 
 export interface CreateEmployeeInput {
@@ -127,7 +134,7 @@ export const employeeRepo = {
       input.email ?? null,
       input.address ?? null,
       input.role,
-      input.department ?? null,
+      normalizeStoredDepartment(input.department),
       input.hire_date,
       input.salary ?? null,
       input.salary_currency ?? 'USD',
@@ -161,7 +168,12 @@ export const employeeRepo = {
     for (const [key, col] of Object.entries(map)) {
       if (key in input) {
         fields.push(`${col} = ?`)
-        params.push((input as Record<string, unknown>)[key] ?? null)
+        const raw = (input as Record<string, unknown>)[key]
+        params.push(
+          key === 'department'
+            ? normalizeStoredDepartment(raw as string | null | undefined)
+            : (raw ?? null)
+        )
       }
     }
 

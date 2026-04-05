@@ -103,7 +103,29 @@ interface RegisterMarkEntry {
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
 const ROLES = ['Technician', 'Cashier', 'Manager', 'Supervisor', 'Admin', 'Helper', 'Driver', 'Other']
-const DEPARTMENTS = ['Service', 'Sales', 'Admin', 'Parts', 'Operations']
+/** Stored in SQLite as lowercase; labels stay Title Case in the UI. */
+const DEPARTMENT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'service', label: 'Service' },
+  { value: 'sales', label: 'Sales' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'parts', label: 'Parts' },
+  { value: 'operations', label: 'Operations' },
+  { value: 'mechanical', label: 'Mechanical' },
+  { value: 'programming', label: 'Programming' },
+]
+
+function normalizeDepartmentForForm(raw: string | null | undefined): string {
+  if (raw == null || !String(raw).trim()) return ''
+  return String(raw).trim().toLowerCase()
+}
+
+function employeeDepartmentLabel(stored: string | null | undefined): string {
+  if (stored == null || !String(stored).trim()) return '—'
+  const key = String(stored).trim().toLowerCase()
+  const opt = DEPARTMENT_OPTIONS.find(o => o.value === key)
+  return opt?.label ?? stored
+}
+
 const VACATION_TYPES = ['annual', 'sick', 'unpaid', 'emergency']
 const DOC_TYPES = [
   'passport', 'national_id', 'visa', 'contract',
@@ -622,7 +644,7 @@ export default function EmployeesPage(): JSX.Element {
                           <p className="text-xs text-muted-foreground font-mono">{emp.employee_id}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-3 capitalize text-muted-foreground">{emp.department || '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{employeeDepartmentLabel(emp.department)}</td>
                       <td className="px-4 py-3">
                         <select
                           value={
@@ -740,7 +762,12 @@ export default function EmployeesPage(): JSX.Element {
                 </div>
                 <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground flex-wrap">
                   <span>{emp.role}</span>
-                  {emp.department && <><span className="text-border">|</span><span>{emp.department}</span></>}
+                  {emp.department && (
+                    <>
+                      <span className="text-border">|</span>
+                      <span>{employeeDepartmentLabel(emp.department)}</span>
+                    </>
+                  )}
                   {emp.phone && <><span className="text-border">|</span><span>{emp.phone}</span></>}
                 </div>
                 {emp.is_on_vacation === 1 && emp.current_vacation_end && (
@@ -827,7 +854,7 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
     email: employee?.email ?? '',
     address: employee?.address ?? '',
     role: employee?.role ?? 'Technician',
-    department: employee?.department ?? '',
+    department: normalizeDepartmentForForm(employee?.department),
     hire_date: employee?.hire_date ?? new Date().toISOString().split('T')[0],
     employment_status: employee?.employment_status ?? 'active',
     emergency_contact_name: employee?.emergency_contact_name ?? '',
@@ -990,7 +1017,12 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
                 <label className={labelCls}>{t('employees.department')}</label>
                 <select className={inputCls} value={form.department} onChange={e => set('department', e.target.value)}>
                   <option value="">—</option>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {DEPARTMENT_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                  {form.department && !DEPARTMENT_OPTIONS.some(o => o.value === form.department) && (
+                    <option value={form.department}>{form.department}</option>
+                  )}
                 </select>
               </div>
               <div>
@@ -1703,7 +1735,7 @@ function EmploymentTab({ employee }: { employee: Employee }) {
       </div>
       <div>
         <div className="text-xs text-muted-foreground">{t('employees.department')}</div>
-        <div className="text-sm font-medium">{employee.department || '—'}</div>
+        <div className="text-sm font-medium">{employeeDepartmentLabel(employee.department)}</div>
       </div>
       <div>
         <div className="text-xs text-muted-foreground">{t('employees.hireDate')}</div>
