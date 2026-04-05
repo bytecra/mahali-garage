@@ -38,6 +38,7 @@ import { migration035 } from './035_appointments'
 import { migration036 } from './036_attendance'
 import { migration037 } from './037_documents_and_reset'
 import { migration038 } from './038_employee_extensions'
+import { migration039 } from './039_fix_documents'
 
 interface Migration {
   version: number
@@ -86,6 +87,7 @@ const migrations: Migration[] = [
   { version: 36, name: '036_attendance', up: migration036 },
   { version: 37, name: '037_documents_and_reset', up: migration037 },
   { version: 38, name: '038_employee_extensions', up: migration038 },
+  { version: 39, name: '039_fix_documents', up: migration039 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

@@ -16,35 +16,14 @@ export function migration037(
   }
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS 
-      employee_documents (
-      id            INTEGER PRIMARY KEY 
-                    AUTOINCREMENT,
-      employee_id   INTEGER NOT NULL
-                    REFERENCES employees(id)
-                    ON DELETE CASCADE,
-      name          TEXT NOT NULL,
-      doc_type      TEXT NOT NULL
-                    CHECK(doc_type IN (
-                      'passport',
-                      'emirates_id',
-                      'visa',
-                      'labor_card',
-                      'contract',
-                      'certificate',
-                      'other'
-                    )),
-      file_path     TEXT NOT NULL,
-      file_name     TEXT NOT NULL,
-      has_expiry    INTEGER NOT NULL DEFAULT 1,
-      expiry_date   TEXT,
-      notes         TEXT,
-      uploaded_by   INTEGER
-                    REFERENCES users(id)
-                    ON DELETE SET NULL,
-      created_at    TEXT NOT NULL
-                    DEFAULT (datetime('now'))
-    );
+    /*
+     * REMOVED: CREATE TABLE employee_documents (...)
+     * That DDL was a no-op on every real database because 014_employees
+     * already created employee_documents. The intended new shape (name,
+     * doc_type, created_at, …) never applied. Schema fixes belong in a
+     * dedicated migration; has_expiry is ensured above and again in 039
+     * for databases that ran an older 037 before that ALTER existed.
+     */
 
     CREATE TABLE IF NOT EXISTS 
       store_documents (

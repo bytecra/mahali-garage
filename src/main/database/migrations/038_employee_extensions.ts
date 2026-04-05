@@ -15,10 +15,10 @@ function safeAddColumn(db: Database.Database, sql: string): void {
 export function migration038(
   db: Database.Database
 ): void {
-  // Employee formatted ID (distinct from existing employees.employee_id in 014)
+  // SQLite rejects ADD COLUMN ... UNIQUE on existing tables; add plain column then enforce via index.
   safeAddColumn(
     db,
-    `ALTER TABLE employees ADD COLUMN employee_id_number TEXT UNIQUE`
+    `ALTER TABLE employees ADD COLUMN employee_id_number TEXT`
   )
 
   // Department: already on employees since 014 — nothing to add.
@@ -91,9 +91,10 @@ export function migration038(
     VALUES
       ('employee.id_card', '{"showPhoto":true,"showName":true,"showId":true,"showDepartment":true,"showPhone":false,"bgColor":"#1e40af","textColor":"#ffffff"}');
 
-    CREATE INDEX IF NOT EXISTS
+    CREATE UNIQUE INDEX IF NOT EXISTS
       idx_employees_id_number
-      ON employees(employee_id_number);
+      ON employees(employee_id_number)
+      WHERE employee_id_number IS NOT NULL;
 
     CREATE INDEX IF NOT EXISTS
       idx_receipts_primary_emp
