@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Plus, Search, Users, Edit, Trash2, FileText, CalendarPlus,
   AlertTriangle, Eye, Upload, X, ChevronDown, ChevronUp, Wallet,
+  CalendarDays,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
@@ -253,7 +254,9 @@ export default function EmployeesPage(): JSX.Element {
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
 
   const [viewEmployee, setViewEmployee] = useState<Employee | null>(null)
-  const [viewTab, setViewTab] = useState<'personal' | 'employment' | 'salary' | 'vacation' | 'documents'>('personal')
+  const [viewTab, setViewTab] = useState<
+    'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents'
+  >('personal')
 
   if (user?.role !== 'owner') {
     return (
@@ -800,19 +803,56 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
 
 interface ViewProps {
   employee: Employee
-  tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'documents'
-  setTab: (tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'documents') => void
+  tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents'
+  setTab: (
+    tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents'
+  ) => void
   onClose: () => void
   onRefresh: () => void
 }
 
 function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewProps) {
   const { t } = useTranslation()
+  const user = useAuthStore(s => s.user)
   const [vacations, setVacations] = useState<Vacation[]>([])
   const [documents, setDocuments] = useState<EmpDocument[]>([])
   const [salaryCfg, setSalaryCfg] = useState<EmployeeSalaryConfig | null>(null)
   const [showVacForm, setShowVacForm] = useState(false)
   const [showDocUpload, setShowDocUpload] = useState(false)
+
+  const [attendanceYear, setAttendanceYear] = useState(() => new Date().getFullYear())
+  const [attendanceMonth, setAttendanceMonth] = useState(() => new Date().getMonth() + 1)
+  const [attendanceRecords, setAttendanceRecords] = useState<
+    Array<{
+      id: number
+      date: string
+      status_type_id: number
+      status_name: string
+      status_color: string
+      status_emoji: string
+      notes: string | null
+      marked_by_name: string | null
+      marked_at: string
+    }>
+  >([])
+  const [attendanceSummary, setAttendanceSummary] = useState<{
+    total_working_days: number
+    present_days: number
+    attendance_rate: number
+    by_status: Array<{
+      status_name: string
+      status_color: string
+      status_emoji: string
+      count: number
+    }>
+  } | null>(null)
+  const [attendanceStatuses, setAttendanceStatuses] = useState<
+    Array<{ id: number; name: string; color: string; emoji: string | null }>
+  >([])
+  const [markingDate, setMarkingDate] = useState('')
+  const [markingStatusId, setMarkingStatusId] = useState<number | null>(null)
+  const [markingNotes, setMarkingNotes] = useState('')
+  const [attendanceLoading, setAttendanceLoading] = useState(false)
 
   useEffect(() => {
     loadVacations()
@@ -837,7 +877,58 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
     if (res.success && res.data) setDocuments(res.data)
   }
 
-  const tabs = ['personal', 'employment', 'salary', 'vacation', 'documents'] as const
+  const loadAttendance = useCallback(async (): Promise<void> => {
+    setAttendanceLoading(true)
+    try {
+      const [records, summary, statuses] = await Promise.all([
+        window.electronAPI.attendance.getMonthly(employee.id, attendanceYear, attendanceMonth),
+        window.electronAPI.attendance.getSummary(employee.id, attendanceYear, attendanceMonth),
+        window.electronAPI.attendance.getStatuses(),
+      ])
+      if (records.success) setAttendanceRecords(records.data ?? [])
+      if (summary.success) setAttendanceSummary(summary.data ?? null)
+      if (statuses.success)
+        setAttendanceStatuses(
+          (statuses.data ?? []).map(s => ({
+            id: s.id,
+            name: s.name,
+            color: s.color,
+            emoji: s.emoji,
+          }))
+        )
+    } finally {
+      setAttendanceLoading(false)
+    }
+  }, [employee, attendanceYear, attendanceMonth])
+
+  useEffect(() => {
+    if (tab !== 'attendance') return
+    void loadAttendance()
+  }, [tab, loadAttendance])
+
+  async function handleMarkAttendance(): Promise<void> {
+    if (!markingDate || markingStatusId == null || !employee || !user?.userId) return
+    try {
+      const res = await window.electronAPI.attendance.mark({
+        employee_id: employee.id,
+        date: markingDate,
+        status_type_id: markingStatusId,
+        notes: markingNotes || undefined,
+      })
+      if (!res.success) {
+        window.alert(res.error ?? t('common.error'))
+        return
+      }
+      setMarkingDate('')
+      setMarkingStatusId(null)
+      setMarkingNotes('')
+      await loadAttendance()
+    } catch {
+      window.alert(t('common.error'))
+    }
+  }
+
+  const tabs = ['personal', 'employment', 'salary', 'vacation', 'attendance', 'documents'] as const
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -860,11 +951,12 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
         <div className="flex border-b border-border px-6">
           {tabs.map(tb => (
             <button key={tb} onClick={() => setTab(tb)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors inline-flex items-center gap-1.5 ${
                 tab === tb
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}>
+              {tb === 'attendance' && <CalendarDays className="w-3.5 h-3.5 shrink-0" aria-hidden />}
               {t(`employees.tab_${tb}`)}
               {tb === 'documents' && documents.length > 0 && (
                 <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{documents.length}</span>
@@ -895,6 +987,172 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
               onUpload={() => setShowDocUpload(true)}
               onRefresh={loadDocuments}
             />
+          )}
+
+          {tab === 'attendance' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (attendanceMonth === 1) {
+                        setAttendanceMonth(12)
+                        setAttendanceYear(y => y - 1)
+                      } else {
+                        setAttendanceMonth(m => m - 1)
+                      }
+                    }}
+                    className="p-1 rounded hover:bg-accent"
+                    aria-label={t('common.previous', { defaultValue: 'Previous' })}
+                  >
+                    ←
+                  </button>
+                  <span className="text-sm font-medium min-w-[120px] text-center text-foreground">
+                    {new Date(attendanceYear, attendanceMonth - 1).toLocaleDateString('en-US', {
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (attendanceMonth === 12) {
+                        setAttendanceMonth(1)
+                        setAttendanceYear(y => y + 1)
+                      } else {
+                        setAttendanceMonth(m => m + 1)
+                      }
+                    }}
+                    className="p-1 rounded hover:bg-accent"
+                    aria-label={t('common.next', { defaultValue: 'Next' })}
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+
+              {attendanceSummary && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-muted/30 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground">
+                      {t('employees.attendanceRate', { defaultValue: 'Attendance rate' })}
+                    </p>
+                    <p className="text-xl font-bold text-primary">
+                      {Math.round(attendanceSummary.attendance_rate * 100)}%
+                    </p>
+                  </div>
+                  <div className="p-3 bg-muted/30 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground">
+                      {t('employees.presentDays', { defaultValue: 'Present days' })}
+                    </p>
+                    <p className="text-xl font-bold text-foreground">
+                      {attendanceSummary.present_days}
+                      <span className="text-sm text-muted-foreground">
+                        /{attendanceSummary.total_working_days}
+                      </span>
+                    </p>
+                  </div>
+                  {attendanceSummary.by_status.map(s => (
+                    <div
+                      key={s.status_name}
+                      className="p-2 rounded-lg text-center"
+                      style={{ backgroundColor: `${s.status_color}20` }}
+                    >
+                      <p className="text-xs text-foreground">
+                        {s.status_emoji} {s.status_name}
+                      </p>
+                      <p className="font-bold text-foreground">{s.count}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(user?.role === 'owner' || user?.role === 'manager') && (
+                <div className="border border-border rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-semibold text-foreground">
+                    {t('employees.markAttendance', { defaultValue: 'Mark attendance' })}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      value={markingDate}
+                      onChange={e => setMarkingDate(e.target.value)}
+                      className={`${inputCls} py-1.5`}
+                    />
+                    <select
+                      value={markingStatusId ?? ''}
+                      onChange={e =>
+                        setMarkingStatusId(e.target.value ? Number(e.target.value) : null)
+                      }
+                      className={`${inputCls} py-1.5`}
+                    >
+                      <option value="">{t('employees.attendanceStatusPlaceholder', { defaultValue: 'Status…' })}</option>
+                      {attendanceStatuses.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.emoji ? `${s.emoji} ` : ''}{s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder={t('employees.attendanceNotesPlaceholder', { defaultValue: 'Notes (optional)' })}
+                    value={markingNotes}
+                    onChange={e => setMarkingNotes(e.target.value)}
+                    className={inputCls}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleMarkAttendance()}
+                    disabled={!markingDate || markingStatusId == null}
+                    className={`${btnPrimary} w-full py-1.5 text-sm`}
+                  >
+                    {t('common.save', { defaultValue: 'Save' })}
+                  </button>
+                </div>
+              )}
+
+              {attendanceLoading ? (
+                <p className="text-center text-sm text-muted-foreground py-4">
+                  {t('common.loading', { defaultValue: 'Loading…' })}
+                </p>
+              ) : attendanceRecords.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-4">
+                  {t('employees.attendanceEmptyMonth', { defaultValue: 'No attendance records for this month.' })}
+                </p>
+              ) : (
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {attendanceRecords.map(record => (
+                    <div
+                      key={record.id}
+                      className="flex items-center justify-between py-1.5 px-2 rounded text-sm border-b border-border/50 last:border-0"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-20 shrink-0 text-xs text-muted-foreground">
+                          {new Date(record.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </span>
+                        <span
+                          className="px-2 py-0.5 rounded-full text-xs font-medium truncate"
+                          style={{
+                            backgroundColor: `${record.status_color}20`,
+                            color: record.status_color,
+                          }}
+                        >
+                          {record.status_emoji} {record.status_name}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground text-right shrink-0 pl-2">
+                        {record.marked_by_name ? <span>{record.marked_by_name}</span> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

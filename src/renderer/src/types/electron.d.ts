@@ -395,6 +395,111 @@ declare global {
         listPayroll:     (filter?: 'all' | 'paid' | 'unpaid' | 'overdue') => Promise<IpcResponse<unknown[]>>
         markSalaryPaid:  (employeeId: number) => Promise<IpcResponse<{ expense_id: number; amount: number }>>
       }
+      attendance: {
+        getStatuses: () => Promise<
+          IpcResponse<
+            Array<{
+              id: number
+              name: string
+              color: string
+              emoji: string | null
+              is_default: number
+              is_paid: number
+              counts_as_working: number
+              sort_order: number
+              created_by: number | null
+              created_at: string
+            }>
+          >
+        >
+        createStatus: (data: {
+          name: string
+          color: string
+          emoji?: string
+          is_paid: number
+          counts_as_working: number
+        }) => Promise<IpcResponse<{ id: number }>>
+        updateStatus: (
+          id: number,
+          data: Partial<{
+            name: string
+            color: string
+            emoji?: string
+            is_paid: number
+            counts_as_working: number
+          }>
+        ) => Promise<IpcResponse<boolean>>
+        deleteStatus: (id: number) => Promise<IpcResponse<boolean>>
+        mark: (data: {
+          employee_id: number
+          date: string
+          status_type_id: number
+          department?: string
+          notes?: string
+        }) => Promise<IpcResponse<boolean>>
+        bulkMark: (data: {
+          employee_ids: number[]
+          dates: string[]
+          status_type_id: number
+          department?: string
+          notes?: string
+          overwrite?: boolean
+        }) => Promise<IpcResponse<{ marked: number; skipped: number }>>
+        getMonthly: (
+          employeeId: number,
+          year: number,
+          month: number
+        ) => Promise<
+          IpcResponse<
+            Array<{
+              id: number
+              date: string
+              status_type_id: number
+              status_name: string
+              status_color: string
+              status_emoji: string
+              notes: string | null
+              marked_by_name: string | null
+              marked_at: string
+            }>
+          >
+        >
+        getSummary: (
+          employeeId: number,
+          year: number,
+          month: number
+        ) => Promise<
+          IpcResponse<{
+            total_working_days: number
+            present_days: number
+            attendance_rate: number
+            by_status: Array<{
+              status_name: string
+              status_color: string
+              status_emoji: string
+              count: number
+            }>
+          }>
+        >
+        getReport: (
+          employeeId: number,
+          from: string,
+          to: string
+        ) => Promise<
+          IpcResponse<
+            Array<{
+              id: number
+              date: string
+              status_name: string
+              status_color: string
+              status_emoji: string
+              notes: string | null
+              marked_at: string
+              marked_by_name: string | null
+            }>
+          >
+        >
+      }
     }
   }
 }

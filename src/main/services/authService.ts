@@ -17,6 +17,7 @@ export const ROLE_DEFAULTS: Record<string, string[]> = {
     'users.manage', 'settings.manage', 'backup.manage', 'activity_log.view',
     'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.delete', 'tasks.assign',
     'deliveries.view',
+    'employees.attendance',
   ],
   manager: [
     'sales.view', 'sales.create', 'sales.void', 'sales.discount',
@@ -30,6 +31,7 @@ export const ROLE_DEFAULTS: Record<string, string[]> = {
     'users.manage',
     'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.assign',
     'deliveries.view',
+    'employees.attendance',
   ],
   cashier: [
     'sales.view', 'sales.create', 'sales.discount',

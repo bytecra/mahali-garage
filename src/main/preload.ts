@@ -335,6 +335,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     markSalaryPaid:  (employeeId: number)                              => invoke('employees:markSalaryPaid', employeeId),
   },
 
+  attendance: {
+    getStatuses: () => invoke('attendance:getStatuses'),
+    createStatus: (data: unknown) => invoke('attendance:createStatus', data),
+    updateStatus: (id: number, data: unknown) =>
+      invoke('attendance:updateStatus', id, data),
+    deleteStatus: (id: number) => invoke('attendance:deleteStatus', id),
+    mark: (data: unknown) => invoke('attendance:mark', data),
+    bulkMark: (data: unknown) => invoke('attendance:bulkMark', data),
+    getMonthly: (employeeId: number, year: number, month: number) =>
+      invoke('attendance:getMonthly', employeeId, year, month),
+    getSummary: (employeeId: number, year: number, month: number) =>
+      invoke('attendance:getSummary', employeeId, year, month),
+    getReport: (employeeId: number, from: string, to: string) =>
+      invoke('attendance:getReport', employeeId, from, to),
+  },
+
   // ── App (activation window) ───────────────────────────────────────────────
   app: {
     licenseActivated: () => ipcRenderer.send('app:licenseActivated'),
