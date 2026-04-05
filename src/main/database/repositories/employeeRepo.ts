@@ -69,14 +69,102 @@ export const employeeRepo = {
   /* ── Auto-generated employee ID ────────────────────────────────────────── */
   nextEmployeeId(): string {
     const db = getDb()
+
+    const fmtRaw = (
+      db.prepare(`
+      SELECT value FROM settings 
+      WHERE key = 'employee.id_format'
+    `).get() as { value: string } | undefined
+    )?.value
+
+    const fmt = (() => {
+      try {
+        return fmtRaw ? JSON.parse(fmtRaw) : null
+      } catch {
+        return null
+      }
+    })() ?? {
+      prefix: '',
+      separator: '-',
+      useYear: false,
+      padding: 3,
+      startFrom: 1,
+    }
+
     const raw = (
-      db.prepare(`SELECT value FROM settings WHERE key = 'employee.next_number'`).get() as
-        { value: string } | undefined
+      db.prepare(`
+      SELECT value FROM settings 
+      WHERE key = 'employee.next_number'
+    `).get() as { value: string } | undefined
     )?.value ?? '1'
+
     const next = parseInt(raw, 10)
-    const empId = `EMP-${String(next).padStart(3, '0')}`
-    db.prepare(`UPDATE settings SET value = ? WHERE key = 'employee.next_number'`).run(String(next + 1))
+
+    const parts: string[] = []
+
+    if (fmt.prefix?.trim()) {
+      parts.push(fmt.prefix.trim().toUpperCase())
+    }
+
+    if (fmt.useYear) {
+      parts.push(String(new Date().getFullYear()))
+    }
+
+    parts.push(String(next).padStart(Math.max(1, fmt.padding ?? 3), '0'))
+
+    const sep = fmt.separator ?? '-'
+    const empId = parts.join(sep)
+
+    db.prepare(`
+      UPDATE settings SET value = ? 
+      WHERE key = 'employee.next_number'
+    `).run(String(next + 1))
+
     return empId
+  },
+
+  previewEmployeeId(): string {
+    const db = getDb()
+    const fmtRaw = (
+      db.prepare(`
+      SELECT value FROM settings 
+      WHERE key = 'employee.id_format'
+    `).get() as { value: string } | undefined
+    )?.value
+
+    const fmt = (() => {
+      try {
+        return fmtRaw ? JSON.parse(fmtRaw) : null
+      } catch {
+        return null
+      }
+    })() ?? {
+      prefix: '',
+      separator: '-',
+      useYear: false,
+      padding: 3,
+      startFrom: 1,
+    }
+
+    const raw = (
+      db.prepare(`
+      SELECT value FROM settings 
+      WHERE key = 'employee.next_number'
+    `).get() as { value: string } | undefined
+    )?.value ?? '1'
+
+    const next = parseInt(raw, 10)
+    const parts: string[] = []
+
+    if (fmt.prefix?.trim()) {
+      parts.push(fmt.prefix.trim().toUpperCase())
+    }
+    if (fmt.useYear) {
+      parts.push(String(new Date().getFullYear()))
+    }
+    parts.push(String(next).padStart(Math.max(1, fmt.padding ?? 3), '0'))
+
+    return parts.join(fmt.separator ?? '-')
   },
 
   /* ── CRUD ───────────────────────────────────────────────────────────────── */

@@ -379,6 +379,7 @@ declare global {
         list:            (filters?: unknown) => Promise<IpcResponse<unknown[]>>
         getById:         (id: number) => Promise<IpcResponse<unknown>>
         create:          (data: unknown) => Promise<IpcResponse<unknown>>
+        previewNextId:   () => Promise<IpcResponse<string>>
         update:          (id: number, data: unknown) => Promise<IpcResponse<unknown>>
         delete:          (id: number) => Promise<IpcResponse<unknown>>
         listVacations:   (employeeId: number) => Promise<IpcResponse<unknown[]>>

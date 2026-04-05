@@ -318,6 +318,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     list:            (filters?: unknown)                               => invoke('employees:list', filters),
     getById:         (id: number)                                     => invoke('employees:getById', id),
     create:          (data: unknown)                                  => invoke('employees:create', data),
+    previewNextId:   ()                                               => invoke('employees:previewNextId'),
     update:          (id: number, data: unknown)                      => invoke('employees:update', id, data),
     delete:          (id: number)                                     => invoke('employees:delete', id),
     listVacations:   (employeeId: number)                             => invoke('employees:listVacations', employeeId),

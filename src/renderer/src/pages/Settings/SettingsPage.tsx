@@ -52,7 +52,15 @@ const DEFAULT_LOYALTY = {
   showOnReceipt: true,
 }
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'attendance' | 'store-documents' | 'about'
+const DEFAULT_EMP_ID_FORMAT = {
+  prefix: 'EMP',
+  separator: '-',
+  useYear: false,
+  padding: 3,
+  startFrom: 1,
+}
+
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'employees' | 'attendance' | 'store-documents' | 'about'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -186,6 +194,10 @@ export default function SettingsPage(): JSX.Element {
 
   const [storeDocSaving, setStoreDocSaving] = useState(false)
 
+  const [empIdFormat, setEmpIdFormat] = useState({ ...DEFAULT_EMP_ID_FORMAT })
+  const [empIdPreview, setEmpIdPreview] = useState('')
+  const [empIdSaving, setEmpIdSaving] = useState(false)
+
   const setLC = <K extends keyof typeof DEFAULT_LOYALTY>(
     key: K,
     val: (typeof DEFAULT_LOYALTY)[K]
@@ -239,6 +251,17 @@ export default function SettingsPage(): JSX.Element {
     if (tab === 'tv-display') {
       const dRes = await window.electronAPI.tv.listDisplays()
       if (dRes.success && dRes.data) setTvDisplays(dRes.data as TvDisplayOption[])
+    }
+    if (tab === 'employees') {
+      const fmtRes = await window.electronAPI.settings.get('employee.id_format')
+      if (fmtRes?.success && fmtRes.data) {
+        try {
+          const parsed = JSON.parse(fmtRes.data) as Partial<typeof DEFAULT_EMP_ID_FORMAT>
+          setEmpIdFormat((prev) => ({ ...prev, ...parsed }))
+        } catch {
+          /* keep defaults */
+        }
+      }
     }
     if (tab === 'attendance') {
       const attRes = await window.electronAPI.attendance.getStatuses()
@@ -295,6 +318,19 @@ export default function SettingsPage(): JSX.Element {
     }
   }, [tab, settings['receipt.programming_print_mode']])
   useEffect(() => { if (tab === 'activity') loadActivity(0) }, [tab, loadActivity])
+
+  useEffect(() => {
+    if (tab !== 'employees') return
+    const parts: string[] = []
+    if (empIdFormat.prefix?.trim()) {
+      parts.push(empIdFormat.prefix.trim().toUpperCase())
+    }
+    if (empIdFormat.useYear) {
+      parts.push(String(new Date().getFullYear()))
+    }
+    parts.push('001')
+    setEmpIdPreview(parts.join(empIdFormat.separator ?? '-'))
+  }, [empIdFormat, tab])
 
   useEffect(() => {
     void (async () => {
@@ -432,6 +468,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'backup',     label: t('settings.backup'),         guard: canBackup },
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
     { key: 'license',    label: 'License' },
+    { key: 'employees', label: 'Employees' },
     { key: 'attendance', label: 'Attendance' },
     { key: 'store-documents', label: 'Store Documents', ownerOrManagerOnly: true },
     { key: 'about', label: 'About' },
@@ -509,6 +546,22 @@ export default function SettingsPage(): JSX.Element {
       toast.error('Failed to save loyalty settings')
     } finally {
       setLoyaltySaving(false)
+    }
+  }
+
+  async function saveEmpIdFormat(): Promise<void> {
+    setEmpIdSaving(true)
+    try {
+      const res = await window.electronAPI.settings.set('employee.id_format', JSON.stringify(empIdFormat))
+      if (!res.success) {
+        toast.error(res.error ?? 'Failed to save')
+        return
+      }
+      toast.success('Employee ID format saved')
+    } catch {
+      toast.error('Failed to save')
+    } finally {
+      setEmpIdSaving(false)
     }
   }
 
@@ -1779,6 +1832,127 @@ export default function SettingsPage(): JSX.Element {
                   : 'Activate License'}
               </button>
             </div>
+          </div>
+        )}
+
+        {tab === 'employees' && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <p className="font-medium text-sm">Employee ID Format</p>
+              <p className="text-xs text-muted-foreground">
+                Configure how employee IDs are generated. Changes apply to new employees only.
+              </p>
+            </div>
+
+            <div className="p-4 bg-muted/30 rounded-lg border border-border text-center">
+              <p className="text-xs text-muted-foreground mb-1">Next Employee ID Preview</p>
+              <p className="text-2xl font-bold font-mono tracking-wider text-primary">{empIdPreview || '...'}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium block mb-1">Prefix</label>
+                <input
+                  type="text"
+                  placeholder="e.g. EMP, MH, STAFF"
+                  value={empIdFormat.prefix}
+                  maxLength={10}
+                  onChange={(e) => setEmpIdFormat((p) => ({ ...p, prefix: e.target.value }))}
+                  className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Leave empty for no prefix</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium block mb-1">Separator</label>
+                <div className="flex gap-2 flex-wrap">
+                  {(
+                    [
+                      ['-', 'Dash (-)'],
+                      ['/', 'Slash (/)'],
+                      ['_', 'Underscore (_)'],
+                      ['', 'None'],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <label
+                      key={label}
+                      className="flex items-center gap-1.5 text-sm cursor-pointer px-3 py-1.5 border border-border rounded-md hover:bg-muted/50"
+                      style={{
+                        background: empIdFormat.separator === val ? 'hsl(var(--primary) / 0.1)' : undefined,
+                        borderColor: empIdFormat.separator === val ? 'hsl(var(--primary))' : undefined,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="emp-id-separator"
+                        value={val}
+                        checked={empIdFormat.separator === val}
+                        onChange={() => setEmpIdFormat((p) => ({ ...p, separator: val }))}
+                        className="sr-only"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={empIdFormat.useYear}
+                  onChange={(e) => setEmpIdFormat((p) => ({ ...p, useYear: e.target.checked }))}
+                  className="w-4 h-4"
+                />
+                Include current year ({new Date().getFullYear()})
+              </label>
+
+              <div>
+                <label className="text-sm font-medium block mb-1">Number digits (padding)</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[2, 3, 4, 5, 6].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setEmpIdFormat((p) => ({ ...p, padding: n }))}
+                      className={`px-3 py-1.5 text-sm border rounded-md font-mono ${
+                        empIdFormat.padding === n ? 'bg-primary/10 border-primary' : 'border-border hover:bg-muted/50'
+                      }`}
+                    >
+                      {'0'.repeat(n - 1)}1
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">How many digits in the number part</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-muted/20 rounded-lg border border-border">
+              <p className="text-xs font-medium mb-2">Format Examples:</p>
+              <div className="space-y-1 text-xs text-muted-foreground font-mono">
+                {[1, 2, 3].map((n) => {
+                  const parts: string[] = []
+                  if (empIdFormat.prefix?.trim()) {
+                    parts.push(empIdFormat.prefix.trim().toUpperCase())
+                  }
+                  if (empIdFormat.useYear) {
+                    parts.push(String(new Date().getFullYear()))
+                  }
+                  parts.push(String(n).padStart(empIdFormat.padding, '0'))
+                  return (
+                    <p key={n}>{parts.join(empIdFormat.separator ?? '')}</p>
+                  )
+                })}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void saveEmpIdFormat()}
+              disabled={empIdSaving}
+              className="px-6 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium"
+            >
+              {empIdSaving ? 'Saving...' : 'Save Format'}
+            </button>
           </div>
         )}
 

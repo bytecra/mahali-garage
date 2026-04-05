@@ -58,6 +58,19 @@ export function registerEmployeeHandlers(): void {
     }
   })
 
+  ipcMain.handle('employees:previewNextId', (event) => {
+    try {
+      const session = authService.getSession(event.sender.id)
+      if (!session || session.role !== 'owner')
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      const preview = employeeRepo.previewEmployeeId()
+      return ok(preview)
+    } catch (e) {
+      log.error('employees:previewNextId', e)
+      return err('Failed')
+    }
+  })
+
   ipcMain.handle('employees:update', (event, id: number, data) => {
     try {
       const session = authService.getSession(event.sender.id)
