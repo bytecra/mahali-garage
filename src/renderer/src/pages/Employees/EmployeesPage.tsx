@@ -105,11 +105,6 @@ interface RegisterMarkEntry {
 const ROLES = ['Technician', 'Cashier', 'Manager', 'Supervisor', 'Admin', 'Helper', 'Driver', 'Other']
 /** Stored in SQLite as lowercase; labels stay Title Case in the UI. */
 const DEPARTMENT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'service', label: 'Service' },
-  { value: 'sales', label: 'Sales' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'parts', label: 'Parts' },
-  { value: 'operations', label: 'Operations' },
   { value: 'mechanical', label: 'Mechanical' },
   { value: 'programming', label: 'Programming' },
 ]

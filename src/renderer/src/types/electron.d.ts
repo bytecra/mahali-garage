@@ -389,11 +389,49 @@ declare global {
         uploadDocument:  (data: unknown) => Promise<IpcResponse<unknown>>
         openDocument:    (docId: number) => Promise<IpcResponse<unknown>>
         deleteDocument:  (docId: number) => Promise<IpcResponse<unknown>>
-        chooseFile:      () => Promise<IpcResponse<unknown>>
+        chooseFile:      () => Promise<
+          IpcResponse<{
+            fileName: string
+            fileBuffer: number[]
+            mimeType: string
+            fileSize: number
+          } | null>
+        >
         getSalary:       (employeeId: number) => Promise<IpcResponse<unknown>>
         upsertSalary:    (data: unknown) => Promise<IpcResponse<unknown>>
         listPayroll:     (filter?: 'all' | 'paid' | 'unpaid' | 'overdue') => Promise<IpcResponse<unknown[]>>
         markSalaryPaid:  (employeeId: number) => Promise<IpcResponse<{ expense_id: number; amount: number }>>
+      }
+      storeDocuments: {
+        list: () => Promise<
+          IpcResponse<
+            Array<{
+              id: number
+              name: string
+              doc_type: string
+              file_path: string
+              file_name: string
+              has_expiry: number
+              expiry_date: string | null
+              notes: string | null
+              uploaded_by: number | null
+              created_at: string
+              uploaded_by_name: string | null
+            }>
+          >
+        >
+        upload: (data: {
+          name: string
+          doc_type: string
+          file_name: string
+          file_data: string
+          has_expiry: number
+          expiry_date?: string
+          notes?: string
+        }) => Promise<IpcResponse<{ id: number; file_path: string }>>
+        delete: (id: number) => Promise<IpcResponse<null>>
+        openFile: (filePath: string) => Promise<IpcResponse<null>>
+        showInFolder: (filePath: string) => Promise<IpcResponse<null>>
       }
       attendance: {
         getStatuses: () => Promise<

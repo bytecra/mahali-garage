@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense, useRef, type ChangeEv
 import { useTranslation } from 'react-i18next'
 import { CheckCircle, AlertCircle, Upload, Plus, X, Keyboard } from 'lucide-react'
 import { toast } from '../../store/notificationStore'
+import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
 import { useLangStore } from '../../store/langStore'
 import { useBrandingStore } from '../../store/brandingStore'
@@ -9,6 +10,15 @@ import { useCurrencyStore } from '../../store/currencyStore'
 import { usePermission } from '../../hooks/usePermission'
 import { DASHBOARD_WIDGETS, parseDashboardWidgets } from '../../lib/dashboardWidgets'
 import { TV_DISPLAY_WIDGETS, parseTvDisplayWidgets } from '../../lib/tvDisplayWidgets'
+
+/** `employees:chooseFile` returns `fileBuffer` (number[]), not base64 — encode for `storeDocuments:upload`. */
+function fileBufferToBase64(fileBuffer: number[]): string {
+  const u8 = new Uint8Array(fileBuffer.length)
+  for (let i = 0; i < fileBuffer.length; i++) u8[i] = fileBuffer[i]!
+  let binary = ''
+  for (let i = 0; i < u8.length; i++) binary += String.fromCharCode(u8[i]!)
+  return btoa(binary)
+}
 
 const APP_SHORTCUT_DEFAULTS: Record<string, string> = {
   smart_recipe: 'ctrl+shift+s',
@@ -42,7 +52,7 @@ const DEFAULT_LOYALTY = {
   showOnReceipt: true,
 }
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'attendance' | 'about'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'attendance' | 'store-documents' | 'about'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -71,6 +81,19 @@ interface TvDisplayOption {
   bounds: { x: number; y: number; width: number; height: number }
 }
 
+interface StoreDocumentRow {
+  id: number
+  name: string
+  doc_type: string
+  file_name: string
+  file_path: string
+  has_expiry: number
+  expiry_date: string | null
+  notes: string | null
+  uploaded_by_name: string | null
+  created_at: string
+}
+
 export default function SettingsPage(): JSX.Element {
   const { t } = useTranslation()
   const { theme, setTheme } = useThemeStore()
@@ -80,6 +103,8 @@ export default function SettingsPage(): JSX.Element {
   const canBackup      = usePermission('backup.manage')
   const canSettings    = usePermission('settings.manage')
   const canActivityLog = usePermission('activity_log.view')
+  const user = useAuthStore(s => s.user)
+  const canStoreDocuments = user?.role === 'owner' || user?.role === 'manager'
   const [tab, setTab] = useState<Tab>('store')
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -140,6 +165,26 @@ export default function SettingsPage(): JSX.Element {
   const [showStatusForm, setShowStatusForm] = useState(false)
 
   const [statusSaving, setStatusSaving] = useState(false)
+
+  const [storeDocs, setStoreDocs] = useState<StoreDocumentRow[]>([])
+
+  const [storeDocForm, setStoreDocForm] = useState({
+    name: '',
+    doc_type: 'trade_license',
+    has_expiry: 1,
+    expiry_date: '',
+    notes: '',
+  })
+
+  const [storeDocFile, setStoreDocFile] = useState<{
+    name: string
+    data: string
+    size: number
+  } | null>(null)
+
+  const [showStoreDocForm, setShowStoreDocForm] = useState(false)
+
+  const [storeDocSaving, setStoreDocSaving] = useState(false)
 
   const setLC = <K extends keyof typeof DEFAULT_LOYALTY>(
     key: K,
@@ -212,6 +257,10 @@ export default function SettingsPage(): JSX.Element {
         )
       }
     }
+    if (tab === 'store-documents' && canStoreDocuments) {
+      const sdRes = await window.electronAPI.storeDocuments.list()
+      if (sdRes?.success) setStoreDocs((sdRes.data ?? []) as StoreDocumentRow[])
+    }
     if (tab === 'about') {
       try {
         const v = await window.electronAPI.app.getVersion()
@@ -235,7 +284,11 @@ export default function SettingsPage(): JSX.Element {
     }
   }, [actFromDate, actToDate])
 
-  useEffect(() => { load() }, [tab])
+  useEffect(() => { load() }, [tab, canStoreDocuments])
+
+  useEffect(() => {
+    if (tab === 'store-documents' && !canStoreDocuments) setTab('store')
+  }, [tab, canStoreDocuments])
   useEffect(() => {
     if (tab === 'invoice' && (settings['receipt.programming_print_mode'] ?? 'a4_only') === 'a4_or_thermal') {
       void loadPrinters()
@@ -363,7 +416,7 @@ export default function SettingsPage(): JSX.Element {
     } else toast.error(res.error ?? t('common.error'))
   }
 
-  const TABS: Array<{ key: Tab; label: string; guard?: boolean }> = [
+  const TABS: Array<{ key: Tab; label: string; guard?: boolean; ownerOrManagerOnly?: boolean }> = [
     { key: 'store',      label: t('settings.storeInfo'), guard: canSettings },
     { key: 'invoice',    label: t('settings.invoice'),   guard: canSettings },
     { key: 'tax',        label: t('settings.tax'),       guard: canSettings },
@@ -380,6 +433,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
     { key: 'license',    label: 'License' },
     { key: 'attendance', label: 'Attendance' },
+    { key: 'store-documents', label: 'Store Documents', ownerOrManagerOnly: true },
     { key: 'about', label: 'About' },
   ]
 
@@ -560,12 +614,74 @@ export default function SettingsPage(): JSX.Element {
     }
   }
 
+  async function pickStoreDocFile(): Promise<void> {
+    const res = await window.electronAPI.employees.chooseFile()
+    if (res?.success && res.data) {
+      setStoreDocFile({
+        name: res.data.fileName,
+        data: fileBufferToBase64(res.data.fileBuffer),
+        size: res.data.fileSize,
+      })
+    }
+  }
+
+  async function uploadStoreDoc(): Promise<void> {
+    if (!storeDocFile || !storeDocForm.name.trim()) return
+    setStoreDocSaving(true)
+    try {
+      const res = await window.electronAPI.storeDocuments.upload({
+        name: storeDocForm.name.trim(),
+        doc_type: storeDocForm.doc_type,
+        file_name: storeDocFile.name,
+        file_data: storeDocFile.data,
+        has_expiry: storeDocForm.has_expiry,
+        expiry_date:
+          storeDocForm.has_expiry && storeDocForm.expiry_date ? storeDocForm.expiry_date : undefined,
+        notes: storeDocForm.notes || undefined,
+      })
+      if (!res.success) {
+        toast.error(res.error ?? 'Failed to upload document')
+        return
+      }
+      toast.success('Document uploaded')
+      setShowStoreDocForm(false)
+      setStoreDocFile(null)
+      setStoreDocForm({
+        name: '',
+        doc_type: 'trade_license',
+        has_expiry: 1,
+        expiry_date: '',
+        notes: '',
+      })
+      const list = await window.electronAPI.storeDocuments.list()
+      if (list?.success) setStoreDocs((list.data ?? []) as StoreDocumentRow[])
+    } catch {
+      toast.error('Failed to upload document')
+    } finally {
+      setStoreDocSaving(false)
+    }
+  }
+
+  async function deleteStoreDoc(id: number): Promise<void> {
+    try {
+      const res = await window.electronAPI.storeDocuments.delete(id)
+      if (!res.success) {
+        toast.error(res.error ?? 'Failed to delete document')
+        return
+      }
+      setStoreDocs(prev => prev.filter(d => d.id !== id))
+      toast.success('Document deleted')
+    } catch {
+      toast.error('Failed to delete document')
+    }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground mb-6">{t('settings.title')}</h1>
 
       <div className="flex gap-1 border-b border-border mb-6 flex-wrap">
-        {TABS.map(tb => (
+        {TABS.filter(tb => !tb.ownerOrManagerOnly || canStoreDocuments).map(tb => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
             className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === tb.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
             {tb.key === 'shortcuts' ? <Keyboard className="w-4 h-4 shrink-0" /> : null}
@@ -1865,6 +1981,217 @@ export default function SettingsPage(): JSX.Element {
                 </span>
               </div>
             </div>
+          </div>
+        )}
+
+        {tab === 'store-documents' && canStoreDocuments && (
+          <div className="space-y-6 max-w-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">Store Documents</p>
+                <p className="text-xs text-muted-foreground">
+                  Trade license, insurance, lease agreements and other store documents. Only owner and manager can access.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStoreDocForm(true)}
+                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                + Add Document
+              </button>
+            </div>
+
+            {storeDocs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
+                No store documents yet. Add your trade license, insurance and other important documents.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {storeDocs.map(doc => {
+                  const isExpired =
+                    doc.has_expiry === 1 && doc.expiry_date && new Date(doc.expiry_date) < new Date()
+                  const isExpiringSoon =
+                    doc.has_expiry === 1 &&
+                    doc.expiry_date &&
+                    !isExpired &&
+                    new Date(doc.expiry_date) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+                  return (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-3 border border-border rounded-lg bg-background"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="text-2xl">📄</div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{doc.name}</p>
+                            {isExpired && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400">
+                                Expired
+                              </span>
+                            )}
+                            {isExpiringSoon && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400">
+                                Expiring Soon
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground flex gap-2 mt-0.5 flex-wrap">
+                            <span className="capitalize">{doc.doc_type.replace(/_/g, ' ')}</span>
+                            {doc.has_expiry === 1 && doc.expiry_date && (
+                              <span>Expires: {new Date(doc.expiry_date).toLocaleDateString()}</span>
+                            )}
+                            {doc.has_expiry !== 1 && <span>No expiry</span>}
+                            {doc.uploaded_by_name && <span>by {doc.uploaded_by_name}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void (async () => {
+                              const r = await window.electronAPI.storeDocuments.openFile(doc.file_path)
+                              if (!r.success) toast.error(r.error ?? 'Failed to open file')
+                            })()
+                          }
+                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                          title="Preview"
+                        >
+                          👁
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void (async () => {
+                              const r = await window.electronAPI.storeDocuments.showInFolder(doc.file_path)
+                              if (!r.success) toast.error(r.error ?? 'Failed to show in folder')
+                            })()
+                          }
+                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                          title="Show in folder"
+                        >
+                          📂
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteStoreDoc(doc.id)}
+                          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                          title="Delete"
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {showStoreDocForm && (
+              <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/20">
+                <p className="text-sm font-semibold">Add Document</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Document Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Trade License 2026"
+                      value={storeDocForm.name}
+                      onChange={e => setStoreDocForm(p => ({ ...p, name: e.target.value }))}
+                      className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Document Type</label>
+                    <select
+                      value={storeDocForm.doc_type}
+                      onChange={e => setStoreDocForm(p => ({ ...p, doc_type: e.target.value }))}
+                      className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                    >
+                      <option value="trade_license">Trade License</option>
+                      <option value="municipality_cert">Municipality Certificate</option>
+                      <option value="insurance">Insurance Policy</option>
+                      <option value="lease">Lease Agreement</option>
+                      <option value="bank_account">Bank Account</option>
+                      <option value="tax_certificate">Tax Certificate</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={storeDocForm.has_expiry === 1}
+                      onChange={e =>
+                        setStoreDocForm(p => ({
+                          ...p,
+                          has_expiry: e.target.checked ? 1 : 0,
+                          expiry_date: e.target.checked ? p.expiry_date : '',
+                        }))
+                      }
+                      className="w-4 h-4"
+                    />
+                    Has expiry date
+                  </label>
+                  {storeDocForm.has_expiry === 1 && (
+                    <input
+                      type="date"
+                      value={storeDocForm.expiry_date}
+                      onChange={e => setStoreDocForm(p => ({ ...p, expiry_date: e.target.value }))}
+                      className="border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                    />
+                  )}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Notes (optional)"
+                  value={storeDocForm.notes}
+                  onChange={e => setStoreDocForm(p => ({ ...p, notes: e.target.value }))}
+                  className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                />
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => void pickStoreDocFile()}
+                    className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted/50"
+                  >
+                    📎 Choose File
+                  </button>
+                  {storeDocFile && (
+                    <span className="ml-2 text-xs text-muted-foreground">{storeDocFile.name}</span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void uploadStoreDoc()}
+                    disabled={storeDocSaving || !storeDocForm.name.trim() || !storeDocFile}
+                    className="px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-md disabled:opacity-50 hover:bg-primary/90"
+                  >
+                    {storeDocSaving ? 'Uploading...' : 'Upload'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowStoreDocForm(false)
+                      setStoreDocFile(null)
+                    }}
+                    className="px-4 py-1.5 text-sm border border-border rounded-md hover:bg-muted/50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

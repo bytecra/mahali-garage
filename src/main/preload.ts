@@ -335,6 +335,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     markSalaryPaid:  (employeeId: number)                              => invoke('employees:markSalaryPaid', employeeId),
   },
 
+  storeDocuments: {
+    list: () => invoke('storeDocuments:list'),
+    upload: (data: unknown) => invoke('storeDocuments:upload', data),
+    delete: (id: number) => invoke('storeDocuments:delete', id),
+    openFile: (filePath: string) => invoke('storeDocuments:openFile', filePath),
+    showInFolder: (filePath: string) => invoke('storeDocuments:showInFolder', filePath),
+  },
+
   attendance: {
     getStatuses: () => invoke('attendance:getStatuses'),
     createStatus: (data: unknown) => invoke('attendance:createStatus', data),
