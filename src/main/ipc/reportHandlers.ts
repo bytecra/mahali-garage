@@ -35,6 +35,16 @@ export function registerReportHandlers(): void {
     }
   })
 
+  ipcMain.handle('reports:expiringDocuments', (event, daysAhead?: number) => {
+    try {
+      if (!authService.getSession(event.sender.id)) return err('Forbidden', 'ERR_FORBIDDEN')
+      return ok(reportRepo.getExpiringDocuments(daysAhead ?? 30))
+    } catch (e) {
+      log.error('reports:expiringDocuments', e)
+      return err('Failed')
+    }
+  })
+
   ipcMain.handle('reports:salaryReport', (event, params: unknown) => {
     try {
       const licErr = requireLicense('reports.view')

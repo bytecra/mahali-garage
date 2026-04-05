@@ -41,6 +41,7 @@ import { migration038 } from './038_employee_extensions'
 import { migration039 } from './039_fix_documents'
 import { migration040 } from './040_employees_attendance_permission'
 import { migration041 } from './041_lowercase_employee_departments'
+import { migration042 } from './042_notifications_expand_types'
 
 interface Migration {
   version: number
@@ -92,6 +93,7 @@ const migrations: Migration[] = [
   { version: 39, name: '039_fix_documents', up: migration039 },
   { version: 40, name: '040_employees_attendance_permission', up: migration040 },
   { version: 41, name: '041_lowercase_employee_departments', up: migration041 },
+  { version: 42, name: '042_notifications_expand_types', up: migration042 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

@@ -4,7 +4,7 @@ export interface NotificationRow {
   id: number
   user_id: number
   task_id: number | null
-  type: 'assigned' | 'due_soon' | 'overdue' | 'updated' | 'completed'
+  type: string
   title: string
   message: string
   is_read: number

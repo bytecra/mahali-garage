@@ -29,6 +29,12 @@ export default function LoginPage(): JSX.Element {
   const [resetError, setResetError] = useState('')
   const [resetSuccess, setResetSuccess] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
+  const [resetMode, setResetMode] = useState<'request' | 'code'>('request')
+  const [requestUsername, setRequestUsername] = useState('')
+  const [requestSent, setRequestSent] = useState(false)
+  const [requestDoneMessage, setRequestDoneMessage] = useState('')
+  const [requestLoading, setRequestLoading] = useState(false)
+  const [requestError, setRequestError] = useState('')
 
   const passcodeLength = authType === 'passcode_4' ? 4 : 6
   const isPasscodeMode = authType !== 'password'
@@ -79,6 +85,28 @@ export default function LoginPage(): JSX.Element {
     e.preventDefault()
     if (!username.trim() || !password.trim()) return
     await submitLogin(password)
+  }
+
+  async function handleRequestReset(): Promise<void> {
+    if (!requestUsername.trim()) {
+      setRequestError('Enter your username')
+      return
+    }
+    setRequestLoading(true)
+    setRequestError('')
+    try {
+      const res = await window.electronAPI.auth.requestPasswordReset(requestUsername.trim())
+      if (res?.success && res.data) {
+        setRequestDoneMessage(res.data.message)
+        setRequestSent(true)
+      } else {
+        setRequestError(res?.error ?? 'Failed to send request')
+      }
+    } catch {
+      setRequestError('Failed to send request')
+    } finally {
+      setRequestLoading(false)
+    }
   }
 
   async function handlePasswordReset(): Promise<void> {
@@ -300,6 +328,11 @@ export default function LoginPage(): JSX.Element {
                   setShowReset(true)
                   setResetError('')
                   setResetSuccess(false)
+                  setResetMode('request')
+                  setRequestSent(false)
+                  setRequestUsername('')
+                  setRequestDoneMessage('')
+                  setRequestError('')
                 }}
                 className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
               >
@@ -354,70 +387,137 @@ export default function LoginPage(): JSX.Element {
                   </button>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  Contact your system administrator
-                  to get a reset code for your account.
-                </p>
-
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Username"
-                    value={resetUsername}
-                    onChange={e => {
-                      setResetUsername(e.target.value)
-                      setResetError('')
-                    }}
-                    className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Reset code (MH-XXXXXX-XXXXXX)"
-                    value={resetCode}
-                    onChange={e => {
-                      setResetCode(e.target.value.toUpperCase())
-                      setResetError('')
-                    }}
-                    className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <input
-                    type="password"
-                    placeholder="New password"
-                    value={resetPassword}
-                    onChange={e => {
-                      setResetPassword(e.target.value)
-                      setResetError('')
-                    }}
-                    className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Confirm new password"
-                    value={resetConfirm}
-                    onChange={e => {
-                      setResetConfirm(e.target.value)
-                      setResetError('')
-                    }}
-                    className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
+                <div className="flex gap-1 p-0.5 bg-muted rounded-md">
+                  <button
+                    type="button"
+                    onClick={() => setResetMode('request')}
+                    className={`flex-1 py-1.5 text-xs rounded transition-colors ${
+                      resetMode === 'request' ? 'bg-background shadow font-medium' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Request Reset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResetMode('code')}
+                    className={`flex-1 py-1.5 text-xs rounded transition-colors ${
+                      resetMode === 'code' ? 'bg-background shadow font-medium' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Use Reset Code
+                  </button>
                 </div>
 
-                {resetError && (
-                  <p className="text-xs text-destructive">
-                    {resetError}
-                  </p>
-                )}
+                {resetMode === 'request' ? (
+                  requestSent ? (
+                    <div className="text-center space-y-3">
+                      <div className="text-4xl">✅</div>
+                      <p className="font-semibold text-sm">Request Sent!</p>
+                      <p className="text-xs text-muted-foreground">{requestDoneMessage}</p>
+                      <p className="text-xs text-muted-foreground">
+                        You will be able to login with &quot;1234&quot; after your manager approves.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowReset(false)
+                          setRequestSent(false)
+                          setRequestUsername('')
+                          setRequestDoneMessage('')
+                        }}
+                        className="w-full py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium"
+                      >
+                        Back to Login
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground">
+                        Enter your username to request a password reset from your manager.
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="Your username"
+                        value={requestUsername}
+                        onChange={e => {
+                          setRequestUsername(e.target.value)
+                          setRequestError('')
+                        }}
+                        className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      {requestError ? <p className="text-xs text-destructive">{requestError}</p> : null}
+                      <button
+                        type="button"
+                        onClick={() => void handleRequestReset()}
+                        disabled={requestLoading}
+                        className="w-full py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium disabled:opacity-50"
+                      >
+                        {requestLoading ? 'Sending...' : 'Send Reset Request'}
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Contact your system administrator
+                      to get a reset code for your account.
+                    </p>
 
-                <button
-                  type="button"
-                  onClick={handlePasswordReset}
-                  disabled={resetLoading}
-                  className="w-full py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {resetLoading
-                    ? 'Resetting...'
-                    : 'Reset Password'}
-                </button>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Username"
+                        value={resetUsername}
+                        onChange={e => {
+                          setResetUsername(e.target.value)
+                          setResetError('')
+                        }}
+                        className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Reset code (MH-XXXXXX-XXXXXX)"
+                        value={resetCode}
+                        onChange={e => {
+                          setResetCode(e.target.value.toUpperCase())
+                          setResetError('')
+                        }}
+                        className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <input
+                        type="password"
+                        placeholder="New password"
+                        value={resetPassword}
+                        onChange={e => {
+                          setResetPassword(e.target.value)
+                          setResetError('')
+                        }}
+                        className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <input
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={resetConfirm}
+                        onChange={e => {
+                          setResetConfirm(e.target.value)
+                          setResetError('')
+                        }}
+                        className="w-full px-3 py-2.5 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+
+                    {resetError ? <p className="text-xs text-destructive">{resetError}</p> : null}
+
+                    <button
+                      type="button"
+                      onClick={() => void handlePasswordReset()}
+                      disabled={resetLoading}
+                      className="w-full py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {resetLoading ? 'Resetting...' : 'Reset Password'}
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>

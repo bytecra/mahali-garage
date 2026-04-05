@@ -10,9 +10,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
                       invoke('auth:login', credentials),
     logout:         () => invoke('auth:logout'),
     getSession:     () => invoke('auth:getSession'),
-    changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    changePassword: (data: { newPassword: string; currentPassword?: string }) =>
                       invoke('auth:changePassword', data),
     getAuthType:    (username: string) => invoke('auth:getAuthType', username),
+    requestPasswordReset: (username: string) =>
+      invoke('auth:requestPasswordReset', username),
+    getPendingResetRequests: () => invoke('auth:getPendingResetRequests'),
+    resolveResetRequest: (params: { requestId: number; action: 'accept' | 'reject' }) =>
+      invoke('auth:resolveResetRequest', params),
+    checkMustChangePassword: () => invoke('auth:checkMustChangePassword'),
     generateResetCode: (username: string) =>
       ipcRenderer.invoke('auth:generateResetCode', username),
     resetPassword: (params: {
@@ -161,6 +167,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dashboard: {
     getSummary:            () => invoke('reports:dashboard'),
     employeesAvailability: () => invoke('reports:employeesAvailability'),
+    expiringDocuments:     (daysAhead?: number) => invoke('reports:expiringDocuments', daysAhead),
   },
 
   // ── Users ─────────────────────────────────────────────────────────────────

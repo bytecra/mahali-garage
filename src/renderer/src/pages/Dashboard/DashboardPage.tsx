@@ -655,6 +655,24 @@ export default function DashboardPage(): JSX.Element {
       reason: string
     }>
   } | null>(null)
+  const [expiringDocs, setExpiringDocs] = useState<{
+    employee_docs: Array<{
+      employee_name: string
+      employee_id_code: string
+      document_name: string
+      document_type: string
+      expiry_date: string
+      days_until_expiry: number
+      is_expired: boolean
+    }>
+    store_docs: Array<{
+      name: string
+      doc_type: string
+      expiry_date: string
+      days_until_expiry: number
+      is_expired: boolean
+    }>
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [widgets, setWidgets] = useState(() => parseDashboardWidgets())
 
@@ -664,11 +682,13 @@ export default function DashboardPage(): JSX.Element {
       canTasks ? window.electronAPI.tasks.getSummary() : Promise.resolve(null),
       window.electronAPI.settings.get('dashboard_widgets'),
       window.electronAPI.dashboard.employeesAvailability(),
-    ]).then(([dashRes, taskRes, widgetsRes, availRes]) => {
+      window.electronAPI.dashboard.expiringDocuments(30),
+    ]).then(([dashRes, taskRes, widgetsRes, availRes, docsRes]) => {
       if (dashRes.success) setData(dashRes.data as DashboardData)
       if (taskRes && taskRes.success) setTaskSummary(taskRes.data as TaskSummary)
       if (widgetsRes.success) setWidgets(parseDashboardWidgets((widgetsRes.data as string | null) ?? null))
       if (availRes?.success && availRes.data) setEmployeesAvailability(availRes.data)
+      if (docsRes?.success && docsRes.data) setExpiringDocs(docsRes.data)
       setLoading(false)
     })
   }, [canTasks])
@@ -818,6 +838,124 @@ export default function DashboardPage(): JSX.Element {
           )}
         </div>
       )}
+
+      {expiringDocs &&
+        (expiringDocs.employee_docs.length > 0 || expiringDocs.store_docs.length > 0) && (
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3 mb-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">📄 Document Expiry Alerts</h3>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                {expiringDocs.employee_docs.length + expiringDocs.store_docs.length}{' '}
+                document
+                {expiringDocs.employee_docs.length + expiringDocs.store_docs.length > 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {expiringDocs.store_docs.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Store Documents</p>
+                <div className="space-y-1.5">
+                  {expiringDocs.store_docs.map((doc, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
+                        doc.is_expired
+                          ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800'
+                          : doc.days_until_expiry <= 7
+                            ? 'bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800'
+                            : 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800'
+                      }`}
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{doc.name}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{doc.doc_type.replace(/_/g, ' ')}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p
+                          className={`text-xs font-semibold ${
+                            doc.is_expired
+                              ? 'text-red-600 dark:text-red-400'
+                              : doc.days_until_expiry <= 7
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          {doc.is_expired
+                            ? `Expired ${Math.abs(doc.days_until_expiry)} days ago`
+                            : doc.days_until_expiry === 0
+                              ? 'Expires today'
+                              : `${doc.days_until_expiry} days left`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(doc.expiry_date).toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {expiringDocs.employee_docs.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Employee Documents</p>
+                <div className="space-y-1.5">
+                  {expiringDocs.employee_docs.map((doc, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
+                        doc.is_expired
+                          ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800'
+                          : doc.days_until_expiry <= 7
+                            ? 'bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800'
+                            : 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800'
+                      }`}
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{doc.document_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {doc.employee_name}
+                          {' · '}
+                          <span className="font-mono">{doc.employee_id_code}</span>
+                          {' · '}
+                          <span className="capitalize">{doc.document_type.replace(/_/g, ' ')}</span>
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p
+                          className={`text-xs font-semibold ${
+                            doc.is_expired
+                              ? 'text-red-600 dark:text-red-400'
+                              : doc.days_until_expiry <= 7
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          {doc.is_expired
+                            ? `Expired ${Math.abs(doc.days_until_expiry)} days ago`
+                            : doc.days_until_expiry === 0
+                              ? 'Expires today'
+                              : `${doc.days_until_expiry} days left`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(doc.expiry_date).toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* Payroll alert — only when there is unpaid salary and widget enabled */}
       {widgets.unpaid_salaries && (data?.unpaidSalariesTotal ?? 0) > 0 && (

@@ -40,8 +40,32 @@ declare global {
         login: (credentials: { username: string; password: string }) => Promise<IpcResponse<SessionData>>
         logout: () => Promise<IpcResponse<null>>
         getSession: () => Promise<IpcResponse<SessionData | null>>
-        changePassword: (data: { currentPassword: string; newPassword: string }) => Promise<IpcResponse<null>>
+        changePassword: (data: {
+          newPassword: string
+          currentPassword?: string
+        }) => Promise<IpcResponse<{ success: boolean }>>
         getAuthType: (username: string) => Promise<IpcResponse<'password' | 'passcode_4' | 'passcode_6' | null>>
+        requestPasswordReset: (username: string) => Promise<
+          IpcResponse<{ alreadyPending: boolean; message: string }>
+        >
+        getPendingResetRequests: () => Promise<
+          IpcResponse<
+            Array<{
+              id: number
+              user_id: number
+              status: string
+              requested_at: string
+              username: string
+              full_name: string
+              role: string
+            }>
+          >
+        >
+        resolveResetRequest: (params: {
+          requestId: number
+          action: 'accept' | 'reject'
+        }) => Promise<IpcResponse<{ success: boolean }>>
+        checkMustChangePassword: () => Promise<IpcResponse<{ mustChange: boolean }>>
       }
       settings: {
         getAll: () => Promise<IpcResponse<Record<string, string>>>
@@ -222,6 +246,26 @@ declare global {
               full_name: string
               department: string
               reason: 'absent' | 'leave' | 'on_task' | 'vacation' | 'not_marked'
+            }>
+          }>
+        >
+        expiringDocuments: (daysAhead?: number) => Promise<
+          IpcResponse<{
+            employee_docs: Array<{
+              employee_name: string
+              employee_id_code: string
+              document_name: string
+              document_type: string
+              expiry_date: string
+              days_until_expiry: number
+              is_expired: boolean
+            }>
+            store_docs: Array<{
+              name: string
+              doc_type: string
+              expiry_date: string
+              days_until_expiry: number
+              is_expired: boolean
             }>
           }>
         >

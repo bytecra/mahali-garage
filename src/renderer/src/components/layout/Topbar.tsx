@@ -8,6 +8,7 @@ import { useLangStore } from '../../store/langStore'
 import { useNavigate } from 'react-router-dom'
 import { cn, formatCurrency } from '../../lib/utils'
 import CurrencyText from '../shared/CurrencyText'
+import { toast } from '../../store/notificationStore'
 import { usePermission } from '../../hooks/usePermission'
 import { useCartStore } from '../../store/cartStore'
 import { useNotificationPoll } from '../../hooks/useNotificationPoll'
@@ -53,6 +54,8 @@ const NOTIF_TYPE_ICON: Record<string, string> = {
   overdue:   '🔴',
   updated:   '✏️',
   completed: '✅',
+  password_reset_request: '🔑',
+  password_reset_approved: '✅',
 }
 
 export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Element {
@@ -66,17 +69,26 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
   const canInventory  = usePermission('inventory.view')
   const canExpenses   = usePermission('expenses.view')
   const clearCart = useCartStore(s => s.clear)
-  const { unreadCount, lowStockCount, dueSoonCount, refresh } = useNotificationPoll(60_000)
+  const { unreadCount, lowStockCount, dueSoonCount, resetRequestCount, refresh } = useNotificationPoll(60_000)
 
   const [notifOpen, setNotifOpen]         = useState(false)
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
+  const [resetRequests, setResetRequests] = useState<
+    Array<{
+      id: number
+      user_id: number
+      username: string
+      full_name: string
+      requested_at: string
+    }>
+  >([])
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([])
   const [dueSoonItems, setDueSoonItems]   = useState<DueSoonItem[]>([])
   const [colorOpen, setColorOpen]         = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
   const colorRef = useRef<HTMLDivElement>(null)
 
-  const totalBadge = unreadCount + lowStockCount + dueSoonCount
+  const totalBadge = unreadCount + lowStockCount + dueSoonCount + resetRequestCount
 
   const handleLogout = (): void => {
     logout()
@@ -120,7 +132,31 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
         if (res.success) setDueSoonItems(res.data as DueSoonItem[])
       })
     }
-  }, [notifOpen])
+    if (user?.role === 'owner' || user?.role === 'manager') {
+      window.electronAPI.auth.getPendingResetRequests().then(res => {
+        if (res.success) {
+          const rows = (res.data ?? []) as Array<{
+            id: number
+            user_id: number
+            username: string
+            full_name: string
+            requested_at: string
+          }>
+          setResetRequests(
+            rows.map(r => ({
+              id: r.id,
+              user_id: r.user_id,
+              username: r.username,
+              full_name: r.full_name,
+              requested_at: r.requested_at,
+            })),
+          )
+        }
+      })
+    } else {
+      setResetRequests([])
+    }
+  }, [notifOpen, user?.role])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -396,12 +432,77 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
                   </div>
                 )}
 
+                {resetRequests.length > 0 && (
+                  <div>
+                    <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide bg-muted/50">
+                      Password Reset Requests ({resetRequests.length})
+                    </p>
+                    {resetRequests.map(req => (
+                      <div key={req.id} className="px-3 py-3 border-b border-border/50">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium">🔑 {req.full_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              @{req.username} ·{' '}
+                              {formatDistanceToNow(new Date(req.requested_at), { addSuffix: true })}
+                            </p>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const res = await window.electronAPI.auth.resolveResetRequest({
+                                  requestId: req.id,
+                                  action: 'accept',
+                                })
+                                if (res?.success) {
+                                  setResetRequests(prev => prev.filter(r => r.id !== req.id))
+                                  toast.success(`${req.full_name}'s password reset to 1234`)
+                                  refresh()
+                                } else {
+                                  toast.error(res?.error ?? 'Failed to accept')
+                                }
+                              }}
+                              className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                            >
+                              ✓ Accept
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const res = await window.electronAPI.auth.resolveResetRequest({
+                                  requestId: req.id,
+                                  action: 'reject',
+                                })
+                                if (res?.success) {
+                                  setResetRequests(prev => prev.filter(r => r.id !== req.id))
+                                  refresh()
+                                } else {
+                                  toast.error(res?.error ?? 'Failed to reject')
+                                }
+                              }}
+                              className="px-2 py-1 text-xs border border-border rounded hover:bg-muted/50 text-muted-foreground"
+                            >
+                              ✗ Reject
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Task notifications */}
-                {notifications.length === 0 && (!canInventory || lowStockItems.length === 0) && (!canExpenses || dueSoonItems.length === 0) ? (
+                {notifications.length === 0 &&
+                (!canInventory || lowStockItems.length === 0) &&
+                (!canExpenses || dueSoonItems.length === 0) &&
+                resetRequests.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-sm">{t('notifications.noNotifications')}</div>
                 ) : notifications.length > 0 ? (
                   <div>
-                    {(canInventory && lowStockItems.length > 0) || (canExpenses && dueSoonItems.length > 0) ? (
+                    {(canInventory && lowStockItems.length > 0) ||
+                    (canExpenses && dueSoonItems.length > 0) ||
+                    resetRequests.length > 0 ? (
                       <div className="px-4 py-2 bg-muted/30 border-b border-border/50">
                         <span className="text-xs font-semibold text-muted-foreground">{t('notifications.title')}</span>
                       </div>

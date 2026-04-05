@@ -855,4 +855,108 @@ export const reportRepo = {
       )
       .all(...bindValues) as Row[]
   },
+
+  getExpiringDocuments(daysAhead = 30): {
+    employee_docs: Array<{
+      employee_name: string
+      employee_id_code: string
+      document_name: string
+      document_type: string
+      expiry_date: string
+      days_until_expiry: number
+      is_expired: boolean
+    }>
+    store_docs: Array<{
+      name: string
+      doc_type: string
+      expiry_date: string
+      days_until_expiry: number
+      is_expired: boolean
+    }>
+  } {
+    const db = getDb()
+    const today = new Date().toISOString().split('T')[0]
+    const futureDate = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+    type EmpRow = {
+      employee_name: string
+      employee_id_code: string
+      document_name: string
+      document_type: string
+      expiry_date: string
+      days_until_expiry: number
+      is_expired: number
+    }
+    type StoreRow = {
+      name: string
+      doc_type: string
+      expiry_date: string
+      days_until_expiry: number
+      is_expired: number
+    }
+
+    const employeeDocs = db
+      .prepare(
+        `
+      SELECT
+        e.full_name AS employee_name,
+        e.employee_id AS employee_id_code,
+        ed.document_name,
+        ed.document_type,
+        ed.expiry_date,
+        CAST(
+          julianday(ed.expiry_date) -
+          julianday(?) AS INTEGER
+        ) AS days_until_expiry,
+        CASE
+          WHEN ed.expiry_date < ?
+          THEN 1 ELSE 0
+        END AS is_expired
+      FROM employee_documents ed
+      JOIN employees e
+        ON e.id = ed.employee_id
+      WHERE ed.has_expiry = 1
+        AND ed.expiry_date IS NOT NULL
+        AND ed.expiry_date <= ?
+      ORDER BY ed.expiry_date ASC
+    `,
+      )
+      .all(today, today, futureDate) as EmpRow[]
+
+    const storeDocs = db
+      .prepare(
+        `
+      SELECT
+        name,
+        doc_type,
+        expiry_date,
+        CAST(
+          julianday(expiry_date) -
+          julianday(?) AS INTEGER
+        ) AS days_until_expiry,
+        CASE
+          WHEN expiry_date < ?
+          THEN 1 ELSE 0
+        END AS is_expired
+      FROM store_documents
+      WHERE has_expiry = 1
+        AND expiry_date IS NOT NULL
+        AND expiry_date <= ?
+      ORDER BY expiry_date ASC
+    `,
+      )
+      .all(today, today, futureDate) as StoreRow[]
+
+    const toBool = (n: number) => n === 1
+    return {
+      employee_docs: employeeDocs.map((r) => ({
+        ...r,
+        is_expired: toBool(r.is_expired),
+      })),
+      store_docs: storeDocs.map((r) => ({
+        ...r,
+        is_expired: toBool(r.is_expired),
+      })),
+    }
+  },
 }
