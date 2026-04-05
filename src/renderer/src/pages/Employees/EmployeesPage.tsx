@@ -849,7 +849,9 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
   const [attendanceStatuses, setAttendanceStatuses] = useState<
     Array<{ id: number; name: string; color: string; emoji: string | null }>
   >([])
+  const [markMode, setMarkMode] = useState<'single' | 'range'>('single')
   const [markingDate, setMarkingDate] = useState('')
+  const [markingDateTo, setMarkingDateTo] = useState('')
   const [markingStatusId, setMarkingStatusId] = useState<number | null>(null)
   const [markingNotes, setMarkingNotes] = useState('')
   const [attendanceLoading, setAttendanceLoading] = useState(false)
@@ -907,19 +909,42 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
   }, [tab, loadAttendance])
 
   async function handleMarkAttendance(): Promise<void> {
-    if (!markingDate || markingStatusId == null || !employee || !user?.userId) return
+    if (!markingDate || !markingStatusId || !employee || !user?.userId) return
+    if (markMode === 'range' && !markingDateTo) return
     try {
-      const res = await window.electronAPI.attendance.mark({
-        employee_id: employee.id,
-        date: markingDate,
-        status_type_id: markingStatusId,
-        notes: markingNotes || undefined,
-      })
-      if (!res.success) {
-        window.alert(res.error ?? t('common.error'))
-        return
+      if (markMode === 'single') {
+        const res = await window.electronAPI.attendance.mark({
+          employee_id: employee.id,
+          date: markingDate,
+          status_type_id: markingStatusId,
+          notes: markingNotes || undefined,
+        })
+        if (!res.success) {
+          window.alert(res.error ?? t('common.error'))
+          return
+        }
+      } else {
+        const dates: string[] = []
+        const current = new Date(markingDate)
+        const end = new Date(markingDateTo)
+        while (current <= end) {
+          dates.push(current.toISOString().split('T')[0])
+          current.setDate(current.getDate() + 1)
+        }
+        const res = await window.electronAPI.attendance.bulkMark({
+          employee_ids: [employee.id],
+          dates,
+          status_type_id: markingStatusId,
+          notes: markingNotes || undefined,
+          overwrite: true,
+        })
+        if (!res.success) {
+          window.alert(res.error ?? t('common.error'))
+          return
+        }
       }
       setMarkingDate('')
+      setMarkingDateTo('')
       setMarkingStatusId(null)
       setMarkingNotes('')
       await loadAttendance()
@@ -1073,28 +1098,85 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                   <p className="text-xs font-semibold text-foreground">
                     {t('employees.markAttendance', { defaultValue: 'Mark attendance' })}
                   </p>
+                  <div className="flex gap-1 p-0.5 bg-muted rounded-md w-fit mb-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMarkMode('single')
+                        setMarkingDateTo('')
+                      }}
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
+                        markMode === 'single'
+                          ? 'bg-background shadow text-foreground'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      Single Date
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMarkMode('range')}
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
+                        markMode === 'range'
+                          ? 'bg-background shadow text-foreground'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      Date Range
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="date"
-                      value={markingDate}
-                      onChange={e => setMarkingDate(e.target.value)}
-                      className={`${inputCls} py-1.5`}
-                    />
+                    <div>
+                      {markMode === 'range' && (
+                        <label className="text-xs text-muted-foreground mb-0.5 block">From</label>
+                      )}
+                      <input
+                        type="date"
+                        value={markingDate}
+                        onChange={e => setMarkingDate(e.target.value)}
+                        className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                      />
+                    </div>
+                    {markMode === 'range' ? (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-0.5 block">To</label>
+                        <input
+                          type="date"
+                          value={markingDateTo}
+                          min={markingDate}
+                          onChange={e => setMarkingDateTo(e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                        />
+                      </div>
+                    ) : (
+                      <select
+                        value={markingStatusId ?? ''}
+                        onChange={e => setMarkingStatusId(Number(e.target.value) || null)}
+                        className="border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                      >
+                        <option value="">Status...</option>
+                        {attendanceStatuses.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.emoji} {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  {markMode === 'range' && (
                     <select
                       value={markingStatusId ?? ''}
-                      onChange={e =>
-                        setMarkingStatusId(e.target.value ? Number(e.target.value) : null)
-                      }
-                      className={`${inputCls} py-1.5`}
+                      onChange={e => setMarkingStatusId(Number(e.target.value) || null)}
+                      className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
                     >
-                      <option value="">{t('employees.attendanceStatusPlaceholder', { defaultValue: 'Status…' })}</option>
+                      <option value="">Status...</option>
                       {attendanceStatuses.map(s => (
                         <option key={s.id} value={s.id}>
-                          {s.emoji ? `${s.emoji} ` : ''}{s.name}
+                          {s.emoji} {s.name}
                         </option>
                       ))}
                     </select>
-                  </div>
+                  )}
                   <input
                     type="text"
                     placeholder={t('employees.attendanceNotesPlaceholder', { defaultValue: 'Notes (optional)' })}
@@ -1105,7 +1187,11 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                   <button
                     type="button"
                     onClick={() => void handleMarkAttendance()}
-                    disabled={!markingDate || markingStatusId == null}
+                    disabled={
+                      !markingDate ||
+                      !markingStatusId ||
+                      (markMode === 'range' && !markingDateTo)
+                    }
                     className={`${btnPrimary} w-full py-1.5 text-sm`}
                   >
                     {t('common.save', { defaultValue: 'Save' })}
