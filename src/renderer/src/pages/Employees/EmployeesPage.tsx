@@ -6,6 +6,7 @@ import {
   CalendarDays,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
+import { toast } from '../../store/notificationStore'
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -91,6 +92,12 @@ interface EmpDocument {
   notes: string | null
   uploaded_by_name: string | null
   uploaded_at: string
+}
+
+interface RegisterMarkEntry {
+  status_type_id: number | null
+  marked_by_name: string | null
+  marked_at: string | null
 }
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
@@ -245,10 +252,22 @@ export default function EmployeesPage(): JSX.Element {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
-  const [pageSection, setPageSection] = useState<'list' | 'payroll'>('list')
+  const [pageSection, setPageSection] = useState<'list' | 'payroll' | 'register'>('list')
   const [payrollFilter, setPayrollFilter] = useState<'all' | 'paid' | 'unpaid' | 'overdue'>('all')
   const [payrollRows, setPayrollRows] = useState<PayrollRow[]>([])
   const [payrollLoading, setPayrollLoading] = useState(false)
+
+  const [registerDate, setRegisterDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [registerDept, setRegisterDept] = useState<'all' | 'mechanical' | 'programming'>('all')
+  const [registerEmployees, setRegisterEmployees] = useState<
+    Array<{ id: number; employee_id: string; full_name: string; department: string }>
+  >([])
+  const [registerStatuses, setRegisterStatuses] = useState<
+    Array<{ id: number; name: string; color: string; emoji: string }>
+  >([])
+  const [registerMarks, setRegisterMarks] = useState<Record<number, RegisterMarkEntry>>({})
+  const [registerLoading, setRegisterLoading] = useState(false)
+  const [registerSaving, setRegisterSaving] = useState(false)
 
   const [showForm, setShowForm] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
@@ -297,6 +316,130 @@ export default function EmployeesPage(): JSX.Element {
   useEffect(() => {
     if (pageSection === 'payroll') loadPayroll()
   }, [pageSection, loadPayroll])
+
+  const loadRegister = useCallback(async (): Promise<void> => {
+    setRegisterLoading(true)
+    try {
+      const [empRes, statusRes] = await Promise.all([
+        window.electronAPI.employees.list({}) as Promise<{ success: boolean; data?: Employee[] }>,
+        window.electronAPI.attendance.getStatuses(),
+      ])
+
+      let emps: Employee[] = empRes?.success && empRes.data ? empRes.data : []
+
+      if (registerDept !== 'all') {
+        emps = emps.filter(
+          e => e.department === registerDept || e.department === 'both'
+        )
+      }
+
+      setRegisterEmployees(
+        emps.map(e => ({
+          id: e.id,
+          employee_id: e.employee_id,
+          full_name: e.full_name,
+          department: e.department ?? '',
+        }))
+      )
+      setRegisterStatuses(
+        (statusRes.success ? statusRes.data ?? [] : []).map(s => ({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+          emoji: s.emoji ?? '',
+        }))
+      )
+
+      const marks: Record<number, RegisterMarkEntry> = {}
+      const y = new Date(registerDate).getFullYear()
+      const m = new Date(registerDate).getMonth() + 1
+
+      for (const emp of emps) {
+        const res = await window.electronAPI.attendance.getMonthly(emp.id, y, m)
+        if (res.success) {
+          const record = (res.data ?? []).find(r => r.date === registerDate)
+          marks[emp.id] = record
+            ? {
+                status_type_id: record.status_type_id,
+                marked_by_name: record.marked_by_name ?? null,
+                marked_at: record.marked_at ?? null,
+              }
+            : {
+                status_type_id: null,
+                marked_by_name: null,
+                marked_at: null,
+              }
+        } else {
+          marks[emp.id] = {
+            status_type_id: null,
+            marked_by_name: null,
+            marked_at: null,
+          }
+        }
+      }
+
+      setRegisterMarks(marks)
+    } finally {
+      setRegisterLoading(false)
+    }
+  }, [registerDate, registerDept])
+
+  useEffect(() => {
+    if (pageSection === 'register') void loadRegister()
+  }, [pageSection, loadRegister])
+
+  async function saveRegister(): Promise<void> {
+    const toMark = Object.entries(registerMarks)
+      .filter(([, entry]) => entry?.status_type_id != null)
+      .map(([empId, entry]) => ({
+        employee_id: Number(empId),
+        status_type_id: entry!.status_type_id!,
+      }))
+
+    if (toMark.length === 0) {
+      toast.error('No statuses selected')
+      return
+    }
+
+    setRegisterSaving(true)
+    try {
+      const results = await Promise.all(
+        toMark.map(m =>
+          window.electronAPI.attendance.mark({
+            employee_id: m.employee_id,
+            date: registerDate,
+            status_type_id: m.status_type_id,
+          })
+        )
+      )
+      for (const r of results) {
+        if (!r.success) {
+          toast.error(r.error ?? 'Failed to save attendance')
+          return
+        }
+      }
+      toast.success(`Attendance saved for ${toMark.length} employees`)
+      await loadRegister()
+    } catch {
+      toast.error('Failed to save attendance')
+    } finally {
+      setRegisterSaving(false)
+    }
+  }
+
+  function markAll(statusId: number): void {
+    const markedAt = new Date().toISOString()
+    const markedByName = user?.fullName ?? null
+    const allMarks: Record<number, RegisterMarkEntry> = {}
+    registerEmployees.forEach(emp => {
+      allMarks[emp.id] = {
+        status_type_id: statusId,
+        marked_by_name: markedByName,
+        marked_at: markedAt,
+      }
+    })
+    setRegisterMarks(prev => ({ ...prev, ...allMarks }))
+  }
 
   function openCreate() {
     setEditEmployee(null)
@@ -364,6 +507,16 @@ export default function EmployeesPage(): JSX.Element {
           <Wallet className="w-4 h-4" />
           {t('employees.payrollTab', { defaultValue: 'Payroll' })}
         </button>
+        <button
+          type="button"
+          onClick={() => setPageSection('register')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${
+            pageSection === 'register' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <CalendarDays className="w-4 h-4" />
+          {t('employees.attendanceRegisterTab', { defaultValue: 'Attendance Register' })}
+        </button>
       </div>
 
       {pageSection === 'payroll' && (
@@ -375,6 +528,171 @@ export default function EmployeesPage(): JSX.Element {
           onRefresh={loadPayroll}
           t={t}
         />
+      )}
+
+      {pageSection === 'register' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date(registerDate)
+                  d.setDate(d.getDate() - 1)
+                  setRegisterDate(d.toISOString().split('T')[0])
+                }}
+                className="px-2 py-1.5 text-sm border border-border rounded-md hover:bg-muted/50"
+              >
+                ←
+              </button>
+              <input
+                type="date"
+                value={registerDate}
+                onChange={e => setRegisterDate(e.target.value)}
+                className="border border-input rounded-md px-3 py-1.5 text-sm bg-background"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date(registerDate)
+                  d.setDate(d.getDate() + 1)
+                  setRegisterDate(d.toISOString().split('T')[0])
+                }}
+                className="px-2 py-1.5 text-sm border border-border rounded-md hover:bg-muted/50"
+              >
+                →
+              </button>
+              <button
+                type="button"
+                onClick={() => setRegisterDate(new Date().toISOString().split('T')[0])}
+                className="px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted/50 text-muted-foreground"
+              >
+                Today
+              </button>
+            </div>
+
+            <select
+              value={registerDept}
+              onChange={e => setRegisterDept(e.target.value as typeof registerDept)}
+              className="border border-input rounded-md px-3 py-1.5 text-sm bg-background"
+            >
+              <option value="all">All Departments</option>
+              <option value="mechanical">Mechanical</option>
+              <option value="programming">Programming</option>
+            </select>
+
+            <div className="flex gap-2 ml-auto flex-wrap">
+              {registerStatuses
+                .filter(s => s.name === 'Present' || s.name === 'Absent')
+                .map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => markAll(s.id)}
+                    className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-muted/50 font-medium"
+                    style={{ color: s.color }}
+                  >
+                    {s.emoji} Mark All {s.name}
+                  </button>
+                ))}
+            </div>
+          </div>
+
+          {registerLoading ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+          ) : registerEmployees.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">No employees found.</div>
+          ) : (
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Employee</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Department</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Status</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Marked By</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {registerEmployees.map(emp => (
+                    <tr key={emp.id} className="hover:bg-muted/20">
+                      <td className="px-4 py-3">
+                        <div>
+                          <p className="font-medium">{emp.full_name}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{emp.employee_id}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 capitalize text-muted-foreground">{emp.department || '—'}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={
+                            registerMarks[emp.id]?.status_type_id != null
+                              ? String(registerMarks[emp.id].status_type_id)
+                              : ''
+                          }
+                          onChange={e => {
+                            const val = e.target.value
+                            setRegisterMarks(prev => ({
+                              ...prev,
+                              [emp.id]: {
+                                status_type_id: val ? Number(val) : null,
+                                marked_by_name: val ? (user?.fullName ?? null) : null,
+                                marked_at: val ? new Date().toISOString() : null,
+                              },
+                            }))
+                          }}
+                          className="border border-input rounded-md px-2 py-1 text-sm bg-background min-w-[160px]"
+                          style={{
+                            color: registerMarks[emp.id]?.status_type_id
+                              ? registerStatuses.find(
+                                  s => s.id === registerMarks[emp.id]?.status_type_id
+                                )?.color
+                              : undefined,
+                          }}
+                        >
+                          <option value="">— Not marked</option>
+                          {registerStatuses.map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.emoji} {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        {registerMarks[emp.id]?.marked_by_name ? (
+                          <div>
+                            <p className="text-xs font-medium">{registerMarks[emp.id].marked_by_name}</p>
+                            {registerMarks[emp.id].marked_at && (
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(registerMarks[emp.id].marked_at!).toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => void saveRegister()}
+              disabled={registerSaving}
+              className="px-6 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium"
+            >
+              {registerSaving ? 'Saving...' : 'Save Attendance'}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Filter tabs */}

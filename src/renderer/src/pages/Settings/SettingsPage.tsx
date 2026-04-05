@@ -42,7 +42,7 @@ const DEFAULT_LOYALTY = {
   showOnReceipt: true,
 }
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'about'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'attendance' | 'about'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -114,6 +114,33 @@ export default function SettingsPage(): JSX.Element {
     hasUpdate: false,
   })
 
+  const [attendanceStatuses, setAttendanceStatuses] = useState<
+    Array<{
+      id: number
+      name: string
+      color: string
+      emoji: string
+      is_default: number
+      is_paid: number
+      counts_as_working: number
+      sort_order: number
+    }>
+  >([])
+
+  const [statusForm, setStatusForm] = useState({
+    name: '',
+    color: '#6b7280',
+    emoji: '',
+    is_paid: 1,
+    counts_as_working: 0,
+  })
+
+  const [editingStatusId, setEditingStatusId] = useState<number | null>(null)
+
+  const [showStatusForm, setShowStatusForm] = useState(false)
+
+  const [statusSaving, setStatusSaving] = useState(false)
+
   const setLC = <K extends keyof typeof DEFAULT_LOYALTY>(
     key: K,
     val: (typeof DEFAULT_LOYALTY)[K]
@@ -167,6 +194,23 @@ export default function SettingsPage(): JSX.Element {
     if (tab === 'tv-display') {
       const dRes = await window.electronAPI.tv.listDisplays()
       if (dRes.success && dRes.data) setTvDisplays(dRes.data as TvDisplayOption[])
+    }
+    if (tab === 'attendance') {
+      const attRes = await window.electronAPI.attendance.getStatuses()
+      if (attRes?.success) {
+        setAttendanceStatuses(
+          (attRes.data ?? []).map(s => ({
+            id: s.id,
+            name: s.name,
+            color: s.color,
+            emoji: s.emoji ?? '',
+            is_default: s.is_default,
+            is_paid: s.is_paid,
+            counts_as_working: s.counts_as_working,
+            sort_order: s.sort_order,
+          }))
+        )
+      }
     }
     if (tab === 'about') {
       try {
@@ -335,6 +379,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'backup',     label: t('settings.backup'),         guard: canBackup },
     { key: 'activity',   label: t('settings.activityLog'),    guard: canActivityLog },
     { key: 'license',    label: 'License' },
+    { key: 'attendance', label: 'Attendance' },
     { key: 'about', label: 'About' },
   ]
 
@@ -442,6 +487,76 @@ export default function SettingsPage(): JSX.Element {
         hasUpdate: false,
         error: 'Failed to check for updates',
       })
+    }
+  }
+
+  async function saveStatus(): Promise<void> {
+    if (!statusForm.name.trim()) return
+    setStatusSaving(true)
+    const wasEdit = editingStatusId != null
+    try {
+      const payload = {
+        name: statusForm.name.trim(),
+        color: statusForm.color,
+        emoji: statusForm.emoji || undefined,
+        is_paid: statusForm.is_paid,
+        counts_as_working: statusForm.counts_as_working,
+      }
+      const saveRes =
+        editingStatusId != null
+          ? await window.electronAPI.attendance.updateStatus(editingStatusId, payload)
+          : await window.electronAPI.attendance.createStatus(payload)
+      if (!saveRes.success) {
+        toast.error(saveRes.error ?? 'Failed to save status')
+        return
+      }
+      const res = await window.electronAPI.attendance.getStatuses()
+      if (res?.success) {
+        setAttendanceStatuses(
+          (res.data ?? []).map(s => ({
+            id: s.id,
+            name: s.name,
+            color: s.color,
+            emoji: s.emoji ?? '',
+            is_default: s.is_default,
+            is_paid: s.is_paid,
+            counts_as_working: s.counts_as_working,
+            sort_order: s.sort_order,
+          }))
+        )
+      }
+      setShowStatusForm(false)
+      setEditingStatusId(null)
+      setStatusForm({
+        name: '',
+        color: '#6b7280',
+        emoji: '',
+        is_paid: 1,
+        counts_as_working: 0,
+      })
+      toast.success(wasEdit ? 'Status updated' : 'Status added')
+    } catch {
+      toast.error('Failed to save status')
+    } finally {
+      setStatusSaving(false)
+    }
+  }
+
+  async function deleteStatus(id: number, isDefault: number): Promise<void> {
+    if (isDefault) {
+      toast.error('Cannot delete default statuses')
+      return
+    }
+    try {
+      const delRes = await window.electronAPI.attendance.deleteStatus(id)
+      if (!delRes.success) {
+        toast.error(delRes.error ?? 'Failed to delete status')
+        return
+      }
+      setAttendanceStatuses(prev => prev.filter(s => s.id !== id))
+      toast.success('Status deleted')
+    } catch {
+      toast.error('Failed to delete status')
     }
   }
 
@@ -1547,6 +1662,208 @@ export default function SettingsPage(): JSX.Element {
                   ? 'Update License'
                   : 'Activate License'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {tab === 'attendance' && (
+          <div className="space-y-6 max-w-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">Attendance Status Types</p>
+                <p className="text-xs text-muted-foreground">
+                  Manage attendance statuses. Default statuses cannot be deleted.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingStatusId(null)
+                  setStatusForm({
+                    name: '',
+                    color: '#6b7280',
+                    emoji: '',
+                    is_paid: 1,
+                    counts_as_working: 0,
+                  })
+                  setShowStatusForm(true)
+                }}
+                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                + Add Status
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {attendanceStatuses.map(status => (
+                <div
+                  key={status.id}
+                  className="flex items-center justify-between p-3 border border-border rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: status.color }}
+                    />
+                    <span className="text-lg">{status.emoji}</span>
+                    <div>
+                      <p className="text-sm font-medium">
+                        {status.name}
+                        {status.is_default === 1 && (
+                          <span className="ml-2 text-xs text-muted-foreground font-normal">Default</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {status.is_paid ? '✓ Paid' : '✗ Unpaid'}
+                        {' · '}
+                        {status.counts_as_working ? 'Counts as working day' : 'Does not count'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingStatusId(status.id)
+                        setStatusForm({
+                          name: status.name,
+                          color: status.color,
+                          emoji: status.emoji,
+                          is_paid: status.is_paid,
+                          counts_as_working: status.counts_as_working,
+                        })
+                        setShowStatusForm(true)
+                      }}
+                      className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                    >
+                      ✏️
+                    </button>
+                    {status.is_default === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => void deleteStatus(status.id, status.is_default)}
+                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {showStatusForm && (
+              <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/20">
+                <p className="text-sm font-semibold">
+                  {editingStatusId ? 'Edit Status' : 'New Status'}
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Eid Holiday"
+                      value={statusForm.name}
+                      onChange={e => setStatusForm(p => ({ ...p, name: e.target.value }))}
+                      disabled={
+                        !!editingStatusId &&
+                        attendanceStatuses.find(s => s.id === editingStatusId)?.is_default === 1
+                      }
+                      className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Emoji</label>
+                    <input
+                      type="text"
+                      placeholder="🕌"
+                      value={statusForm.emoji}
+                      onChange={e => setStatusForm(p => ({ ...p, emoji: e.target.value }))}
+                      disabled={
+                        !!editingStatusId &&
+                        attendanceStatuses.find(s => s.id === editingStatusId)?.is_default === 1
+                      }
+                      className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={statusForm.color}
+                      onChange={e => setStatusForm(p => ({ ...p, color: e.target.value }))}
+                      className="w-10 h-8 rounded cursor-pointer border border-input"
+                    />
+                    <span className="text-sm text-muted-foreground">{statusForm.color}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={statusForm.is_paid === 1}
+                      onChange={e =>
+                        setStatusForm(p => ({ ...p, is_paid: e.target.checked ? 1 : 0 }))
+                      }
+                      className="w-4 h-4"
+                    />
+                    Paid leave
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={statusForm.counts_as_working === 1}
+                      onChange={e =>
+                        setStatusForm(p => ({
+                          ...p,
+                          counts_as_working: e.target.checked ? 1 : 0,
+                        }))
+                      }
+                      className="w-4 h-4"
+                    />
+                    Counts as working day
+                  </label>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void saveStatus()}
+                    disabled={statusSaving || !statusForm.name.trim()}
+                    className="px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-md disabled:opacity-50 hover:bg-primary/90"
+                  >
+                    {statusSaving ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowStatusForm(false)
+                      setEditingStatusId(null)
+                    }}
+                    className="px-4 py-1.5 text-sm border border-border rounded-md hover:bg-muted/50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="border border-border rounded-lg p-4 space-y-3">
+              <p className="text-sm font-semibold">Fingerprint Device</p>
+              <p className="text-xs text-muted-foreground">
+                Connect a fingerprint attendance device to auto-sync attendance records.
+              </p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+                <span className="text-xs text-muted-foreground">
+                  Not configured — coming in future update
+                </span>
+              </div>
             </div>
           </div>
         )}
