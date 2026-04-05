@@ -1,6 +1,6 @@
 {
   "name": "mahali-garage",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Professional garage and auto repair shop management system",
   "main": "./out/main/index.js",
   "author": "",
