@@ -198,6 +198,12 @@ declare global {
           total_current: number
         }>>
         salaryReport: (params: unknown) => Promise<IpcResponse<unknown>>
+        employeePerformance: (params: {
+          employeeId?: number
+          fromDate: string
+          toDate: string
+          department?: string
+        }) => Promise<IpcResponse<unknown>>
         exportCsv: (type: string, params: unknown) => Promise<IpcResponse<string>>
       }
       dashboard: {

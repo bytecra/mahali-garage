@@ -1197,3 +1197,244 @@ export function buildSalarySummaryPdf(params: {
 </body>
 </html>`
 }
+
+export function buildEmployeePerformancePdf(params: {
+  employees: Array<{
+    employee_id: number
+    employee_code: string
+    full_name: string
+    department: string
+    total_jobs: number
+    total_hours: number
+    total_revenue: number
+    avg_hours_per_job: number
+    avg_revenue_per_job: number
+    mechanical_jobs: number
+    programming_jobs: number
+    both_jobs: number
+  }>
+  fromDate: string
+  toDate: string
+  department: string
+  storeName: string
+  currencySymbol: string
+}): string {
+  const { employees, fromDate, toDate, storeName, currencySymbol } = params
+
+  const fmt = (n: number) => `${currencySymbol} ${n.toFixed(2)}`
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+
+  const totals = employees.reduce(
+    (acc, e) => {
+      acc.jobs += e.total_jobs
+      acc.hours += e.total_hours
+      acc.revenue += e.total_revenue
+      return acc
+    },
+    { jobs: 0, hours: 0, revenue: 0 },
+  )
+
+  const rows = employees
+    .map(
+      (e, i) => `
+    <tr style="${i % 2 === 0 ? '' : 'background:#f8fafc'}">
+      <td style="padding:8px 10px;">
+        <p style="font-weight:500;
+          font-size:12px;">
+          ${e.full_name}
+        </p>
+        <p style="font-size:10px;
+          color:#64748b;
+          font-family:monospace;">
+          ${e.employee_code}
+        </p>
+      </td>
+      <td style="padding:8px 10px;
+        text-align:center;font-size:11px;
+        color:#64748b;text-transform:capitalize;">
+        ${e.department || '—'}
+      </td>
+      <td style="padding:8px 10px;
+        text-align:center;font-weight:600;">
+        ${e.total_jobs}
+      </td>
+      <td style="padding:8px 10px;
+        text-align:center;font-size:12px;">
+        ${e.total_hours > 0 ? e.total_hours.toFixed(1) + 'h' : '—'}
+      </td>
+      <td style="padding:8px 10px;
+        text-align:right;font-weight:600;
+        color:#2563eb;">
+        ${fmt(e.total_revenue)}
+      </td>
+      <td style="padding:8px 10px;
+        text-align:right;font-size:11px;
+        color:#64748b;">
+        ${fmt(e.avg_revenue_per_job)}
+      </td>
+      <td style="padding:8px 10px;
+        text-align:center;font-size:11px;">
+        ${e.mechanical_jobs > 0 ? `<span style="color:#3b82f6;">M:${e.mechanical_jobs}</span>` : ''}
+        ${e.programming_jobs > 0 ? `<span style="color:#f97316;margin-left:4px;">P:${e.programming_jobs}</span>` : ''}
+        ${e.both_jobs > 0 ? `<span style="color:#22c55e;margin-left:4px;">B:${e.both_jobs}</span>` : ''}
+      </td>
+    </tr>
+  `,
+    )
+    .join('')
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 15mm;
+    }
+    * { box-sizing:border-box;
+        margin:0; padding:0; }
+    body {
+      font-family:'Segoe UI',Arial,sans-serif;
+      color:#1e293b; font-size:12px;
+    }
+    h1 { font-size:20px; font-weight:700; }
+    .divider {
+      border-top:1px solid #e2e8f0;
+      margin:12px 0;
+    }
+    table {
+      width:100%;
+      border-collapse:collapse;
+    }
+    th {
+      background:#f1f5f9;
+      padding:8px 10px;
+      text-align:left;
+      font-size:10px;
+      font-weight:600;
+      color:#475569;
+      text-transform:uppercase;
+    }
+    .total-row td {
+      font-weight:700;
+      font-size:13px;
+      background:#f1f5f9;
+      border-top:2px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+  <div style="display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:16px;">
+    <div>
+      <h1>${storeName}</h1>
+      <p style="color:#64748b;font-size:13px;">
+        Employee Performance Report
+      </p>
+    </div>
+    <div style="text-align:right;
+      font-size:11px;color:#64748b;">
+      <p>Period: ${fmtDate(fromDate)} —
+        ${fmtDate(toDate)}</p>
+      <p>Generated: ${fmtDate(new Date().toISOString())}</p>
+      <p>Employees: ${employees.length}</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div style="display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;margin-bottom:16px;">
+    <div style="background:#f8fafc;
+      border:1px solid #e2e8f0;
+      border-radius:8px;padding:12px;
+      text-align:center;">
+      <p style="font-size:10px;color:#64748b;">
+        Total Jobs
+      </p>
+      <p style="font-size:24px;font-weight:700;">
+        ${totals.jobs}
+      </p>
+    </div>
+    <div style="background:#f8fafc;
+      border:1px solid #e2e8f0;
+      border-radius:8px;padding:12px;
+      text-align:center;">
+      <p style="font-size:10px;color:#64748b;">
+        Total Hours
+      </p>
+      <p style="font-size:24px;font-weight:700;">
+        ${totals.hours.toFixed(1)}h
+      </p>
+    </div>
+    <div style="background:#eff6ff;
+      border:1px solid #bfdbfe;
+      border-radius:8px;padding:12px;
+      text-align:center;">
+      <p style="font-size:10px;color:#64748b;">
+        Total Revenue
+      </p>
+      <p style="font-size:24px;font-weight:700;
+        color:#2563eb;">
+        ${fmt(totals.revenue)}
+      </p>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th style="text-align:center;">Dept</th>
+        <th style="text-align:center;">Jobs</th>
+        <th style="text-align:center;">Hours</th>
+        <th style="text-align:right;">Revenue</th>
+        <th style="text-align:right;">Avg/Job</th>
+        <th style="text-align:center;">
+          Breakdown
+        </th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="2">
+          TOTAL (${employees.length} employees)
+        </td>
+        <td style="text-align:center;">
+          ${totals.jobs}
+        </td>
+        <td style="text-align:center;">
+          ${totals.hours.toFixed(1)}h
+        </td>
+        <td style="text-align:right;
+          color:#2563eb;">
+          ${fmt(totals.revenue)}
+        </td>
+        <td style="text-align:right;">
+          ${employees.length > 0 ? fmt(totals.revenue / employees.length) : fmt(0)}
+        </td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div style="margin-top:16px;
+    font-size:10px;color:#94a3b8;">
+    M = Mechanical · P = Programming ·
+    B = Both departments
+  </div>
+
+</body>
+</html>`
+}

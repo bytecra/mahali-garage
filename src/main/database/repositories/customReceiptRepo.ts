@@ -30,6 +30,11 @@ export interface CustomReceiptInput {
   discount_type?: string | null
   discount_value?: number | null
   discount_amount?: number | null
+  primary_employee_id?: number | null
+  assistant_employee_id?: number | null
+  hours_worked?: number | null
+  work_start_time?: string | null
+  work_end_time?: string | null
   created_by: number
 }
 
@@ -99,6 +104,11 @@ export const customReceiptRepo = {
       push('smart_recipe', input.smart_recipe ? 1 : 0)
       push('created_by', input.created_by)
       push('cash_received', cashReceivedCol)
+      push('primary_employee_id', input.primary_employee_id ?? null)
+      push('assistant_employee_id', input.assistant_employee_id ?? null)
+      push('hours_worked', input.hours_worked ?? null)
+      push('work_start_time', cleanText(input.work_start_time))
+      push('work_end_time', cleanText(input.work_end_time))
 
       const placeholders = cols.map(() => '?').join(', ')
       const sql = `INSERT INTO custom_receipts (${cols.join(', ')}) VALUES (${placeholders})`

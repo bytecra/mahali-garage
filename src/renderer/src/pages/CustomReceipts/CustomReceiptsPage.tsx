@@ -52,6 +52,13 @@ interface Receipt {
   loyalty_visits?: number | null
 }
 
+interface ReceiptEmployeePickerRow {
+  id: number
+  employee_id: string
+  full_name: string
+  department: string
+}
+
 interface CustomerLite { id: number; name: string; phone: string | null }
 interface VehicleLite { id: number; make: string; model: string; year: number | null; license_plate: string | null }
 interface BrandLite { id: number; name: string; logo: string | null }
@@ -359,6 +366,13 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [pendingPrintReceipt, setPendingPrintReceipt] = useState<Receipt | null>(null)
   const [thermalPrinting, setThermalPrinting] = useState(false)
 
+  const [employees, setEmployees] = useState<ReceiptEmployeePickerRow[]>([])
+  const [primaryEmployeeId, setPrimaryEmployeeId] = useState<number | null>(null)
+  const [assistantEmployeeId, setAssistantEmployeeId] = useState<number | null>(null)
+  const [hoursWorked, setHoursWorked] = useState('')
+  const [workStartTime, setWorkStartTime] = useState('')
+  const [workEndTime, setWorkEndTime] = useState('')
+
   const canCreate = ['owner', 'manager'].includes(role ?? '')
   const canDelete = ['owner', 'manager'].includes(role ?? '')
 
@@ -423,6 +437,25 @@ export default function CustomReceiptsPage(): JSX.Element {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    void (async () => {
+      const empRes = await window.electronAPI.employees.list({ status: 'active' }) as {
+        success: boolean
+        data?: Array<{ id: number; employee_id: string; full_name: string; department: string | null }>
+      }
+      if (empRes?.success && empRes.data) {
+        setEmployees(
+          empRes.data.map(e => ({
+            id: e.id,
+            employee_id: String(e.employee_id ?? ''),
+            full_name: String(e.full_name ?? ''),
+            department: String(e.department ?? '').trim().toLowerCase(),
+          })),
+        )
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     const modeParam = (searchParams.get('mode') || '').toLowerCase()
@@ -516,6 +549,39 @@ export default function CustomReceiptsPage(): JSX.Element {
     })()
   }, [mode, smartStep, selectedVehicle])
 
+  const filteredEmployees = useMemo(() => {
+    const dept = department
+    return employees.filter(
+      e =>
+        !e.department ||
+        e.department === 'both' ||
+        e.department === dept ||
+        dept === 'both',
+    )
+  }, [employees, department])
+
+  const filteredSmartEmployees = useMemo(() => {
+    return employees.filter(
+      e =>
+        !e.department ||
+        e.department === 'both' ||
+        e.department === smartDepartment ||
+        smartDepartment === 'both',
+    )
+  }, [employees, smartDepartment])
+
+  useEffect(() => {
+    if (!workStartTime || !workEndTime) return
+    const [sh, sm] = workStartTime.split(':').map(Number)
+    const [eh, em] = workEndTime.split(':').map(Number)
+    const diff = eh * 60 + em - (sh * 60 + sm)
+    if (diff > 0) {
+      setHoursWorked((diff / 60).toFixed(1))
+    } else {
+      setHoursWorked('')
+    }
+  }, [workStartTime, workEndTime])
+
   const subtotal = useMemo(() => {
     const sum = [...mechanical, ...programming].reduce((acc, line) => acc + numberOrZero(line.sell_price), 0)
     return Math.round(sum * 100) / 100
@@ -553,6 +619,11 @@ export default function CustomReceiptsPage(): JSX.Element {
     setCustomerQuery('')
     setCustomerResults([])
     setSelectedCustomerLoyalty(null)
+    setPrimaryEmployeeId(null)
+    setAssistantEmployeeId(null)
+    setHoursWorked('')
+    setWorkStartTime('')
+    setWorkEndTime('')
   }
 
   function resetSmartFlow(): void {
@@ -578,6 +649,11 @@ export default function CustomReceiptsPage(): JSX.Element {
     setSmartDiscountValue('')
     setPaymentMethod('Cash')
     setSelectedCustomerLoyalty(null)
+    setPrimaryEmployeeId(null)
+    setAssistantEmployeeId(null)
+    setHoursWorked('')
+    setWorkStartTime('')
+    setWorkEndTime('')
   }
 
   async function handlePrint(receipt: Receipt): Promise<void> {
@@ -731,6 +807,11 @@ export default function CustomReceiptsPage(): JSX.Element {
         amount: finalTotal,
         payment_method: paymentMethod,
         notes: null,
+        primary_employee_id: primaryEmployeeId ?? undefined,
+        assistant_employee_id: assistantEmployeeId ?? undefined,
+        hours_worked: parseFloat(hoursWorked) || undefined,
+        work_start_time: workStartTime || undefined,
+        work_end_time: workEndTime || undefined,
       }
       const createRes = await window.electronAPI.customReceipts.create(payload) as {
         success: boolean
@@ -998,6 +1079,60 @@ export default function CustomReceiptsPage(): JSX.Element {
                   <span className="text-muted-foreground">{t('customReceipts.department', { defaultValue: 'Department' })}</span>
                   <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{prettyDepartment(department)}</span>
                 </div>
+                {filteredEmployees.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-border">
+                    <p className="text-xs font-medium text-muted-foreground">Assigned Employee</p>
+                    <select
+                      value={primaryEmployeeId ?? ''}
+                      onChange={e => setPrimaryEmployeeId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                    >
+                      <option value="">— Primary technician</option>
+                      {filteredEmployees.map(emp => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.full_name} ({emp.employee_id})
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={assistantEmployeeId ?? ''}
+                      onChange={e => setAssistantEmployeeId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                    >
+                      <option value="">— Assistant (optional)</option>
+                      {filteredEmployees
+                        .filter(e => e.id !== primaryEmployeeId)
+                        .map(emp => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.full_name} ({emp.employee_id})
+                          </option>
+                        ))}
+                    </select>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-0.5">Start</label>
+                        <input
+                          type="time"
+                          value={workStartTime}
+                          onChange={e => setWorkStartTime(e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1 text-sm bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-0.5">End</label>
+                        <input
+                          type="time"
+                          value={workEndTime}
+                          onChange={e => setWorkEndTime(e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1 text-sm bg-background"
+                        />
+                      </div>
+                    </div>
+                    {hoursWorked ? (
+                      <p className="text-xs text-primary font-medium">⏱ {hoursWorked} hours worked</p>
+                    ) : null}
+                  </div>
+                )}
                 {loyaltyWidget}
                 <div>
                   <label className={labelCls}>{t('customReceipts.paymentMethod', { defaultValue: 'Payment Method' })}</label>
@@ -1106,6 +1241,16 @@ export default function CustomReceiptsPage(): JSX.Element {
           setSmartDiscountValue={setSmartDiscountValue}
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
+          filteredSmartEmployees={filteredSmartEmployees}
+          primaryEmployeeId={primaryEmployeeId}
+          setPrimaryEmployeeId={setPrimaryEmployeeId}
+          assistantEmployeeId={assistantEmployeeId}
+          setAssistantEmployeeId={setAssistantEmployeeId}
+          workStartTime={workStartTime}
+          setWorkStartTime={setWorkStartTime}
+          workEndTime={workEndTime}
+          setWorkEndTime={setWorkEndTime}
+          hoursWorked={hoursWorked}
           onLoadVehicles={async (customerId: number) => {
             const vres = await window.electronAPI.vehicles.list({ owner_id: customerId, page: 1, pageSize: 100 })
             if (vres.success && vres.data) {
@@ -1240,6 +1385,11 @@ export default function CustomReceiptsPage(): JSX.Element {
               payment_method: paymentMethod,
               smart_recipe: true,
               notes: null,
+              primary_employee_id: primaryEmployeeId ?? undefined,
+              assistant_employee_id: assistantEmployeeId ?? undefined,
+              hours_worked: parseFloat(hoursWorked) || undefined,
+              work_start_time: workStartTime || undefined,
+              work_end_time: workEndTime || undefined,
             }
             const res = await window.electronAPI.customReceipts.create(payload) as { success: boolean; data?: { id: number }; error?: string }
             if (!res.success || !res.data) {
@@ -1557,6 +1707,16 @@ function SmartRecipeWizard(props: {
   loadCustomerLoyalty: (customerId: number, dept?: 'mechanical' | 'programming') => void
   clearLoyaltyOnWalkIn: () => void
   loyaltyWidget: ReactNode
+  filteredSmartEmployees: ReceiptEmployeePickerRow[]
+  primaryEmployeeId: number | null
+  setPrimaryEmployeeId: (v: number | null) => void
+  assistantEmployeeId: number | null
+  setAssistantEmployeeId: (v: number | null) => void
+  workStartTime: string
+  setWorkStartTime: (v: string) => void
+  workEndTime: string
+  setWorkEndTime: (v: string) => void
+  hoursWorked: string
 }): JSX.Element {
   const {
     t, step, setStep, department, setDepartment,
@@ -1569,6 +1729,16 @@ function SmartRecipeWizard(props: {
     smartDiscountType, setSmartDiscountType, smartDiscountValue, setSmartDiscountValue,
     paymentMethod, setPaymentMethod, onLoadVehicles, onCreateCustomer, onSave,
     loadCustomerLoyalty, clearLoyaltyOnWalkIn, loyaltyWidget,
+    filteredSmartEmployees,
+    primaryEmployeeId,
+    setPrimaryEmployeeId,
+    assistantEmployeeId,
+    setAssistantEmployeeId,
+    workStartTime,
+    setWorkStartTime,
+    workEndTime,
+    setWorkEndTime,
+    hoursWorked,
   } = props
   const filteredBrands = brands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase()))
   const chosenModel = selectedModel || newModel
@@ -1770,6 +1940,60 @@ function SmartRecipeWizard(props: {
                 </div>
               ))}
             </div>
+            {filteredSmartEmployees.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <p className="text-xs font-medium text-muted-foreground">Assigned Employee</p>
+                <select
+                  value={primaryEmployeeId ?? ''}
+                  onChange={e => setPrimaryEmployeeId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                >
+                  <option value="">— Primary technician</option>
+                  {filteredSmartEmployees.map(emp => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.full_name} ({emp.employee_id})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={assistantEmployeeId ?? ''}
+                  onChange={e => setAssistantEmployeeId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                >
+                  <option value="">— Assistant (optional)</option>
+                  {filteredSmartEmployees
+                    .filter(e => e.id !== primaryEmployeeId)
+                    .map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.full_name} ({emp.employee_id})
+                      </option>
+                    ))}
+                </select>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">Start</label>
+                    <input
+                      type="time"
+                      value={workStartTime}
+                      onChange={e => setWorkStartTime(e.target.value)}
+                      className="w-full border border-input rounded-md px-2 py-1 text-sm bg-background"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-0.5">End</label>
+                    <input
+                      type="time"
+                      value={workEndTime}
+                      onChange={e => setWorkEndTime(e.target.value)}
+                      className="w-full border border-input rounded-md px-2 py-1 text-sm bg-background"
+                    />
+                  </div>
+                </div>
+                {hoursWorked ? (
+                  <p className="text-xs text-primary font-medium">⏱ {hoursWorked} hours worked</p>
+                ) : null}
+              </div>
+            )}
             {loyaltyWidget}
             <div>
               <label className={smartLabelCls}>{t('customReceipts.paymentMethod', { defaultValue: 'Payment Method' })}</label>

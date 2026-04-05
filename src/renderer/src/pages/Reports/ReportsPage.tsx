@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, FileText, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts'
@@ -9,13 +9,14 @@ import { toast } from '../../store/notificationStore'
 import {
   buildAttendancePdf,
   buildDailySalesPdf,
+  buildEmployeePerformancePdf,
   buildEmployeePayslipPdf,
   buildProfitPdf,
   buildSalarySummaryPdf,
   buildTopServicesPdf,
 } from '../../utils/reportPdfTemplate'
 
-type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets' | 'attendance' | 'salary'
+type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets' | 'attendance' | 'salary' | 'performance'
 type ReportDept = 'all' | 'mechanical' | 'programming'
 type DepartmentPreset = 'today' | 'week' | 'month' | 'custom'
 
@@ -102,6 +103,35 @@ function ReportsPageInner(): JSX.Element {
     }>
   >([])
   const [generatingSalaryPdf, setGeneratingSalaryPdf] = useState(false)
+
+  const [perfEmployeeId, setPerfEmployeeId] = useState<number | null>(null)
+  const [perfFromDate, setPerfFromDate] = useState(() => {
+    const d = new Date()
+    d.setDate(1)
+    return d.toISOString().split('T')[0]
+  })
+  const [perfToDate, setPerfToDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [perfDept, setPerfDept] = useState('all')
+  const [perfEmployees, setPerfEmployees] = useState<
+    Array<{
+      id: number
+      employee_id: string
+      full_name: string
+      department: string
+    }>
+  >([])
+  const [generatingPerfPdf, setGeneratingPerfPdf] = useState(false)
+  const [perfPreview, setPerfPreview] = useState<
+    Array<{
+      employee_code: string
+      full_name: string
+      department: string
+      total_jobs: number
+      total_hours: number
+      total_revenue: number
+    }>
+  >([])
+  const [loadingPerf, setLoadingPerf] = useState(false)
 
   async function handleAttendancePdf(): Promise<void> {
     if (!selectedAttendanceEmp) {
@@ -262,6 +292,97 @@ function ReportsPageInner(): JSX.Element {
       toast.error('Failed to generate report')
     } finally {
       setGeneratingSalaryPdf(false)
+    }
+  }
+
+  const loadPerfPreview = useCallback(async () => {
+    setLoadingPerf(true)
+    try {
+      const res = await window.electronAPI.reports.employeePerformance({
+        employeeId: perfEmployeeId ?? undefined,
+        fromDate: perfFromDate,
+        toDate: perfToDate,
+        department: perfDept,
+      })
+      if (res?.success) {
+        const raw = (res.data as Array<{
+          employee_id: number
+          employee_code: string
+          full_name: string
+          department: string
+          total_jobs: number
+          total_hours: number
+          total_revenue: number
+        }>) ?? []
+        setPerfPreview(
+          raw.map((r) => ({
+            employee_code: r.employee_code,
+            full_name: r.full_name,
+            department: r.department,
+            total_jobs: r.total_jobs,
+            total_hours: r.total_hours,
+            total_revenue: r.total_revenue,
+          })),
+        )
+      }
+    } finally {
+      setLoadingPerf(false)
+    }
+  }, [perfEmployeeId, perfFromDate, perfToDate, perfDept])
+
+  async function handlePerfPdf(): Promise<void> {
+    if (!perfPreview.length) {
+      toast.error('No data to export')
+      return
+    }
+    setGeneratingPerfPdf(true)
+    try {
+      const [fullRes, storeRes, currencyRes] = await Promise.all([
+        window.electronAPI.reports.employeePerformance({
+          employeeId: perfEmployeeId ?? undefined,
+          fromDate: perfFromDate,
+          toDate: perfToDate,
+          department: perfDept,
+        }),
+        window.electronAPI.settings.get('store.name'),
+        window.electronAPI.settings.get('store.currency_symbol'),
+      ])
+
+      if (!fullRes?.success) {
+        toast.error(fullRes?.error ?? 'Failed to load report')
+        return
+      }
+
+      const employeesFull = (fullRes.data as Array<{
+        employee_id: number
+        employee_code: string
+        full_name: string
+        department: string
+        total_jobs: number
+        total_hours: number
+        total_revenue: number
+        avg_hours_per_job: number
+        avg_revenue_per_job: number
+        mechanical_jobs: number
+        programming_jobs: number
+        both_jobs: number
+      }>) ?? []
+
+      const html = buildEmployeePerformancePdf({
+        employees: employeesFull,
+        fromDate: perfFromDate,
+        toDate: perfToDate,
+        department: perfDept,
+        storeName: (storeRes?.success ? storeRes.data : null) || 'Mahali Garage',
+        currencySymbol: (currencyRes?.success ? currencyRes.data : null) || 'AED',
+      })
+
+      const printRes = await window.electronAPI.print.receipt(html)
+      if (!printRes?.success) throw new Error('Print failed')
+    } catch {
+      toast.error('Failed to generate report')
+    } finally {
+      setGeneratingPerfPdf(false)
     }
   }
 
@@ -445,7 +566,7 @@ function ReportsPageInner(): JSX.Element {
   }
 
   const load = async () => {
-    if (tab === 'attendance' || tab === 'salary') {
+    if (tab === 'attendance' || tab === 'salary' || tab === 'performance') {
       setLoading(false)
       setData([])
       setDepartmentData(null)
@@ -492,8 +613,22 @@ function ReportsPageInner(): JSX.Element {
   useEffect(() => { load() }, [tab, dateFrom, dateTo, reportDept])
 
   useEffect(() => {
-    if (tab !== 'attendance' && tab !== 'salary') return
+    if (tab !== 'performance') return
+    void loadPerfPreview()
+  }, [tab, loadPerfPreview])
+
+  useEffect(() => {
+    if (tab !== 'attendance' && tab !== 'salary' && tab !== 'performance') return
     void (async () => {
+      if (tab === 'performance') {
+        const res = await window.electronAPI.employees.list({ status: 'active' })
+        if (res?.success) {
+          setPerfEmployees(
+            (res.data as Array<{ id: number; employee_id: string; full_name: string; department: string }>) ?? [],
+          )
+        }
+        return
+      }
       const res = await window.electronAPI.employees.list({})
       if (res?.success) {
         const list = (res.data as Array<{ id: number; employee_id: string; full_name: string; department: string }>) ?? []
@@ -516,6 +651,10 @@ function ReportsPageInner(): JSX.Element {
     { key: 'assets',            label: t('reports.assetsReport', { defaultValue: 'Assets' }) },
     { key: 'attendance',        label: t('reports.attendance', { defaultValue: 'Attendance Report' }) },
     { key: 'salary',            label: t('reports.salary', { defaultValue: 'Salary Report' }) },
+    {
+      key: 'performance',
+      label: t('reports.employeePerformance', { defaultValue: 'Employee Performance' }),
+    },
   ]
 
   const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly', 'department_reports'].includes(tab)
@@ -533,7 +672,7 @@ function ReportsPageInner(): JSX.Element {
               <FileText className="w-4 h-4" />Export PDF
             </button>
           )}
-          {tab !== 'attendance' && tab !== 'salary' && (
+          {tab !== 'attendance' && tab !== 'salary' && tab !== 'performance' && (
             <button onClick={() => exportCsv(data as Record<string, unknown>[], `${tab}-report.csv`)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
               <Download className="w-4 h-4" />{t('reports.exportCsv')}
@@ -844,6 +983,148 @@ function ReportsPageInner(): JSX.Element {
               : salaryReportType === 'single'
                 ? '📄 Generate Payslip PDF'
                 : '📊 Generate Summary PDF'}
+          </button>
+        </div>
+      ) : tab === 'performance' ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold">Employee Performance</h2>
+            <p className="text-sm text-muted-foreground">Track jobs, hours and revenue per employee.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium block mb-1">Employee</label>
+              <select
+                value={perfEmployeeId ?? ''}
+                onChange={(e) => setPerfEmployeeId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              >
+                <option value="">All Employees</option>
+                {perfEmployees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.full_name} ({emp.employee_id})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1">Department</label>
+              <select
+                value={perfDept}
+                onChange={(e) => setPerfDept(e.target.value)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              >
+                <option value="all">All</option>
+                <option value="mechanical">Mechanical</option>
+                <option value="programming">Programming</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1">From</label>
+              <input
+                type="date"
+                value={perfFromDate}
+                onChange={(e) => setPerfFromDate(e.target.value)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1">To</label>
+              <input
+                type="date"
+                value={perfToDate}
+                min={perfFromDate}
+                onChange={(e) => setPerfToDate(e.target.value)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            {[
+              {
+                label: 'This Month',
+                fn: () => {
+                  const d = new Date()
+                  setPerfFromDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
+                  setPerfToDate(d.toISOString().split('T')[0])
+                },
+              },
+              {
+                label: 'Last Month',
+                fn: () => {
+                  const d = new Date()
+                  setPerfFromDate(new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().split('T')[0])
+                  setPerfToDate(new Date(d.getFullYear(), d.getMonth(), 0).toISOString().split('T')[0])
+                },
+              },
+              {
+                label: 'This Year',
+                fn: () => {
+                  const d = new Date()
+                  setPerfFromDate(`${d.getFullYear()}-01-01`)
+                  setPerfToDate(d.toISOString().split('T')[0])
+                },
+              },
+            ].map(({ label, fn }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={fn}
+                className="px-3 py-1 text-xs border border-border rounded-md hover:bg-muted/50 text-muted-foreground"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {loadingPerf ? (
+            <div className="text-center py-6 text-muted-foreground text-sm">Loading...</div>
+          ) : perfPreview.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
+              No performance data for this period. Assign employees to receipts to track performance.
+            </div>
+          ) : (
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground">Employee</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">Jobs</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-medium text-muted-foreground">Hours</th>
+                    <th className="text-right px-3 py-2.5 text-xs font-medium text-muted-foreground">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {perfPreview.map((emp) => (
+                    <tr key={emp.employee_code} className="hover:bg-muted/20">
+                      <td className="px-3 py-2.5">
+                        <p className="font-medium text-sm">{emp.full_name}</p>
+                        <p className="text-xs text-muted-foreground font-mono capitalize">{emp.department}</p>
+                      </td>
+                      <td className="px-3 py-2.5 text-center font-semibold">{emp.total_jobs}</td>
+                      <td className="px-3 py-2.5 text-center text-muted-foreground">
+                        {emp.total_hours > 0 ? `${emp.total_hours.toFixed(1)}h` : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-primary">{emp.total_revenue.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => void handlePerfPdf()}
+            disabled={generatingPerfPdf || perfPreview.length === 0}
+            className="w-full py-2.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+          >
+            {generatingPerfPdf ? '⏳ Generating...' : '📊 Export Performance PDF'}
           </button>
         </div>
       ) : loading ? (

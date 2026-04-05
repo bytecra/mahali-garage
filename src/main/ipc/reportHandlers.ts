@@ -153,4 +153,22 @@ export function registerReportHandlers(): void {
       return ok({ rows, total_purchase: totals.total_purchase, total_current: totals.total_current })
     } catch (e) { log.error('reports:assets', e); return err('Failed', 'ERR_REPORTS') }
   })
+
+  ipcMain.handle('reports:employeePerformance', (event, params: unknown) => {
+    try {
+      if (!authService.hasPermission(event.sender.id, 'reports.employee'))
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      const p = params as {
+        employeeId?: number
+        fromDate: string
+        toDate: string
+        department?: string
+      }
+      if (!p?.fromDate || !p?.toDate) return err('Invalid params', 'ERR_VALIDATION')
+      return ok(reportRepo.getEmployeePerformance(p))
+    } catch (e) {
+      log.error('reports:employeePerformance', e)
+      return err('Failed')
+    }
+  })
 }

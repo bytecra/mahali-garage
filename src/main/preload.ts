@@ -152,6 +152,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     customerDebts:   (department?: string)              => invoke('reports:customerDebts', department ?? 'all'),
     assets:          ()                               => invoke('reports:assets'),
     salaryReport:    (params: unknown)                 => invoke('reports:salaryReport', params),
+    employeePerformance: (params: unknown) =>
+      invoke('reports:employeePerformance', params),
     exportCsv:       (type: string, params: unknown)     => invoke('reports:exportCsv', type, params),
   },
 

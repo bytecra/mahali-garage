@@ -742,4 +742,117 @@ export const reportRepo = {
       unavailable_reason: unavailable,
     }
   },
+
+  getEmployeePerformance(params: {
+    employeeId?: number
+    fromDate: string
+    toDate: string
+    department?: string
+  }): Array<{
+    employee_id: number
+    employee_code: string
+    full_name: string
+    department: string
+    total_jobs: number
+    total_hours: number
+    total_revenue: number
+    avg_hours_per_job: number
+    avg_revenue_per_job: number
+    mechanical_jobs: number
+    programming_jobs: number
+    both_jobs: number
+  }> {
+    const db = getDb()
+
+    let whereClause = `
+      WHERE cr.created_at >= ?
+      AND cr.created_at <= ?
+      AND (
+        cr.primary_employee_id IS NOT NULL
+        OR cr.assistant_employee_id IS NOT NULL
+      )
+    `
+    const bindValues: unknown[] = [params.fromDate + ' 00:00:00', params.toDate + ' 23:59:59']
+
+    if (params.employeeId) {
+      whereClause += `
+        AND (
+          cr.primary_employee_id = ? OR
+          cr.assistant_employee_id = ?
+        )
+      `
+      bindValues.push(params.employeeId, params.employeeId)
+    }
+
+    if (params.department && params.department !== 'all') {
+      whereClause += ` AND cr.department = ?`
+      bindValues.push(params.department)
+    }
+
+    type Row = {
+      employee_id: number
+      employee_code: string
+      full_name: string
+      department: string
+      total_jobs: number
+      total_hours: number
+      total_revenue: number
+      avg_hours_per_job: number
+      avg_revenue_per_job: number
+      mechanical_jobs: number
+      programming_jobs: number
+      both_jobs: number
+    }
+
+    return db
+      .prepare(
+        `
+      SELECT
+        e.id AS employee_id,
+        e.employee_id AS employee_code,
+        e.full_name,
+        COALESCE(e.department, 'both')
+          AS department,
+        COUNT(DISTINCT cr.id) AS total_jobs,
+        COALESCE(SUM(cr.hours_worked), 0)
+          AS total_hours,
+        COALESCE(SUM(cr.amount), 0)
+          AS total_revenue,
+        CASE
+          WHEN COUNT(DISTINCT cr.id) > 0
+          THEN COALESCE(SUM(cr.hours_worked), 0)
+            / COUNT(DISTINCT cr.id)
+          ELSE 0
+        END AS avg_hours_per_job,
+        CASE
+          WHEN COUNT(DISTINCT cr.id) > 0
+          THEN COALESCE(SUM(cr.amount), 0)
+            / COUNT(DISTINCT cr.id)
+          ELSE 0
+        END AS avg_revenue_per_job,
+        SUM(CASE
+          WHEN cr.department = 'mechanical'
+          THEN 1 ELSE 0
+        END) AS mechanical_jobs,
+        SUM(CASE
+          WHEN cr.department = 'programming'
+          THEN 1 ELSE 0
+        END) AS programming_jobs,
+        SUM(CASE
+          WHEN cr.department = 'both'
+          THEN 1 ELSE 0
+        END) AS both_jobs
+      FROM employees e
+      INNER JOIN custom_receipts cr
+        ON (
+          cr.primary_employee_id = e.id OR
+          cr.assistant_employee_id = e.id
+        )
+      ${whereClause}
+      GROUP BY e.id
+      ORDER BY total_revenue DESC
+    `,
+      )
+      .all(...bindValues) as Row[]
+  },
 }
