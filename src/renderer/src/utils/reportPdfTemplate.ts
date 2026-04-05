@@ -459,3 +459,289 @@ export function buildCarsDeliveredPdf(params: {
     `,
   )
 }
+
+export function buildAttendancePdf(params: {
+  employeeId: number
+  employeeName: string
+  employeeIdNumber: string
+  department: string
+  fromDate: string
+  toDate: string
+  storeName: string
+  records: Array<{
+    date: string
+    status_name: string
+    status_color: string
+    status_emoji: string
+    notes: string | null
+    marked_by_name: string | null
+    marked_at: string
+  }>
+  summary: {
+    total_days: number
+    by_status: Array<{
+      status_name: string
+      status_emoji: string
+      count: number
+    }>
+    attendance_rate: number
+    present_days: number
+  }
+}): string {
+  const { employeeName, employeeIdNumber, department, fromDate, toDate, storeName, records, summary } = params
+
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+
+  const formatTime = (dt: string) =>
+    new Date(dt).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+
+  const getDayName = (d: string) =>
+    new Date(d).toLocaleDateString('en-US', {
+      weekday: 'long',
+    })
+
+  const summaryRows = summary.by_status
+    .map(
+      s => `
+      <tr>
+        <td style="padding:6px 12px;">
+          ${escapeHtml(s.status_emoji)} ${escapeHtml(s.status_name)}
+        </td>
+        <td style="padding:6px 12px;
+          text-align:center;font-weight:600;">
+          ${s.count}
+        </td>
+      </tr>
+    `
+    )
+    .join('')
+
+  const attendanceRows = records
+    .map(
+      r => `
+    <tr style="border-bottom:1px solid #e2e8f0;">
+      <td style="padding:8px 12px;
+        font-size:12px;">
+        ${escapeHtml(formatDate(r.date))}
+      </td>
+      <td style="padding:8px 12px;
+        font-size:12px;color:#64748b;">
+        ${escapeHtml(getDayName(r.date))}
+      </td>
+      <td style="padding:8px 12px;">
+        <span style="display:inline-flex;
+          align-items:center;gap:4px;
+          padding:2px 8px;border-radius:9999px;
+          font-size:11px;font-weight:500;
+          background:${escapeHtml(r.status_color)}20;
+          color:${escapeHtml(r.status_color)};">
+          ${escapeHtml(r.status_emoji)} ${escapeHtml(r.status_name)}
+        </span>
+      </td>
+      <td style="padding:8px 12px;
+        font-size:11px;color:#64748b;">
+        ${r.notes != null && r.notes !== '' ? escapeHtml(r.notes) : '—'}
+      </td>
+      <td style="padding:8px 12px;
+        font-size:11px;color:#64748b;">
+        ${r.marked_by_name ? escapeHtml(r.marked_by_name) : '—'}
+        ${
+          r.marked_at
+            ? `<br><span style="font-size:10px;">
+              ${escapeHtml(formatTime(r.marked_at))}
+            </span>`
+            : ''
+        }
+      </td>
+    </tr>
+  `
+    )
+    .join('')
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 20mm; }
+    * { box-sizing: border-box; margin: 0; 
+        padding: 0; }
+    body { font-family: 'Segoe UI', Arial, 
+      sans-serif; color: #1e293b; 
+      font-size: 13px; }
+    h1 { font-size: 22px; font-weight: 700; }
+    h2 { font-size: 15px; font-weight: 600;
+         margin-bottom: 8px; color: #334155; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f1f5f9; padding: 8px 12px;
+         text-align: left; font-size: 11px;
+         font-weight: 600; color: #475569;
+         text-transform: uppercase;
+         letter-spacing: 0.05em; }
+    .divider { border-top: 1px solid #e2e8f0;
+               margin: 16px 0; }
+    .badge { display: inline-block;
+             padding: 2px 10px;
+             border-radius: 9999px;
+             font-size: 12px;
+             font-weight: 500; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div style="display:flex;justify-content:
+    space-between;align-items:flex-start;
+    margin-bottom:20px;">
+    <div>
+      <h1>${escapeHtml(storeName)}</h1>
+      <p style="color:#64748b;font-size:13px;
+        margin-top:2px;">
+        Attendance Report
+      </p>
+    </div>
+    <div style="text-align:right;
+      font-size:12px;color:#64748b;">
+      <p>Period: ${escapeHtml(formatDate(fromDate))} — 
+        ${escapeHtml(formatDate(toDate))}</p>
+      <p>Generated: ${escapeHtml(formatDate(new Date().toISOString()))}</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Employee Info -->
+  <div style="display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;margin-bottom:20px;">
+    <div>
+      <p style="font-size:11px;color:#64748b;">
+        EMPLOYEE
+      </p>
+      <p style="font-weight:600;font-size:15px;">
+        ${escapeHtml(employeeName)}
+      </p>
+      <p style="font-size:12px;color:#64748b;
+        font-family:monospace;">
+        ${escapeHtml(employeeIdNumber)}
+      </p>
+    </div>
+    <div>
+      <p style="font-size:11px;color:#64748b;">
+        DEPARTMENT
+      </p>
+      <p style="font-weight:500;
+        text-transform:capitalize;">
+        ${department ? escapeHtml(department) : '—'}
+      </p>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div style="margin-bottom:20px;">
+    <h2>Summary</h2>
+    <div style="display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:12px;margin-bottom:12px;">
+      <div style="background:#f8fafc;
+        border:1px solid #e2e8f0;
+        border-radius:8px;padding:12px;
+        text-align:center;">
+        <p style="font-size:11px;color:#64748b;">
+          Attendance Rate
+        </p>
+        <p style="font-size:24px;font-weight:700;
+          color:#2563eb;">
+          ${Math.round(summary.attendance_rate * 100)}%
+        </p>
+      </div>
+      <div style="background:#f8fafc;
+        border:1px solid #e2e8f0;
+        border-radius:8px;padding:12px;
+        text-align:center;">
+        <p style="font-size:11px;color:#64748b;">
+          Present Days
+        </p>
+        <p style="font-size:24px;font-weight:700;">
+          ${summary.present_days}
+          <span style="font-size:14px;
+            color:#64748b;">
+            /${summary.total_days}
+          </span>
+        </p>
+      </div>
+      <div style="background:#f8fafc;
+        border:1px solid #e2e8f0;
+        border-radius:8px;padding:12px;
+        text-align:center;">
+        <p style="font-size:11px;color:#64748b;">
+          Total Days
+        </p>
+        <p style="font-size:24px;font-weight:700;">
+          ${summary.total_days}
+        </p>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th style="text-align:center;">Days</th>
+        </tr>
+      </thead>
+      <tbody>${summaryRows}</tbody>
+    </table>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Attendance Records -->
+  <div>
+    <h2>Daily Records</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Day</th>
+          <th>Status</th>
+          <th>Notes</th>
+          <th>Marked By</th>
+        </tr>
+      </thead>
+      <tbody>${attendanceRows}</tbody>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div class="divider" 
+    style="margin-top:30px;"></div>
+  <div style="display:flex;
+    justify-content:space-between;
+    margin-top:20px;">
+    <div style="text-align:center;width:40%;">
+      <div style="border-top:1px solid #94a3b8;
+        padding-top:8px;font-size:11px;
+        color:#64748b;">
+        Employee Signature
+      </div>
+    </div>
+    <div style="text-align:center;width:40%;">
+      <div style="border-top:1px solid #94a3b8;
+        padding-top:8px;font-size:11px;
+        color:#64748b;">
+        Manager Signature
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>`
+}

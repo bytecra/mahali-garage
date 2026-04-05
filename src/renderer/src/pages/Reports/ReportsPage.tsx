@@ -7,12 +7,13 @@ import CurrencyText from '../../components/shared/CurrencyText'
 import { FeatureGate } from '../../components/FeatureGate'
 import { toast } from '../../store/notificationStore'
 import {
+  buildAttendancePdf,
   buildDailySalesPdf,
   buildProfitPdf,
   buildTopServicesPdf,
 } from '../../utils/reportPdfTemplate'
 
-type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets'
+type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets' | 'attendance'
 type ReportDept = 'all' | 'mechanical' | 'programming'
 type DepartmentPreset = 'today' | 'week' | 'month' | 'custom'
 
@@ -59,6 +60,91 @@ function ReportsPageInner(): JSX.Element {
   const [exportDateTo, setExportDateTo] = useState('')
   const [exportWeekDate, setExportWeekDate] = useState('')
   const [exportDepartment, setExportDepartment] = useState<'mechanical' | 'programming' | 'both'>('both')
+
+  const [attendanceEmployees, setAttendanceEmployees] = useState<
+    Array<{
+      id: number
+      employee_id: string
+      full_name: string
+      department: string
+    }>
+  >([])
+
+  const [selectedAttendanceEmp, setSelectedAttendanceEmp] = useState<number | null>(null)
+
+  const [attendanceFromDate, setAttendanceFromDate] = useState(() => {
+    const d = new Date()
+    d.setDate(1)
+    return d.toISOString().split('T')[0]
+  })
+
+  const [attendanceToDate, setAttendanceToDate] = useState(() => new Date().toISOString().split('T')[0])
+
+  const [generatingAttendancePdf, setGeneratingAttendancePdf] = useState(false)
+
+  async function handleAttendancePdf(): Promise<void> {
+    if (!selectedAttendanceEmp) {
+      toast.error('Please select an employee')
+      return
+    }
+    setGeneratingAttendancePdf(true)
+    try {
+      const employee = attendanceEmployees.find((e) => e.id === selectedAttendanceEmp)
+      if (!employee) return
+
+      const [recordsRes, storeNameRes] = await Promise.all([
+        window.electronAPI.attendance.getReport(selectedAttendanceEmp, attendanceFromDate, attendanceToDate),
+        window.electronAPI.settings.get('store.name'),
+      ])
+
+      if (!recordsRes?.success) {
+        toast.error(recordsRes?.error ?? 'Failed to load attendance')
+        return
+      }
+
+      const records = recordsRes.data ?? []
+      const storeName = (storeNameRes?.success ? storeNameRes.data : null) || 'Mahali Garage'
+
+      const statusCounts: Record<string, { status_name: string; status_emoji: string; count: number }> = {}
+      for (const r of records) {
+        const k = r.status_name
+        if (!statusCounts[k]) {
+          statusCounts[k] = { status_name: r.status_name, status_emoji: r.status_emoji, count: 0 }
+        }
+        statusCounts[k].count++
+      }
+
+      const presentCount = statusCounts['Present']?.count ?? 0
+      const totalDays = records.length
+      const attendanceRate = totalDays > 0 ? presentCount / totalDays : 0
+
+      const summary = {
+        total_days: totalDays,
+        present_days: presentCount,
+        attendance_rate: attendanceRate,
+        by_status: Object.values(statusCounts),
+      }
+
+      const html = buildAttendancePdf({
+        employeeId: employee.id,
+        employeeName: employee.full_name,
+        employeeIdNumber: employee.employee_id,
+        department: employee.department ?? '',
+        fromDate: attendanceFromDate,
+        toDate: attendanceToDate,
+        storeName: String(storeName),
+        records,
+        summary,
+      })
+
+      const printRes = await window.electronAPI.print.receipt(html)
+      if (!printRes?.success) throw new Error('Print failed')
+    } catch {
+      toast.error('Failed to generate report')
+    } finally {
+      setGeneratingAttendancePdf(false)
+    }
+  }
 
   async function handleExportPdf(
     period: 'weekly' | 'monthly' | 'custom',
@@ -240,6 +326,13 @@ function ReportsPageInner(): JSX.Element {
   }
 
   const load = async () => {
+    if (tab === 'attendance') {
+      setLoading(false)
+      setData([])
+      setDepartmentData(null)
+      setAssetsFooter(null)
+      return
+    }
     setLoading(true)
     setData([])
     setDepartmentData(null)
@@ -279,6 +372,16 @@ function ReportsPageInner(): JSX.Element {
 
   useEffect(() => { load() }, [tab, dateFrom, dateTo, reportDept])
 
+  useEffect(() => {
+    if (tab !== 'attendance') return
+    void (async () => {
+      const res = await window.electronAPI.employees.list({})
+      if (res?.success) {
+        setAttendanceEmployees((res.data as Array<{ id: number; employee_id: string; full_name: string; department: string }>) ?? [])
+      }
+    })()
+  }, [tab])
+
   const TABS: Array<{ key: ReportTab; label: string }> = [
     { key: 'sales',       label: t('reports.salesDaily') },
     { key: 'profit',      label: t('reports.profit') },
@@ -290,6 +393,7 @@ function ReportsPageInner(): JSX.Element {
     { key: 'expenses_category',  label: t('reports.expensesCategory') },
     { key: 'expenses_monthly',   label: t('reports.expensesMonthly') },
     { key: 'assets',            label: t('reports.assetsReport', { defaultValue: 'Assets' }) },
+    { key: 'attendance',        label: t('reports.attendance', { defaultValue: 'Attendance Report' }) },
   ]
 
   const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly', 'department_reports'].includes(tab)
@@ -307,10 +411,12 @@ function ReportsPageInner(): JSX.Element {
               <FileText className="w-4 h-4" />Export PDF
             </button>
           )}
-          <button onClick={() => exportCsv(data as Record<string, unknown>[], `${tab}-report.csv`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
-            <Download className="w-4 h-4" />{t('reports.exportCsv')}
-          </button>
+          {tab !== 'attendance' && (
+            <button onClick={() => exportCsv(data as Record<string, unknown>[], `${tab}-report.csv`)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
+              <Download className="w-4 h-4" />{t('reports.exportCsv')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -387,7 +493,107 @@ function ReportsPageInner(): JSX.Element {
         </div>
       )}
 
-      {loading ? (
+      {tab === 'attendance' ? (
+        <div className="space-y-6 max-w-lg">
+          <div>
+            <h2 className="text-base font-semibold">{t('reports.attendance', { defaultValue: 'Attendance Report' })}</h2>
+            <p className="text-sm text-muted-foreground">
+              Generate a PDF attendance report for any employee and date range.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium block mb-1">Employee</label>
+              <select
+                value={selectedAttendanceEmp ?? ''}
+                onChange={(e) => setSelectedAttendanceEmp(e.target.value ? Number(e.target.value) : null)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              >
+                <option value="">Select employee...</option>
+                {attendanceEmployees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.full_name} ({emp.employee_id})
+                    {emp.department ? ` — ${emp.department}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium block mb-1">From</label>
+                <input
+                  type="date"
+                  value={attendanceFromDate}
+                  onChange={(e) => setAttendanceFromDate(e.target.value)}
+                  className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">To</label>
+                <input
+                  type="date"
+                  value={attendanceToDate}
+                  min={attendanceFromDate}
+                  onChange={(e) => setAttendanceToDate(e.target.value)}
+                  className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              {[
+                {
+                  label: 'This Month',
+                  fn: () => {
+                    const d = new Date()
+                    const from = new Date(d.getFullYear(), d.getMonth(), 1)
+                    setAttendanceFromDate(from.toISOString().split('T')[0])
+                    setAttendanceToDate(d.toISOString().split('T')[0])
+                  },
+                },
+                {
+                  label: 'Last Month',
+                  fn: () => {
+                    const d = new Date()
+                    const from = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+                    const to = new Date(d.getFullYear(), d.getMonth(), 0)
+                    setAttendanceFromDate(from.toISOString().split('T')[0])
+                    setAttendanceToDate(to.toISOString().split('T')[0])
+                  },
+                },
+                {
+                  label: 'This Year',
+                  fn: () => {
+                    const d = new Date()
+                    setAttendanceFromDate(`${d.getFullYear()}-01-01`)
+                    setAttendanceToDate(d.toISOString().split('T')[0])
+                  },
+                },
+              ].map(({ label, fn }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={fn}
+                  className="px-3 py-1 text-xs border border-border rounded-md hover:bg-muted/50 text-muted-foreground"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleAttendancePdf()}
+              disabled={!selectedAttendanceEmp || !attendanceFromDate || !attendanceToDate || generatingAttendancePdf}
+              className="w-full py-2.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+            >
+              {generatingAttendancePdf ? '⏳ Generating...' : '📄 Generate PDF Report'}
+            </button>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
       ) : (
         <>
