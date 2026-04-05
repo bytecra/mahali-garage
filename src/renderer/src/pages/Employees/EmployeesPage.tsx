@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 import {
   Plus, Search, Users, Edit, Trash2, FileText, CalendarPlus,
   AlertTriangle, Eye, Upload, X, ChevronDown, ChevronUp, Wallet,
-  CalendarDays,
+  CalendarDays, CreditCard,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { toast } from '../../store/notificationStore'
+import { buildIdCardHtml } from '../../utils/idCardTemplate'
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -291,7 +292,7 @@ export default function EmployeesPage(): JSX.Element {
 
   const [viewEmployee, setViewEmployee] = useState<Employee | null>(null)
   const [viewTab, setViewTab] = useState<
-    'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents'
+    'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents' | 'idcard'
   >('personal')
 
   if (user?.role !== 'owner') {
@@ -1148,9 +1149,9 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
 
 interface ViewProps {
   employee: Employee
-  tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents'
+  tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents' | 'idcard'
   setTab: (
-    tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents'
+    tab: 'personal' | 'employment' | 'salary' | 'vacation' | 'attendance' | 'documents' | 'idcard'
   ) => void
   onClose: () => void
   onRefresh: () => void
@@ -1201,10 +1202,42 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
   const [markingNotes, setMarkingNotes] = useState('')
   const [attendanceLoading, setAttendanceLoading] = useState(false)
 
+  const [idCardConfig, setIdCardConfig] = useState({
+    showName: true,
+    showId: true,
+    showDepartment: true,
+    showPhone: false,
+    bgColor: '#1e40af',
+    textColor: '#ffffff',
+  })
+  const [idCardGenerating, setIdCardGenerating] = useState(false)
+  const [idCardStoreName, setIdCardStoreName] = useState('')
+
   useEffect(() => {
     loadVacations()
     loadDocuments()
   }, [employee.id])
+
+  useEffect(() => {
+    if (tab !== 'idcard') return
+    void (async () => {
+      const [cfgRes, storeRes] = await Promise.all([
+        window.electronAPI.settings.get('employee.id_card'),
+        window.electronAPI.settings.get('store.name'),
+      ])
+      if (cfgRes?.success && cfgRes.data) {
+        try {
+          const parsed = JSON.parse(cfgRes.data) as Partial<typeof idCardConfig>
+          setIdCardConfig((prev) => ({ ...prev, ...parsed }))
+        } catch {
+          /* keep defaults */
+        }
+      }
+      if (storeRes?.success && storeRes.data) {
+        setIdCardStoreName(storeRes.data)
+      }
+    })()
+  }, [tab])
 
   useEffect(() => {
     async function loadSalary() {
@@ -1298,7 +1331,34 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
     }
   }
 
-  const tabs = ['personal', 'employment', 'salary', 'vacation', 'attendance', 'documents'] as const
+  async function handleGenerateIdCard(): Promise<void> {
+    setIdCardGenerating(true)
+    try {
+      const html = buildIdCardHtml({
+        fullName: employee.full_name,
+        employeeId: employee.employee_id,
+        department: employee.department ?? '',
+        phone: employee.phone ?? undefined,
+        role: employee.role ?? undefined,
+        storeName: idCardStoreName || 'Mahali Garage',
+        config: idCardConfig,
+      })
+
+      const res = await window.electronAPI.print.idCard(html)
+
+      if (res?.success) {
+        toast.success('ID card saved to Downloads folder')
+      } else {
+        toast.error('Failed to generate ID card')
+      }
+    } catch {
+      toast.error('Failed to generate ID card')
+    } finally {
+      setIdCardGenerating(false)
+    }
+  }
+
+  const tabs = ['personal', 'employment', 'salary', 'vacation', 'attendance', 'documents', 'idcard'] as const
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -1327,7 +1387,8 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}>
               {tb === 'attendance' && <CalendarDays className="w-3.5 h-3.5 shrink-0" aria-hidden />}
-              {t(`employees.tab_${tb}`)}
+              {tb === 'idcard' && <CreditCard className="w-3.5 h-3.5 shrink-0" aria-hidden />}
+              {tb === 'idcard' ? 'ID Card' : t(`employees.tab_${tb}`)}
               {tb === 'documents' && documents.length > 0 && (
                 <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{documents.length}</span>
               )}
@@ -1583,6 +1644,263 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {tab === 'idcard' && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Preview</p>
+                <div
+                  style={{
+                    width: '342px',
+                    height: '216px',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    background: idCardConfig.bgColor,
+                    color: idCardConfig.textColor,
+                    fontFamily: 'Segoe UI, Arial, sans-serif',
+                    position: 'relative',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  }}
+                >
+                  <div
+                    style={{
+                      background: 'rgba(0,0,0,0.2)',
+                      padding: '8px 14px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        opacity: 0.9,
+                      }}
+                    >
+                      {idCardStoreName || 'Mahali Garage'}
+                    </span>
+                    {idCardConfig.showDepartment && employee?.department && (
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          padding: '1px 8px',
+                          borderRadius: '9999px',
+                          background: 'rgba(255,255,255,0.2)',
+                        }}
+                      >
+                        {employee.department}
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '12px 16px',
+                      gap: '16px',
+                      height: '156px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '72px',
+                        height: '72px',
+                        borderRadius: '50%',
+                        background: 'rgba(255,255,255,0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '22px',
+                        fontWeight: 700,
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {employee?.full_name
+                        ?.split(' ')
+                        .slice(0, 2)
+                        .map((w: string) => w[0]?.toUpperCase() ?? '')
+                        .join('') ?? '??'}
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      {idCardConfig.showName && (
+                        <p
+                          style={{
+                            fontSize: '16px',
+                            fontWeight: 700,
+                            lineHeight: 1.2,
+                            marginBottom: '2px',
+                          }}
+                        >
+                          {employee?.full_name}
+                        </p>
+                      )}
+                      {employee?.role && (
+                        <p
+                          style={{
+                            fontSize: '10px',
+                            opacity: 0.75,
+                            textTransform: 'capitalize',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          {employee.role}
+                        </p>
+                      )}
+                      {idCardConfig.showId && (
+                        <p
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            fontFamily: 'monospace',
+                            background: 'rgba(0,0,0,0.15)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            display: 'inline-block',
+                            letterSpacing: '0.05em',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          {employee?.employee_id}
+                        </p>
+                      )}
+                      {idCardConfig.showPhone && employee?.phone && (
+                        <p style={{ fontSize: '10px', opacity: 0.8 }}>📞 {employee.phone}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      background: 'rgba(0,0,0,0.15)',
+                      padding: '5px 14px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                    }}
+                  >
+                    <span style={{ fontSize: '9px', opacity: 0.7 }}>EMPLOYEE ID CARD</span>
+                    <span style={{ fontSize: '9px', opacity: 0.7 }}>Mahali Garage</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Background Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={idCardConfig.bgColor}
+                      onChange={(e) => setIdCardConfig((p) => ({ ...p, bgColor: e.target.value }))}
+                      className="w-10 h-8 rounded cursor-pointer border border-input"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">{idCardConfig.bgColor}</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Text Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={idCardConfig.textColor}
+                      onChange={(e) => setIdCardConfig((p) => ({ ...p, textColor: e.target.value }))}
+                      className="w-10 h-8 rounded cursor-pointer border border-input"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">{idCardConfig.textColor}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium">Show on card:</p>
+                {(
+                  [
+                    ['showName', 'Full Name'],
+                    ['showId', 'Employee ID'],
+                    ['showDepartment', 'Department'],
+                    ['showPhone', 'Phone Number'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(idCardConfig[key])}
+                      onChange={(e) =>
+                        setIdCardConfig((p) => ({ ...p, [key]: e.target.checked }))
+                      }
+                      className="w-4 h-4"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+
+              <div>
+                <p className="text-xs font-medium mb-2">Color presets:</p>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { bg: '#1e40af', text: '#ffffff', label: 'Blue' },
+                    { bg: '#166534', text: '#ffffff', label: 'Green' },
+                    { bg: '#1e293b', text: '#ffffff', label: 'Dark' },
+                    { bg: '#7c3aed', text: '#ffffff', label: 'Purple' },
+                    { bg: '#b45309', text: '#ffffff', label: 'Brown' },
+                    { bg: '#ffffff', text: '#1e293b', label: 'White' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() =>
+                        setIdCardConfig((p) => ({
+                          ...p,
+                          bgColor: preset.bg,
+                          textColor: preset.text,
+                        }))
+                      }
+                      className="w-7 h-7 rounded-full border-2 border-border hover:scale-110 transition-transform"
+                      style={{ background: preset.bg }}
+                      title={preset.label}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => void handleGenerateIdCard()}
+                  disabled={idCardGenerating}
+                  className="flex-1 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium"
+                >
+                  {idCardGenerating ? '⏳ Generating...' : '⬇️ Download ID Card PDF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void (async () => {
+                      const res = await window.electronAPI.settings.set(
+                        'employee.id_card',
+                        JSON.stringify(idCardConfig)
+                      )
+                      if (res.success) toast.success('Design saved as default')
+                      else toast.error(res.error ?? 'Failed to save')
+                    })()
+                  }
+                  className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted/50"
+                >
+                  Save Design
+                </button>
+              </div>
             </div>
           )}
         </div>

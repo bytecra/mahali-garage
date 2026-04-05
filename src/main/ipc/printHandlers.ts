@@ -132,6 +132,89 @@ export function registerPrintHandlers(): void {
     }
   })
 
+  // ── print:idCard ───────────────────────────────────────────────────────────
+  ipcMain.handle('print:idCard', async (event, html: unknown) => {
+    try {
+      if (!authService.getSession(event.sender.id)) {
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      }
+
+      if (typeof html !== 'string' || !html.trim()) {
+        return err('Invalid HTML', 'ERR_VALIDATION')
+      }
+
+      const parent = BrowserWindow.fromWebContents(event.sender) ?? null
+      const win = createPrintWindow(parent)
+      win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+      const htmlPath = path.join(app.getPath('temp'), `mahali-idcard-${Date.now()}.html`)
+      await writeFile(htmlPath, html, 'utf-8')
+
+      const result = await new Promise<Buffer | null>((resolve) => {
+        let settled = false
+        const finalize = (buf: Buffer | null): void => {
+          if (settled) return
+          settled = true
+          try {
+            unlinkSync(htmlPath)
+          } catch {
+            /* ignore */
+          }
+          try {
+            if (!win.isDestroyed()) win.close()
+          } catch {
+            /* ignore */
+          }
+          resolve(buf)
+        }
+
+        const timeout = setTimeout(() => finalize(null), 30000)
+
+        win.webContents.once('did-finish-load', () => {
+          win.webContents.on('will-navigate', (e) => e.preventDefault())
+          win.show()
+          setTimeout(async () => {
+            try {
+              const pdf = await win.webContents.printToPDF({
+                pageSize: {
+                  width: 85600,
+                  height: 54000,
+                },
+                printBackground: true,
+                landscape: false,
+                margins: { marginType: 'none' },
+              })
+              clearTimeout(timeout)
+              finalize(pdf)
+            } catch {
+              clearTimeout(timeout)
+              finalize(null)
+            }
+          }, 500)
+        })
+
+        win.webContents.once('did-fail-load', () => {
+          clearTimeout(timeout)
+          finalize(null)
+        })
+
+        void win.loadFile(htmlPath)
+      })
+
+      if (!result) {
+        return err('Failed to generate PDF')
+      }
+
+      const savePath = path.join(app.getPath('downloads'), `employee-id-${Date.now()}.pdf`)
+      await writeFile(savePath, result)
+      shell.showItemInFolder(savePath)
+      return ok({ filePath: savePath })
+    } catch (e) {
+      log.error('print:idCard', e)
+      return err('Failed to generate ID card')
+    }
+  })
+
   // ── print:chooseDownloadFolder ─────────────────────────────────────────────
   ipcMain.handle('print:chooseDownloadFolder', async (event) => {
     try {

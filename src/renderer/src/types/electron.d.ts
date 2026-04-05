@@ -366,6 +366,7 @@ declare global {
       }
       print: {
         receipt:              (html: string) => Promise<IpcResponse<boolean>>
+        idCard:                 (html: string) => Promise<IpcResponse<{ filePath: string }>>
         chooseDownloadFolder: ()             => Promise<IpcResponse<string | null>>
         listPrinters:         () => Promise<IpcResponse<Array<{
           name: string
