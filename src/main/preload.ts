@@ -336,7 +336,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSalary:       (employeeId: number)                              => invoke('employees:getSalary', employeeId),
     upsertSalary:    (data: unknown)                                   => invoke('employees:upsertSalary', data),
     listPayroll:     (filter?: 'all' | 'paid' | 'unpaid' | 'overdue')  => invoke('employees:listPayroll', filter ?? 'all'),
-    markSalaryPaid:  (employeeId: number)                              => invoke('employees:markSalaryPaid', employeeId),
+    markSalaryPaid: (
+      employeeId: number,
+      extras?: {
+        overtime_hours?: number
+        overtime_rate?: number
+        overtime_amount?: number
+        bonus_amount?: number
+        bonus_type?: string
+        bonus_note?: string
+        absence_deduction?: number
+        absence_days?: number
+        notes?: string
+      },
+    ) => invoke('employees:markSalaryPaid', employeeId, extras),
   },
 
   storeDocuments: {

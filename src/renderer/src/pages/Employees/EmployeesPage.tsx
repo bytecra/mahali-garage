@@ -67,6 +67,30 @@ interface PayrollRow {
   period_label: string
 }
 
+interface PayrollExtrasRowState {
+  overtime_hours: string
+  overtime_rate: string
+  bonus_amount: string
+  bonus_type: string
+  bonus_note: string
+  absence_days: string
+  notes: string
+  expanded: boolean
+}
+
+function defaultPayrollExtras(): PayrollExtrasRowState {
+  return {
+    overtime_hours: '',
+    overtime_rate: '1.25',
+    bonus_amount: '',
+    bonus_type: '',
+    bonus_note: '',
+    absence_days: '',
+    notes: '',
+    expanded: false,
+  }
+}
+
 interface Vacation {
   id: number
   employee_id: number
@@ -149,26 +173,21 @@ function PayrollSection({
   loading,
   filter,
   setFilter,
-  onRefresh,
+  getExtras,
+  setExtra,
+  markPaid,
   t,
 }: {
   rows: PayrollRow[]
   loading: boolean
   filter: 'all' | 'paid' | 'unpaid' | 'overdue'
   setFilter: (f: 'all' | 'paid' | 'unpaid' | 'overdue') => void
-  onRefresh: () => void
+  getExtras: (id: number) => PayrollExtrasRowState
+  setExtra: (id: number, key: keyof PayrollExtrasRowState, value: string | boolean) => void
+  markPaid: (id: number) => Promise<void>
   t: (key: string, opts?: { defaultValue?: string }) => string
 }) {
   const filters = ['all', 'paid', 'unpaid', 'overdue'] as const
-
-  async function markPaid(employeeId: number) {
-    const res = await window.electronAPI.employees.markSalaryPaid(employeeId) as { success: boolean; error?: string }
-    if (!res.success) {
-      window.alert(res.error ?? t('common.error'))
-      return
-    }
-    onRefresh()
-  }
 
   function statusLabel(s: PayrollRow['month_status']): string {
     if (s === 'paid') return `${t('employees.payrollPaid', { defaultValue: 'Paid' })} ✓`
@@ -211,35 +230,176 @@ function PayrollSection({
           {rows.map(row => (
             <div
               key={row.employee_id}
-              className="bg-card border border-border rounded-lg px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4"
+              className="bg-card border border-border rounded-lg px-5 py-4 flex flex-col gap-3"
             >
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-foreground">{row.full_name}</div>
-                <div className="text-xs text-muted-foreground font-mono">{row.employee_code}</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  {t(`employees.salaryType_${row.salary_type}`, { defaultValue: row.salary_type })}
-                  {' · '}
-                  <span className="text-foreground font-medium">
-                    {t('employees.amountAed', { defaultValue: 'د.إ' })} {row.amount.toLocaleString()}
-                  </span>
-                  {row.month_status !== 'paid' && row.carryover_amount > 0 && (
-                    <span className="ml-2 text-amber-700 dark:text-amber-400">
-                      {t('employees.carryoverLabel', { defaultValue: 'Carryover' })}: د.إ {row.carryover_amount.toLocaleString()}
-                      {' → '}
-                      <span className="font-semibold">{t('employees.totalDue', { defaultValue: 'Total' })}: د.إ {row.total_due.toLocaleString()}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-foreground">{row.full_name}</div>
+                  <div className="text-xs text-muted-foreground font-mono">{row.employee_code}</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {t(`employees.salaryType_${row.salary_type}`, { defaultValue: row.salary_type })}
+                    {' · '}
+                    <span className="text-foreground font-medium">
+                      {t('employees.amountAed', { defaultValue: 'د.إ' })} {row.amount.toLocaleString()}
                     </span>
+                    {row.month_status !== 'paid' && row.carryover_amount > 0 && (
+                      <span className="ml-2 text-amber-700 dark:text-amber-400">
+                        {t('employees.carryoverLabel', { defaultValue: 'Carryover' })}: د.إ {row.carryover_amount.toLocaleString()}
+                        {' → '}
+                        <span className="font-semibold">{t('employees.totalDue', { defaultValue: 'Total' })}: د.إ {row.total_due.toLocaleString()}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col sm:items-end gap-2">
+                  <span className="text-sm font-medium">{statusLabel(row.month_status)}</span>
+                  <span className="text-xs text-muted-foreground">{row.period_label}</span>
+                  {row.month_status !== 'paid' && row.total_due > 0 && (
+                    <button type="button" onClick={() => void markPaid(row.employee_id)} className={btnPrimary}>
+                      {t('employees.markSalaryPaid', { defaultValue: 'Mark as paid' })}
+                    </button>
                   )}
                 </div>
               </div>
-              <div className="flex flex-col sm:items-end gap-2">
-                <span className="text-sm font-medium">{statusLabel(row.month_status)}</span>
-                <span className="text-xs text-muted-foreground">{row.period_label}</span>
-                {row.month_status !== 'paid' && row.total_due > 0 && (
-                  <button type="button" onClick={() => markPaid(row.employee_id)} className={btnPrimary}>
-                    {t('employees.markSalaryPaid', { defaultValue: 'Mark as paid' })}
+
+              {row.month_status !== 'paid' && (
+                <div className="w-full border-t border-border pt-3 mt-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExtra(row.employee_id, 'expanded', !getExtras(row.employee_id).expanded)
+                    }
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    {getExtras(row.employee_id).expanded ? '▲' : '▼'} Overtime, Bonus & Deductions
                   </button>
-                )}
-              </div>
+
+                  {getExtras(row.employee_id).expanded && (
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Overtime Hours</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          placeholder="0"
+                          value={getExtras(row.employee_id).overtime_hours}
+                          onChange={e => setExtra(row.employee_id, 'overtime_hours', e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Overtime Rate</label>
+                        <select
+                          value={getExtras(row.employee_id).overtime_rate}
+                          onChange={e => setExtra(row.employee_id, 'overtime_rate', e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                        >
+                          <option value="1">1x (Normal)</option>
+                          <option value="1.25">1.25x (Weekday OT)</option>
+                          <option value="1.5">1.5x (Weekend/Holiday)</option>
+                          <option value="2">2x (Double)</option>
+                        </select>
+                      </div>
+                      {parseFloat(getExtras(row.employee_id).overtime_hours) > 0 && (
+                        <div className="flex items-end pb-1">
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            +د.إ{' '}
+                            {(
+                              parseFloat(getExtras(row.employee_id).overtime_hours) *
+                              parseFloat(getExtras(row.employee_id).overtime_rate) *
+                              (row.amount / (26 * 8))
+                            ).toFixed(2)}
+                          </p>
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Bonus Amount</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          placeholder="0"
+                          value={getExtras(row.employee_id).bonus_amount}
+                          onChange={e => setExtra(row.employee_id, 'bonus_amount', e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Bonus Type</label>
+                        <select
+                          value={getExtras(row.employee_id).bonus_type}
+                          onChange={e => setExtra(row.employee_id, 'bonus_type', e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                        >
+                          <option value="">Select...</option>
+                          <option value="Performance">Performance</option>
+                          <option value="Attendance">Attendance</option>
+                          <option value="Holiday">Holiday</option>
+                          <option value="Custom">Custom</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Bonus Note</label>
+                        <input
+                          type="text"
+                          placeholder="Optional note"
+                          value={getExtras(row.employee_id).bonus_note}
+                          onChange={e => setExtra(row.employee_id, 'bonus_note', e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Absent Days</label>
+                        <input
+                          type="number"
+                          min={0}
+                          placeholder="0"
+                          value={getExtras(row.employee_id).absence_days}
+                          onChange={e => setExtra(row.employee_id, 'absence_days', e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                        />
+                      </div>
+                      {parseInt(getExtras(row.employee_id).absence_days, 10) > 0 && (
+                        <div className="flex items-end pb-1">
+                          <p className="text-xs text-red-600 dark:text-red-400">
+                            -د.إ{' '}
+                            {(
+                              parseInt(getExtras(row.employee_id).absence_days, 10) * (row.amount / 26)
+                            ).toFixed(2)}
+                          </p>
+                        </div>
+                      )}
+                      <div className="col-span-2 sm:col-span-3">
+                        <label className="text-xs text-muted-foreground block mb-1">Payment Notes</label>
+                        <input
+                          type="text"
+                          placeholder="Optional payment note"
+                          value={getExtras(row.employee_id).notes}
+                          onChange={e => setExtra(row.employee_id, 'notes', e.target.value)}
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
+                        />
+                      </div>
+                      <div className="col-span-2 sm:col-span-3 p-2 bg-muted/30 rounded-md">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Estimated Net:</span>
+                          <span className="font-bold text-primary">
+                            د.إ{' '}
+                            {(
+                              row.amount +
+                              (parseFloat(getExtras(row.employee_id).overtime_hours) || 0) *
+                                (parseFloat(getExtras(row.employee_id).overtime_rate) || 1.25) *
+                                (row.amount / (26 * 8)) +
+                              (parseFloat(getExtras(row.employee_id).bonus_amount) || 0) -
+                              (parseInt(getExtras(row.employee_id).absence_days, 10) || 0) * (row.amount / 26)
+                            ).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -274,6 +434,22 @@ export default function EmployeesPage(): JSX.Element {
   const [payrollFilter, setPayrollFilter] = useState<'all' | 'paid' | 'unpaid' | 'overdue'>('all')
   const [payrollRows, setPayrollRows] = useState<PayrollRow[]>([])
   const [payrollLoading, setPayrollLoading] = useState(false)
+  const [payrollExtras, setPayrollExtras] = useState<Record<number, PayrollExtrasRowState>>({})
+
+  function getExtras(employeeId: number): PayrollExtrasRowState {
+    return payrollExtras[employeeId] ?? defaultPayrollExtras()
+  }
+
+  function setExtra(
+    employeeId: number,
+    key: keyof PayrollExtrasRowState,
+    value: string | boolean,
+  ): void {
+    setPayrollExtras(prev => ({
+      ...prev,
+      [employeeId]: { ...(prev[employeeId] ?? defaultPayrollExtras()), [key]: value },
+    }))
+  }
 
   const [registerDate, setRegisterDate] = useState(() => new Date().toISOString().split('T')[0])
   const [registerDept, setRegisterDept] = useState<'all' | 'mechanical' | 'programming'>('all')
@@ -334,6 +510,47 @@ export default function EmployeesPage(): JSX.Element {
   useEffect(() => {
     if (pageSection === 'payroll') loadPayroll()
   }, [pageSection, loadPayroll])
+
+  async function handleMarkPayrollPaid(employeeId: number): Promise<void> {
+    const ex = payrollExtras[employeeId] ?? defaultPayrollExtras()
+    const overtimeHours = parseFloat(ex.overtime_hours) || 0
+    const overtimeRate = parseFloat(ex.overtime_rate) || 1.25
+    const empRow = payrollRows.find(r => r.employee_id === employeeId)
+    const baseSalary = empRow?.amount ?? 0
+    const workingDays = 26
+    const dailyRate = baseSalary / workingDays
+    const absenceDays = parseInt(ex.absence_days, 10) || 0
+    const absenceDeduction = absenceDays * dailyRate
+
+    const extras = {
+      overtime_hours: overtimeHours || undefined,
+      overtime_rate: overtimeRate || undefined,
+      overtime_amount:
+        overtimeHours > 0
+          ? parseFloat((overtimeHours * overtimeRate * (baseSalary / (workingDays * 8))).toFixed(2))
+          : undefined,
+      bonus_amount: parseFloat(ex.bonus_amount) || undefined,
+      bonus_type: ex.bonus_type || undefined,
+      bonus_note: ex.bonus_note || undefined,
+      absence_deduction:
+        absenceDays > 0 ? parseFloat(absenceDeduction.toFixed(2)) : undefined,
+      absence_days: absenceDays || undefined,
+      notes: ex.notes || undefined,
+    }
+
+    const res = await window.electronAPI.employees.markSalaryPaid(employeeId, extras)
+    if (!res.success) {
+      toast.error(res.error ?? 'Failed to mark as paid')
+      return
+    }
+    toast.success('Salary marked as paid')
+    await loadPayroll()
+    setPayrollExtras(prev => {
+      const next = { ...prev }
+      delete next[employeeId]
+      return next
+    })
+  }
 
   const loadRegister = useCallback(async (): Promise<void> => {
     setRegisterLoading(true)
@@ -543,7 +760,9 @@ export default function EmployeesPage(): JSX.Element {
           loading={payrollLoading}
           filter={payrollFilter}
           setFilter={setPayrollFilter}
-          onRefresh={loadPayroll}
+          getExtras={getExtras}
+          setExtra={setExtra}
+          markPaid={handleMarkPayrollPaid}
           t={t}
         />
       )}

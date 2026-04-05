@@ -5,6 +5,19 @@ export interface IpcResponse<T> {
   code?: string
 }
 
+/** Optional fields stored on `salary_payments` when marking paid. */
+export interface MarkSalaryPaidExtras {
+  overtime_hours?: number
+  overtime_rate?: number
+  overtime_amount?: number
+  bonus_amount?: number
+  bonus_type?: string
+  bonus_note?: string
+  absence_deduction?: number
+  absence_days?: number
+  notes?: string
+}
+
 export interface PaginatedData<T> {
   items: T[]
   total: number
@@ -420,7 +433,10 @@ declare global {
         getSalary:       (employeeId: number) => Promise<IpcResponse<unknown>>
         upsertSalary:    (data: unknown) => Promise<IpcResponse<unknown>>
         listPayroll:     (filter?: 'all' | 'paid' | 'unpaid' | 'overdue') => Promise<IpcResponse<unknown[]>>
-        markSalaryPaid:  (employeeId: number) => Promise<IpcResponse<{ expense_id: number; amount: number }>>
+        markSalaryPaid:  (
+          employeeId: number,
+          extras?: MarkSalaryPaidExtras,
+        ) => Promise<IpcResponse<{ expense_id: number; amount: number }>>
       }
       storeDocuments: {
         list: () => Promise<

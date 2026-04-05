@@ -2,7 +2,7 @@ import { ipcMain, dialog, shell, app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { employeeRepo } from '../database/repositories/employeeRepo'
-import { salaryRepo, type SalaryType } from '../database/repositories/salaryRepo'
+import { salaryRepo, type MarkPaidExtras, type SalaryType } from '../database/repositories/salaryRepo'
 import { authService } from '../services/authService'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
@@ -289,19 +289,22 @@ export function registerEmployeeHandlers(): void {
     }
   })
 
-  ipcMain.handle('employees:markSalaryPaid', (event, employeeId: number) => {
-    try {
-      const session = authService.getSession(event.sender.id)
-      if (!session || session.role !== 'owner')
-        return err('Forbidden', 'ERR_FORBIDDEN')
-      const result = salaryRepo.markPaid(employeeId)
-      return ok(result)
-    } catch (e) {
-      log.error('employees:markSalaryPaid', e)
-      const msg = e instanceof Error ? e.message : 'Failed to record payment'
-      return err(msg)
-    }
-  })
+  ipcMain.handle(
+    'employees:markSalaryPaid',
+    (event, employeeId: number, extras?: MarkPaidExtras) => {
+      try {
+        const session = authService.getSession(event.sender.id)
+        if (!session || session.role !== 'owner')
+          return err('Forbidden', 'ERR_FORBIDDEN')
+        const result = salaryRepo.markPaid(employeeId, extras)
+        return ok(result)
+      } catch (e) {
+        log.error('employees:markSalaryPaid', e)
+        const msg = e instanceof Error ? e.message : 'Failed to record payment'
+        return err(msg)
+      }
+    },
+  )
 
   ipcMain.handle('employees:chooseFile', async () => {
     try {

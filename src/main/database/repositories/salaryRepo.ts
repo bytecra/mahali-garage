@@ -5,6 +5,18 @@ import { notificationRepo } from './notificationRepo'
 export type SalaryType = 'monthly' | 'weekly' | 'daily' | 'one_time' | 'custom'
 export type PayrollMonthStatus = 'paid' | 'unpaid' | 'overdue'
 
+export interface MarkPaidExtras {
+  overtime_hours?: number
+  overtime_rate?: number
+  overtime_amount?: number
+  bonus_amount?: number
+  bonus_type?: string
+  bonus_note?: string
+  absence_deduction?: number
+  absence_days?: number
+  notes?: string
+}
+
 export interface EmployeeSalaryRow {
   id: number
   employee_id: number
@@ -379,7 +391,7 @@ export const salaryRepo = {
     return out
   },
 
-  markPaid(employeeId: number): { expense_id: number; amount: number } {
+  markPaid(employeeId: number, extras?: MarkPaidExtras): { expense_id: number; amount: number } {
     const db = getDb()
     const cfg = salaryRepo.getByEmployeeId(employeeId)
     if (!cfg) throw new Error('No salary configuration')
@@ -428,6 +440,38 @@ export const salaryRepo = {
       'Payroll (includes any carryover)',
       expenseId,
     )
+
+    if (extras) {
+      db.prepare(`
+      UPDATE salary_payments SET
+        overtime_hours = COALESCE(?, overtime_hours),
+        overtime_rate = COALESCE(?, overtime_rate),
+        overtime_amount = COALESCE(?, overtime_amount),
+        bonus_amount = COALESCE(?, bonus_amount),
+        bonus_type = COALESCE(?, bonus_type),
+        bonus_note = COALESCE(?, bonus_note),
+        absence_deduction = COALESCE(?, absence_deduction),
+        absence_days = COALESCE(?, absence_days),
+        notes = COALESCE(?, notes)
+      WHERE employee_id = ?
+      AND period_start = ?
+      AND period_end = ?
+      AND status = 'paid'
+    `).run(
+        extras.overtime_hours ?? null,
+        extras.overtime_rate ?? null,
+        extras.overtime_amount ?? null,
+        extras.bonus_amount ?? null,
+        extras.bonus_type ?? null,
+        extras.bonus_note ?? null,
+        extras.absence_deduction ?? null,
+        extras.absence_days ?? null,
+        extras.notes ?? null,
+        employeeId,
+        bounds.start,
+        bounds.end,
+      )
+    }
 
     return { expense_id: expenseId, amount: total }
   },
