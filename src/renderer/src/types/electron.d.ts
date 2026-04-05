@@ -184,10 +184,28 @@ declare global {
           total_purchase: number
           total_current: number
         }>>
+        salaryReport: (params: unknown) => Promise<IpcResponse<unknown>>
         exportCsv: (type: string, params: unknown) => Promise<IpcResponse<string>>
       }
       dashboard: {
         getSummary: () => Promise<IpcResponse<unknown>>
+        employeesAvailability: () => Promise<
+          IpcResponse<{
+            mechanical_total: number
+            mechanical_available: number
+            programming_total: number
+            programming_available: number
+            both_total: number
+            both_available: number
+            not_marked: number
+            unavailable_reason: Array<{
+              employee_id: string
+              full_name: string
+              department: string
+              reason: 'absent' | 'leave' | 'on_task' | 'vacation' | 'not_marked'
+            }>
+          }>
+        >
       }
       users: {
         list: (filters?: unknown) => Promise<IpcResponse<unknown>>

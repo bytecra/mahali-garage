@@ -151,12 +151,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     lowStock:        ()                                  => invoke('reports:lowStock'),
     customerDebts:   (department?: string)              => invoke('reports:customerDebts', department ?? 'all'),
     assets:          ()                               => invoke('reports:assets'),
+    salaryReport:    (params: unknown)                 => invoke('reports:salaryReport', params),
     exportCsv:       (type: string, params: unknown)     => invoke('reports:exportCsv', type, params),
   },
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   dashboard: {
-    getSummary: () => invoke('reports:dashboard'),
+    getSummary:            () => invoke('reports:dashboard'),
+    employeesAvailability: () => invoke('reports:employeesAvailability'),
   },
 
   // ── Users ─────────────────────────────────────────────────────────────────

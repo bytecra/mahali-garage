@@ -9,11 +9,13 @@ import { toast } from '../../store/notificationStore'
 import {
   buildAttendancePdf,
   buildDailySalesPdf,
+  buildEmployeePayslipPdf,
   buildProfitPdf,
+  buildSalarySummaryPdf,
   buildTopServicesPdf,
 } from '../../utils/reportPdfTemplate'
 
-type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets' | 'attendance'
+type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets' | 'attendance' | 'salary'
 type ReportDept = 'all' | 'mechanical' | 'programming'
 type DepartmentPreset = 'today' | 'week' | 'month' | 'custom'
 
@@ -82,6 +84,25 @@ function ReportsPageInner(): JSX.Element {
 
   const [generatingAttendancePdf, setGeneratingAttendancePdf] = useState(false)
 
+  const [salaryReportType, setSalaryReportType] = useState<'single' | 'all'>('all')
+  const [salaryEmployee, setSalaryEmployee] = useState<number | null>(null)
+  const [salaryFromDate, setSalaryFromDate] = useState(() => {
+    const d = new Date()
+    d.setDate(1)
+    return d.toISOString().split('T')[0]
+  })
+  const [salaryToDate, setSalaryToDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [salaryDept, setSalaryDept] = useState('all')
+  const [salaryEmployees, setSalaryEmployees] = useState<
+    Array<{
+      id: number
+      employee_id: string
+      full_name: string
+      department: string
+    }>
+  >([])
+  const [generatingSalaryPdf, setGeneratingSalaryPdf] = useState(false)
+
   async function handleAttendancePdf(): Promise<void> {
     if (!selectedAttendanceEmp) {
       toast.error('Please select an employee')
@@ -143,6 +164,104 @@ function ReportsPageInner(): JSX.Element {
       toast.error('Failed to generate report')
     } finally {
       setGeneratingAttendancePdf(false)
+    }
+  }
+
+  async function handleSalaryPdf(): Promise<void> {
+    setGeneratingSalaryPdf(true)
+    try {
+      const [reportRes, storeRes, currencyRes] = await Promise.all([
+        window.electronAPI.reports.salaryReport({
+          type: salaryReportType,
+          employeeId: salaryEmployee ?? undefined,
+          fromDate: salaryFromDate,
+          toDate: salaryToDate,
+          department: salaryDept,
+        }),
+        window.electronAPI.settings.get('store.name'),
+        window.electronAPI.settings.get('store.currency_symbol'),
+      ])
+
+      if (!reportRes?.success) {
+        toast.error(reportRes?.error ?? 'Failed to load report')
+        return
+      }
+
+      const storeName = (storeRes?.success ? storeRes.data : null) || 'Mahali Garage'
+      const currencySym = (currencyRes?.success ? currencyRes.data : null) || 'د.إ'
+      const data = reportRes.data
+
+      if (data == null) {
+        toast.error('No data found')
+        return
+      }
+
+      let html = ''
+
+      if (salaryReportType === 'single') {
+        const single = data as {
+          employee: {
+            employee_id: string
+            full_name: string
+            department: string
+            role: string
+            phone: string | null
+          }
+          payments: Array<{
+            period_start: string
+            period_end: string
+            paid_date: string | null
+            status: string
+            amount: number
+            overtime_hours: number
+            overtime_rate: number
+            overtime_amount: number
+            bonus_amount: number
+            bonus_type: string | null
+            bonus_note: string | null
+            absence_deduction: number
+            absence_days: number
+            notes: string | null
+          }>
+        }
+        const { employee, payments } = single
+        if (!payments?.length) {
+          toast.error('No salary records found')
+          return
+        }
+        html = buildEmployeePayslipPdf({
+          employee,
+          payment: payments[0]!,
+          storeName: String(storeName),
+          currencySymbol: String(currencySym),
+        })
+      } else {
+        html = buildSalarySummaryPdf({
+          employees: data as Array<{
+            employee_id: string
+            full_name: string
+            department: string
+            base_salary: number
+            overtime_total: number
+            bonus_total: number
+            deduction_total: number
+            net_total: number
+            payments_count: number
+          }>,
+          fromDate: salaryFromDate,
+          toDate: salaryToDate,
+          department: salaryDept,
+          storeName: String(storeName),
+          currencySymbol: String(currencySym),
+        })
+      }
+
+      const printRes = await window.electronAPI.print.receipt(html)
+      if (!printRes?.success) throw new Error('Print failed')
+    } catch {
+      toast.error('Failed to generate report')
+    } finally {
+      setGeneratingSalaryPdf(false)
     }
   }
 
@@ -326,7 +445,7 @@ function ReportsPageInner(): JSX.Element {
   }
 
   const load = async () => {
-    if (tab === 'attendance') {
+    if (tab === 'attendance' || tab === 'salary') {
       setLoading(false)
       setData([])
       setDepartmentData(null)
@@ -373,11 +492,13 @@ function ReportsPageInner(): JSX.Element {
   useEffect(() => { load() }, [tab, dateFrom, dateTo, reportDept])
 
   useEffect(() => {
-    if (tab !== 'attendance') return
+    if (tab !== 'attendance' && tab !== 'salary') return
     void (async () => {
       const res = await window.electronAPI.employees.list({})
       if (res?.success) {
-        setAttendanceEmployees((res.data as Array<{ id: number; employee_id: string; full_name: string; department: string }>) ?? [])
+        const list = (res.data as Array<{ id: number; employee_id: string; full_name: string; department: string }>) ?? []
+        setAttendanceEmployees(list)
+        setSalaryEmployees(list)
       }
     })()
   }, [tab])
@@ -394,6 +515,7 @@ function ReportsPageInner(): JSX.Element {
     { key: 'expenses_monthly',   label: t('reports.expensesMonthly') },
     { key: 'assets',            label: t('reports.assetsReport', { defaultValue: 'Assets' }) },
     { key: 'attendance',        label: t('reports.attendance', { defaultValue: 'Attendance Report' }) },
+    { key: 'salary',            label: t('reports.salary', { defaultValue: 'Salary Report' }) },
   ]
 
   const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly', 'department_reports'].includes(tab)
@@ -411,7 +533,7 @@ function ReportsPageInner(): JSX.Element {
               <FileText className="w-4 h-4" />Export PDF
             </button>
           )}
-          {tab !== 'attendance' && (
+          {tab !== 'attendance' && tab !== 'salary' && (
             <button onClick={() => exportCsv(data as Record<string, unknown>[], `${tab}-report.csv`)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
               <Download className="w-4 h-4" />{t('reports.exportCsv')}
@@ -592,6 +714,137 @@ function ReportsPageInner(): JSX.Element {
               {generatingAttendancePdf ? '⏳ Generating...' : '📄 Generate PDF Report'}
             </button>
           </div>
+        </div>
+      ) : tab === 'salary' ? (
+        <div className="space-y-6 max-w-lg">
+          <div>
+            <h2 className="text-base font-semibold">Salary Report</h2>
+            <p className="text-sm text-muted-foreground">
+              Generate payslips or salary summary reports for any period.
+            </p>
+          </div>
+
+          <div className="flex gap-1 p-0.5 bg-muted rounded-md w-fit">
+            <button
+              type="button"
+              onClick={() => setSalaryReportType('all')}
+              className={`px-4 py-1.5 text-sm rounded transition-colors ${
+                salaryReportType === 'all' ? 'bg-background shadow font-medium' : 'text-muted-foreground'
+              }`}
+            >
+              All Employees Summary
+            </button>
+            <button
+              type="button"
+              onClick={() => setSalaryReportType('single')}
+              className={`px-4 py-1.5 text-sm rounded transition-colors ${
+                salaryReportType === 'single' ? 'bg-background shadow font-medium' : 'text-muted-foreground'
+              }`}
+            >
+              Individual Payslip
+            </button>
+          </div>
+
+          {salaryReportType === 'single' && (
+            <div>
+              <label className="text-sm font-medium block mb-1">Employee</label>
+              <select
+                value={salaryEmployee ?? ''}
+                onChange={(e) => setSalaryEmployee(e.target.value ? Number(e.target.value) : null)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              >
+                <option value="">Select employee...</option>
+                {salaryEmployees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.full_name} ({emp.employee_id})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {salaryReportType === 'all' && (
+            <div>
+              <label className="text-sm font-medium block mb-1">Department</label>
+              <select
+                value={salaryDept}
+                onChange={(e) => setSalaryDept(e.target.value)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              >
+                <option value="all">All Departments</option>
+                <option value="mechanical">Mechanical</option>
+                <option value="programming">Programming</option>
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium block mb-1">From</label>
+              <input
+                type="date"
+                value={salaryFromDate}
+                onChange={(e) => setSalaryFromDate(e.target.value)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">To</label>
+              <input
+                type="date"
+                value={salaryToDate}
+                min={salaryFromDate}
+                onChange={(e) => setSalaryToDate(e.target.value)}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            {[
+              {
+                label: 'This Month',
+                fn: () => {
+                  const d = new Date()
+                  setSalaryFromDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
+                  setSalaryToDate(d.toISOString().split('T')[0])
+                },
+              },
+              {
+                label: 'Last Month',
+                fn: () => {
+                  const d = new Date()
+                  setSalaryFromDate(new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().split('T')[0])
+                  setSalaryToDate(new Date(d.getFullYear(), d.getMonth(), 0).toISOString().split('T')[0])
+                },
+              },
+              {
+                label: 'This Year',
+                fn: () => {
+                  const d = new Date()
+                  setSalaryFromDate(`${d.getFullYear()}-01-01`)
+                  setSalaryToDate(d.toISOString().split('T')[0])
+                },
+              },
+            ].map(({ label, fn }) => (
+              <button key={label} type="button" onClick={fn} className="px-3 py-1 text-xs border border-border rounded-md hover:bg-muted/50 text-muted-foreground">
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleSalaryPdf()}
+            disabled={generatingSalaryPdf || (salaryReportType === 'single' && !salaryEmployee)}
+            className="w-full py-2.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
+          >
+            {generatingSalaryPdf
+              ? '⏳ Generating...'
+              : salaryReportType === 'single'
+                ? '📄 Generate Payslip PDF'
+                : '📊 Generate Summary PDF'}
+          </button>
         </div>
       ) : loading ? (
         <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>

@@ -616,4 +616,130 @@ export const reportRepo = {
       ORDER BY total_due DESC
     `).all()
   },
+
+  employeesAvailableToday(): {
+    mechanical_total: number
+    mechanical_available: number
+    programming_total: number
+    programming_available: number
+    both_total: number
+    both_available: number
+    not_marked: number
+    unavailable_reason: Array<{
+      employee_id: string
+      full_name: string
+      department: string
+      reason: 'absent' | 'leave' | 'on_task' | 'vacation' | 'not_marked'
+    }>
+  } {
+    const db = getDb()
+    const today = new Date().toISOString().split('T')[0]
+
+    // Tasks: no `tasks.assigned_to`; assignees live in `task_assignments.user_id` → `users.id`.
+    // Approximate per-employee active task count by matching `users.full_name` to `employees.full_name`.
+    const rows = db
+      .prepare(
+        `
+      SELECT 
+        e.id,
+        e.employee_id,
+        e.full_name,
+        e.department,
+        e.is_on_vacation,
+        ast.name AS status_name,
+        ast.counts_as_working,
+        (
+          SELECT COUNT(*) FROM task_assignments ta
+          INNER JOIN tasks t ON t.id = ta.task_id
+          INNER JOIN users u ON u.id = ta.user_id
+          WHERE LOWER(TRIM(u.full_name)) = LOWER(TRIM(e.full_name))
+            AND LENGTH(TRIM(e.full_name)) > 0
+            AND t.status NOT IN ('done', 'cancelled')
+        ) AS active_tasks
+      FROM employees e
+      LEFT JOIN employee_attendance ea
+        ON ea.employee_id = e.id
+        AND ea.date = ?
+      LEFT JOIN attendance_status_types ast
+        ON ast.id = ea.status_type_id
+      WHERE e.employment_status = 'active'
+      ORDER BY e.department, e.full_name
+    `
+      )
+      .all(today) as Array<{
+      id: number
+      employee_id: string
+      full_name: string
+      department: string | null
+      is_on_vacation: number
+      status_name: string | null
+      counts_as_working: number | null
+      active_tasks: number
+    }>
+
+    let mech_total = 0
+    let mech_avail = 0
+    let prog_total = 0
+    let prog_avail = 0
+    let both_total = 0
+    let both_avail = 0
+    let not_marked = 0
+
+    const unavailable: Array<{
+      employee_id: string
+      full_name: string
+      department: string
+      reason: 'absent' | 'leave' | 'on_task' | 'vacation' | 'not_marked'
+    }> = []
+
+    for (const emp of rows) {
+      const deptRaw = emp.department?.trim().toLowerCase() ?? ''
+      const dept =
+        deptRaw === 'mechanical' || deptRaw === 'programming' ? deptRaw : 'both'
+
+      if (dept === 'mechanical') mech_total++
+      else if (dept === 'programming') prog_total++
+      else both_total++
+
+      let available = false
+      let reason: 'absent' | 'leave' | 'on_task' | 'vacation' | 'not_marked' | null = null
+
+      if (emp.is_on_vacation) {
+        reason = 'vacation'
+      } else if (!emp.status_name) {
+        reason = 'not_marked'
+        not_marked++
+      } else if (emp.counts_as_working === 1 && emp.active_tasks === 0) {
+        available = true
+      } else if (emp.active_tasks > 0) {
+        reason = 'on_task'
+      } else {
+        reason = emp.status_name.toLowerCase().includes('sick') ? 'leave' : 'absent'
+      }
+
+      if (available) {
+        if (dept === 'mechanical') mech_avail++
+        else if (dept === 'programming') prog_avail++
+        else both_avail++
+      } else if (reason && reason !== 'not_marked') {
+        unavailable.push({
+          employee_id: emp.employee_id,
+          full_name: emp.full_name,
+          department: dept,
+          reason,
+        })
+      }
+    }
+
+    return {
+      mechanical_total: mech_total,
+      mechanical_available: mech_avail,
+      programming_total: prog_total,
+      programming_available: prog_avail,
+      both_total: both_total,
+      both_available: both_avail,
+      not_marked,
+      unavailable_reason: unavailable,
+    }
+  },
 }

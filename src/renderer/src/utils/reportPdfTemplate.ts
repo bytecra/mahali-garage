@@ -745,3 +745,455 @@ export function buildAttendancePdf(params: {
 </body>
 </html>`
 }
+
+export function buildEmployeePayslipPdf(params: {
+  employee: {
+    employee_id: string
+    full_name: string
+    department: string
+    role: string
+    phone: string | null
+  }
+  payment: {
+    period_start: string
+    period_end: string
+    paid_date: string | null
+    status: string
+    amount: number
+    overtime_hours: number
+    overtime_rate: number
+    overtime_amount: number
+    bonus_amount: number
+    bonus_type: string | null
+    bonus_note: string | null
+    absence_deduction: number
+    absence_days: number
+    notes: string | null
+  }
+  storeName: string
+  currencySymbol: string
+}): string {
+  const { employee, payment, storeName, currencySymbol } = params
+  const fmt = (n: number) => `${escapeHtml(currencySymbol)} ${n.toFixed(2)}`
+  const fmtDate = (d: string | null) =>
+    d
+      ? new Date(d).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : '—'
+
+  const net = payment.amount + payment.overtime_amount + payment.bonus_amount - payment.absence_deduction
+
+  const otRow =
+    payment.overtime_amount > 0
+      ? `
+      <tr>
+        <td>
+          Overtime 
+          (${payment.overtime_hours}h × 
+          ${payment.overtime_rate}x)
+        </td>
+        <td class="amount" 
+          style="color:#16a34a;">
+          + ${fmt(payment.overtime_amount)}
+        </td>
+      </tr>`
+      : ''
+
+  const bonusRow =
+    payment.bonus_amount > 0
+      ? `
+      <tr>
+        <td>
+          Bonus
+          ${payment.bonus_type ? `(${escapeHtml(payment.bonus_type)})` : ''}
+          ${
+            payment.bonus_note
+              ? `<br><span style="font-size:11px;
+                color:#64748b;">
+                ${escapeHtml(payment.bonus_note)}</span>`
+              : ''
+          }
+        </td>
+        <td class="amount"
+          style="color:#16a34a;">
+          + ${fmt(payment.bonus_amount)}
+        </td>
+      </tr>`
+      : ''
+
+  const dedRow =
+    payment.absence_deduction > 0
+      ? `
+      <tr>
+        <td>
+          Absence Deduction
+          (${payment.absence_days} day
+          ${payment.absence_days > 1 ? 's' : ''})
+        </td>
+        <td class="amount"
+          style="color:#dc2626;">
+          - ${fmt(payment.absence_deduction)}
+        </td>
+      </tr>`
+      : ''
+
+  const notesRow = payment.notes
+    ? `
+      <tr>
+        <td colspan="2" 
+          style="font-size:11px;
+          color:#64748b;">
+          Note: ${escapeHtml(payment.notes)}
+        </td>
+      </tr>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 20mm; }
+    * { box-sizing:border-box;
+        margin:0; padding:0; }
+    body { font-family:'Segoe UI',Arial,
+      sans-serif; color:#1e293b;
+      font-size:13px; }
+    .header { display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      margin-bottom:24px; }
+    h1 { font-size:22px; font-weight:700; }
+    h2 { font-size:14px; font-weight:600;
+      color:#334155; margin-bottom:8px; }
+    .divider { border-top:1px solid #e2e8f0;
+      margin:16px 0; }
+    table { width:100%;
+      border-collapse:collapse; }
+    th { background:#f1f5f9; padding:8px 12px;
+      text-align:left; font-size:11px;
+      font-weight:600; color:#475569;
+      text-transform:uppercase; }
+    td { padding:8px 12px; font-size:13px;
+      border-bottom:1px solid #f1f5f9; }
+    .amount { text-align:right; 
+      font-weight:500; }
+    .total-row td { font-weight:700;
+      font-size:15px; background:#f8fafc; }
+    .net-row td { font-weight:800;
+      font-size:17px; color:#2563eb;
+      background:#eff6ff; }
+    .badge { display:inline-block;
+      padding:2px 10px; border-radius:9999px;
+      font-size:11px; font-weight:500; }
+    .paid { background:#dcfce7; color:#166534; }
+    .unpaid { background:#fef9c3; 
+      color:#854d0e; }
+    .sign-box { border-top:1px solid #94a3b8;
+      padding-top:8px; text-align:center;
+      font-size:11px; color:#64748b;
+      width:40%; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>${escapeHtml(storeName)}</h1>
+      <p style="color:#64748b;font-size:13px;">
+        Payslip
+      </p>
+    </div>
+    <div style="text-align:right;
+      font-size:12px;color:#64748b;">
+      <p>Period: ${escapeHtml(fmtDate(payment.period_start))}
+        — ${escapeHtml(fmtDate(payment.period_end))}</p>
+      <p>Generated: ${escapeHtml(fmtDate(new Date().toISOString()))}</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div style="display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;margin-bottom:20px;">
+    <div>
+      <p style="font-size:11px;color:#64748b;">
+        EMPLOYEE</p>
+      <p style="font-weight:600;font-size:16px;">
+        ${escapeHtml(employee.full_name)}</p>
+      <p style="font-size:12px;color:#64748b;
+        font-family:monospace;">
+        ${escapeHtml(employee.employee_id)}</p>
+      <p style="font-size:12px;color:#64748b;
+        text-transform:capitalize;">
+        ${escapeHtml(employee.department || '')} · 
+        ${escapeHtml(employee.role || '')}</p>
+      ${
+        employee.phone
+          ? `<p style="font-size:12px;
+            color:#64748b;">
+            📞 ${escapeHtml(employee.phone)}</p>`
+          : ''
+      }
+    </div>
+    <div>
+      <p style="font-size:11px;color:#64748b;">
+        PAYMENT STATUS</p>
+      <span class="badge ${
+        payment.status === 'paid' ? 'paid' : 'unpaid'}">
+        ${escapeHtml(payment.status.toUpperCase())}
+      </span>
+      ${
+        payment.paid_date
+          ? `<p style="font-size:12px;
+            color:#64748b;margin-top:4px;">
+            Paid: ${escapeHtml(fmtDate(payment.paid_date))}
+            </p>`
+          : ''
+      }
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2>Earnings & Deductions</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th style="text-align:right;">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Base Salary</td>
+        <td class="amount">
+          ${fmt(payment.amount)}</td>
+      </tr>
+      ${otRow}
+      ${bonusRow}
+      ${dedRow}
+      ${notesRow}
+    </tbody>
+    <tfoot>
+      <tr class="net-row">
+        <td>NET SALARY</td>
+        <td class="amount">${fmt(net)}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="divider" 
+    style="margin-top:40px;"></div>
+  <div style="display:flex;
+    justify-content:space-between;
+    margin-top:20px;">
+    <div class="sign-box">
+      Employee Signature
+    </div>
+    <div class="sign-box">
+      Manager Signature
+    </div>
+  </div>
+
+</body>
+</html>`
+}
+
+export function buildSalarySummaryPdf(params: {
+  employees: Array<{
+    employee_id: string
+    full_name: string
+    department: string
+    base_salary: number
+    overtime_total: number
+    bonus_total: number
+    deduction_total: number
+    net_total: number
+    payments_count: number
+  }>
+  fromDate: string
+  toDate: string
+  department: string
+  storeName: string
+  currencySymbol: string
+}): string {
+  const { employees, fromDate, toDate, department, storeName, currencySymbol } = params
+
+  const fmt = (n: number) => `${escapeHtml(currencySymbol)} ${n.toFixed(2)}`
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+
+  const grandTotal = employees.reduce(
+    (acc, e) => {
+      acc.base += e.base_salary
+      acc.overtime += e.overtime_total
+      acc.bonus += e.bonus_total
+      acc.deductions += e.deduction_total
+      acc.net += e.net_total
+      return acc
+    },
+    {
+      base: 0,
+      overtime: 0,
+      bonus: 0,
+      deductions: 0,
+      net: 0,
+    }
+  )
+
+  const rows = employees
+    .map(
+      (e) => `
+    <tr>
+      <td>
+        <p style="font-weight:500;">
+          ${escapeHtml(e.full_name)}</p>
+        <p style="font-size:11px;
+          color:#64748b;font-family:monospace;">
+          ${escapeHtml(e.employee_id)}</p>
+      </td>
+      <td style="text-align:center;
+        text-transform:capitalize;
+        color:#64748b;font-size:12px;">
+        ${e.department ? escapeHtml(e.department) : '—'}
+      </td>
+      <td style="text-align:right;">
+        ${fmt(e.base_salary)}</td>
+      <td style="text-align:right;
+        color:#16a34a;">
+        ${e.overtime_total > 0 ? `+ ${fmt(e.overtime_total)}` : '—'}
+      </td>
+      <td style="text-align:right;
+        color:#16a34a;">
+        ${e.bonus_total > 0 ? `+ ${fmt(e.bonus_total)}` : '—'}
+      </td>
+      <td style="text-align:right;
+        color:#dc2626;">
+        ${e.deduction_total > 0 ? `- ${fmt(e.deduction_total)}` : '—'}
+      </td>
+      <td style="text-align:right;
+        font-weight:700;color:#2563eb;">
+        ${fmt(e.net_total)}
+      </td>
+    </tr>
+  `
+    )
+    .join('')
+
+  const deptLine =
+    department && department !== 'all'
+      ? `<p style="font-size:11px;color:#64748b;">Department: ${escapeHtml(department)}</p>`
+      : ''
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4 landscape; margin:15mm; }
+    * { box-sizing:border-box;
+        margin:0; padding:0; }
+    body { font-family:'Segoe UI',Arial,
+      sans-serif; color:#1e293b;
+      font-size:12px; }
+    h1 { font-size:20px; font-weight:700; }
+    .divider { border-top:1px solid #e2e8f0;
+      margin:12px 0; }
+    table { width:100%;
+      border-collapse:collapse; }
+    th { background:#f1f5f9; padding:8px 10px;
+      text-align:left; font-size:10px;
+      font-weight:600; color:#475569;
+      text-transform:uppercase; }
+    td { padding:8px 10px;
+      border-bottom:1px solid #f1f5f9;
+      font-size:12px; }
+    .total-row td { font-weight:700;
+      font-size:13px;
+      background:#f8fafc;
+      border-top:2px solid #e2e8f0; }
+    .grand-net { color:#2563eb;
+      font-size:15px; font-weight:800; }
+  </style>
+</head>
+<body>
+
+  <div style="display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:16px;">
+    <div>
+      <h1>${escapeHtml(storeName)}</h1>
+      <p style="color:#64748b;font-size:13px;">
+        Salary Summary Report
+      </p>
+      ${deptLine}
+    </div>
+    <div style="text-align:right;
+      font-size:11px;color:#64748b;">
+      <p>Period: ${escapeHtml(fmtDate(fromDate))} — 
+        ${escapeHtml(fmtDate(toDate))}</p>
+      <p>Generated: ${escapeHtml(fmtDate(new Date().toISOString()))}</p>
+      <p>Total employees: ${employees.length}</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th>Department</th>
+        <th style="text-align:right;">
+          Base Salary</th>
+        <th style="text-align:right;">
+          Overtime</th>
+        <th style="text-align:right;">
+          Bonus</th>
+        <th style="text-align:right;">
+          Deductions</th>
+        <th style="text-align:right;">
+          Net Salary</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="2">
+          TOTAL (${employees.length} employees)
+        </td>
+        <td style="text-align:right;">
+          ${fmt(grandTotal.base)}</td>
+        <td style="text-align:right;
+          color:#16a34a;">
+          ${grandTotal.overtime > 0 ? `+ ${fmt(grandTotal.overtime)}` : '—'}
+        </td>
+        <td style="text-align:right;
+          color:#16a34a;">
+          ${grandTotal.bonus > 0 ? `+ ${fmt(grandTotal.bonus)}` : '—'}
+        </td>
+        <td style="text-align:right;
+          color:#dc2626;">
+          ${grandTotal.deductions > 0 ? `- ${fmt(grandTotal.deductions)}` : '—'}
+        </td>
+        <td class="grand-net"
+          style="text-align:right;">
+          ${fmt(grandTotal.net)}
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+
+</body>
+</html>`
+}

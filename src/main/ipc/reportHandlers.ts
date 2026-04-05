@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { reportRepo, type ReportDepartmentFilter } from '../database/repositories/reportRepo'
 import { assetRepo } from '../database/repositories/assetRepo'
+import { salaryRepo } from '../database/repositories/salaryRepo'
 import { authService } from '../services/authService'
 import { hasFeature } from '../licensing/license-manager'
 import { ok, err } from '../utils/ipcResponse'
@@ -22,6 +23,42 @@ export function registerReportHandlers(): void {
       if (!authService.getSession(event.sender.id)) return err('Forbidden', 'ERR_FORBIDDEN')
       return ok(reportRepo.dashboard())
     } catch (e) { log.error('reports:dashboard', e); return err('Failed', 'ERR_REPORTS') }
+  })
+
+  ipcMain.handle('reports:employeesAvailability', (event) => {
+    try {
+      if (!authService.getSession(event.sender.id)) return err('Forbidden', 'ERR_FORBIDDEN')
+      return ok(reportRepo.employeesAvailableToday())
+    } catch (e) {
+      log.error('reports:employeesAvailability', e)
+      return err('Failed')
+    }
+  })
+
+  ipcMain.handle('reports:salaryReport', (event, params: unknown) => {
+    try {
+      const licErr = requireLicense('reports.view')
+      if (licErr) return err(licErr, 'ERR_LICENSE_REQUIRED')
+      if (!authService.hasPermission(event.sender.id, 'reports.financial')) return err('Forbidden', 'ERR_FORBIDDEN')
+
+      const p = params as {
+        type?: string
+        employeeId?: number
+        fromDate?: string
+        toDate?: string
+        department?: string
+      }
+
+      if (p.type === 'single') {
+        if (p.employeeId == null || !p.fromDate || !p.toDate) return err('Invalid params', 'ERR_VALIDATION')
+        return ok(salaryRepo.getSalaryReportForEmployee(Number(p.employeeId), p.fromDate, p.toDate))
+      }
+      if (!p.fromDate || !p.toDate) return err('Invalid params', 'ERR_VALIDATION')
+      return ok(salaryRepo.getSalaryReportAllEmployees(p.fromDate, p.toDate, p.department))
+    } catch (e) {
+      log.error('reports:salaryReport', e)
+      return err('Failed')
+    }
   })
 
   ipcMain.handle('reports:salesDaily', (event, dateFrom: string, dateTo?: string, department?: ReportDepartmentFilter) => {

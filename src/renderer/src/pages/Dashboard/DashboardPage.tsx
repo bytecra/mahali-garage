@@ -640,6 +640,21 @@ export default function DashboardPage(): JSX.Element {
   const isPrivileged = ['owner', 'manager'].includes(role ?? '')
   const [data, setData] = useState<DashboardData | null>(null)
   const [taskSummary, setTaskSummary] = useState<TaskSummary | null>(null)
+  const [employeesAvailability, setEmployeesAvailability] = useState<{
+    mechanical_total: number
+    mechanical_available: number
+    programming_total: number
+    programming_available: number
+    both_total: number
+    both_available: number
+    not_marked: number
+    unavailable_reason: Array<{
+      employee_id: string
+      full_name: string
+      department: string
+      reason: string
+    }>
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [widgets, setWidgets] = useState(() => parseDashboardWidgets())
 
@@ -648,10 +663,12 @@ export default function DashboardPage(): JSX.Element {
       window.electronAPI.dashboard.getSummary(),
       canTasks ? window.electronAPI.tasks.getSummary() : Promise.resolve(null),
       window.electronAPI.settings.get('dashboard_widgets'),
-    ]).then(([dashRes, taskRes, widgetsRes]) => {
+      window.electronAPI.dashboard.employeesAvailability(),
+    ]).then(([dashRes, taskRes, widgetsRes, availRes]) => {
       if (dashRes.success) setData(dashRes.data as DashboardData)
       if (taskRes && taskRes.success) setTaskSummary(taskRes.data as TaskSummary)
       if (widgetsRes.success) setWidgets(parseDashboardWidgets((widgetsRes.data as string | null) ?? null))
+      if (availRes?.success && availRes.data) setEmployeesAvailability(availRes.data)
       setLoading(false)
     })
   }, [canTasks])
@@ -707,6 +724,100 @@ export default function DashboardPage(): JSX.Element {
           sub={t('dashboard.inSystem')}
           color="bg-purple-100 text-purple-600 dark:bg-purple-950 dark:text-purple-400" />}
       </div>
+
+      {/* Employees Available Today */}
+      {employeesAvailability && (
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3 mb-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">👥 Employees Available Today</h3>
+            <span className="text-xs text-muted-foreground">
+              {new Date().toLocaleDateString('en-GB', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'short',
+              })}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              {
+                label: 'Mechanical',
+                available: employeesAvailability.mechanical_available,
+                total: employeesAvailability.mechanical_total,
+                color: '#3b82f6',
+              },
+              {
+                label: 'Programming',
+                available: employeesAvailability.programming_available,
+                total: employeesAvailability.programming_total,
+                color: '#f97316',
+              },
+              {
+                label: 'Both',
+                available: employeesAvailability.both_available,
+                total: employeesAvailability.both_total,
+                color: '#22c55e',
+              },
+            ].map((dept) => (
+              <div key={dept.label} className="text-center p-3 bg-muted/30 rounded-lg border border-border">
+                <p className="text-xs text-muted-foreground mb-1">{dept.label}</p>
+                <p className="text-xl font-bold" style={{ color: dept.color }}>
+                  {dept.available}
+                  <span className="text-sm text-muted-foreground font-normal">/{dept.total}</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">available</p>
+              </div>
+            ))}
+          </div>
+
+          {employeesAvailability.not_marked > 0 && (
+            <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2">
+              ⚠️ {employeesAvailability.not_marked} employee{employeesAvailability.not_marked > 1 ? 's' : ''} not marked today
+            </div>
+          )}
+
+          {employeesAvailability.unavailable_reason.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Unavailable:</p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {employeesAvailability.unavailable_reason.map((emp) => (
+                  <div
+                    key={`${emp.employee_id}-${emp.full_name}-${emp.reason}`}
+                    className="flex items-center justify-between text-xs px-2 py-1 bg-muted/20 rounded"
+                  >
+                    <span className="font-medium">{emp.full_name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground capitalize text-xs">{emp.department}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          emp.reason === 'on_task'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400'
+                            : emp.reason === 'vacation'
+                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400'
+                              : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
+                        }`}
+                      >
+                        {emp.reason === 'on_task'
+                          ? '📋 On Task'
+                          : emp.reason === 'vacation'
+                            ? '🏖️ Vacation'
+                            : emp.reason === 'leave'
+                              ? '🤒 Leave'
+                              : '🔴 Absent'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {employeesAvailability.unavailable_reason.length === 0 && employeesAvailability.not_marked === 0 && (
+            <p className="text-xs text-green-600 dark:text-green-400 text-center py-1">✅ All employees are available today</p>
+          )}
+        </div>
+      )}
 
       {/* Payroll alert — only when there is unpaid salary and widget enabled */}
       {widgets.unpaid_salaries && (data?.unpaidSalariesTotal ?? 0) > 0 && (

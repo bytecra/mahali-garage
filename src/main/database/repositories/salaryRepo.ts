@@ -532,4 +532,222 @@ export const salaryRepo = {
       })
     }
   },
+
+  getSalaryReportForEmployee(
+    employeeId: number,
+    fromDate: string,
+    toDate: string,
+  ): {
+    employee: {
+      id: number
+      employee_id: string
+      full_name: string
+      department: string
+      role: string
+      phone: string | null
+    }
+    salary: { salary_type: string; amount: number } | null
+    payments: Array<{
+      id: number
+      period_start: string
+      period_end: string
+      paid_date: string | null
+      status: string
+      amount: number
+      overtime_hours: number
+      overtime_rate: number
+      overtime_amount: number
+      bonus_amount: number
+      bonus_type: string | null
+      bonus_note: string | null
+      absence_deduction: number
+      absence_days: number
+      notes: string | null
+    }>
+    totals: {
+      gross: number
+      overtime_total: number
+      bonus_total: number
+      deduction_total: number
+      net: number
+    }
+  } {
+    const db = getDb()
+
+    const employee = db
+      .prepare(
+        `
+    SELECT id, employee_id, full_name,
+      department, role, phone
+    FROM employees WHERE id = ?
+  `
+      )
+      .get(employeeId) as
+      | {
+          id: number
+          employee_id: string
+          full_name: string
+          department: string | null
+          role: string
+          phone: string | null
+        }
+      | undefined
+
+    if (!employee) throw new Error('Employee not found')
+
+    const cfg = salaryRepo.getByEmployeeId(employeeId)
+    const salary = cfg ? { salary_type: cfg.salary_type, amount: cfg.amount } : null
+
+    const payments = db
+      .prepare(
+        `
+    SELECT 
+      id, period_start, period_end,
+      paid_date, status, amount,
+      COALESCE(overtime_hours, 0) 
+        as overtime_hours,
+      COALESCE(overtime_rate, 1.25) 
+        as overtime_rate,
+      COALESCE(overtime_amount, 0) 
+        as overtime_amount,
+      COALESCE(bonus_amount, 0) 
+        as bonus_amount,
+      bonus_type, bonus_note,
+      COALESCE(absence_deduction, 0) 
+        as absence_deduction,
+      COALESCE(absence_days, 0) 
+        as absence_days,
+      notes
+    FROM salary_payments
+    WHERE employee_id = ?
+    AND period_start >= ?
+    AND period_end <= ?
+    ORDER BY period_start DESC
+  `
+      )
+      .all(employeeId, fromDate, toDate) as Array<{
+      id: number
+      period_start: string
+      period_end: string
+      paid_date: string | null
+      status: string
+      amount: number
+      overtime_hours: number
+      overtime_rate: number
+      overtime_amount: number
+      bonus_amount: number
+      bonus_type: string | null
+      bonus_note: string | null
+      absence_deduction: number
+      absence_days: number
+      notes: string | null
+    }>
+
+    const totals = payments.reduce(
+      (acc, p) => {
+        const amt = Number(p.amount) || 0
+        const ot = Number(p.overtime_amount) || 0
+        const bon = Number(p.bonus_amount) || 0
+        const ded = Number(p.absence_deduction) || 0
+        acc.gross += amt
+        acc.overtime_total += ot
+        acc.bonus_total += bon
+        acc.deduction_total += ded
+        acc.net += amt + ot + bon - ded
+        return acc
+      },
+      {
+        gross: 0,
+        overtime_total: 0,
+        bonus_total: 0,
+        deduction_total: 0,
+        net: 0,
+      }
+    )
+
+    return {
+      employee: {
+        id: employee.id,
+        employee_id: employee.employee_id,
+        full_name: employee.full_name,
+        department: employee.department ?? '',
+        role: employee.role,
+        phone: employee.phone,
+      },
+      salary,
+      payments,
+      totals,
+    }
+  },
+
+  getSalaryReportAllEmployees(
+    fromDate: string,
+    toDate: string,
+    department?: string
+  ): Array<{
+    employee_id: string
+    full_name: string
+    department: string
+    base_salary: number
+    overtime_total: number
+    bonus_total: number
+    deduction_total: number
+    net_total: number
+    payments_count: number
+  }> {
+    const db = getDb()
+
+    let deptFilter = ''
+    const params: unknown[] = [fromDate, toDate]
+
+    if (department && department !== 'all') {
+      deptFilter = 'AND e.department = ?'
+      params.push(department)
+    }
+
+    return db
+      .prepare(
+        `
+    SELECT 
+      e.employee_id,
+      e.full_name,
+      COALESCE(e.department, '') as department,
+      COALESCE(SUM(sp.amount), 0) 
+        as base_salary,
+      COALESCE(SUM(sp.overtime_amount), 0)
+        as overtime_total,
+      COALESCE(SUM(sp.bonus_amount), 0)
+        as bonus_total,
+      COALESCE(SUM(sp.absence_deduction), 0)
+        as deduction_total,
+      COALESCE(SUM(
+        sp.amount + 
+        COALESCE(sp.overtime_amount,0) +
+        COALESCE(sp.bonus_amount,0) -
+        COALESCE(sp.absence_deduction,0)
+      ), 0) as net_total,
+      COUNT(sp.id) as payments_count
+    FROM employees e
+    LEFT JOIN salary_payments sp
+      ON sp.employee_id = e.id
+      AND sp.period_start >= ?
+      AND sp.period_end <= ?
+    WHERE e.employment_status = 'active'
+    ${deptFilter}
+    GROUP BY e.id, e.employee_id, e.full_name, e.department
+    ORDER BY e.department, e.full_name
+  `
+      )
+      .all(...params) as Array<{
+      employee_id: string
+      full_name: string
+      department: string
+      base_salary: number
+      overtime_total: number
+      bonus_total: number
+      deduction_total: number
+      net_total: number
+      payments_count: number
+    }>
+  },
 }
