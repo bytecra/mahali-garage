@@ -141,10 +141,26 @@ export default function SettingsPage(): JSX.Element {
     publishedAt?: string
     releaseNotes?: string
     error?: string
+    downloadUrl?: string | null
+    downloadSize?: number | null
   }>({
     checked: false,
     checking: false,
     hasUpdate: false,
+  })
+
+  const [downloadState, setDownloadState] = useState<{
+    downloading: boolean
+    progress: number
+    filePath: string | null
+    error: string | null
+    done: boolean
+  }>({
+    downloading: false,
+    progress: 0,
+    filePath: null,
+    error: null,
+    done: false,
   })
 
   const [attendanceStatuses, setAttendanceStatuses] = useState<
@@ -566,6 +582,13 @@ export default function SettingsPage(): JSX.Element {
   }
 
   async function checkForUpdates(): Promise<void> {
+    setDownloadState({
+      downloading: false,
+      progress: 0,
+      filePath: null,
+      error: null,
+      done: false,
+    })
     setUpdateStatus(prev => ({
       ...prev,
       checking: true,
@@ -585,6 +608,8 @@ export default function SettingsPage(): JSX.Element {
           publishedAt: res.data.publishedAt,
           releaseNotes: res.data.releaseNotes,
           error: res.data.error,
+          downloadUrl: res.data.downloadUrl,
+          downloadSize: res.data.downloadSize,
         })
       }
     } catch {
@@ -595,6 +620,60 @@ export default function SettingsPage(): JSX.Element {
         error: 'Failed to check for updates',
       })
     }
+  }
+
+  async function handleDownloadUpdate(): Promise<void> {
+    if (!updateStatus.downloadUrl) return
+
+    setDownloadState({
+      downloading: true,
+      progress: 0,
+      filePath: null,
+      error: null,
+      done: false,
+    })
+
+    const cleanup = window.electronAPI.app.onDownloadProgress(({ progress }) => {
+      setDownloadState(prev => ({
+        ...prev,
+        progress: progress === -1 ? prev.progress : progress,
+      }))
+    })
+
+    try {
+      const res = await window.electronAPI.app.downloadUpdate(updateStatus.downloadUrl)
+
+      cleanup()
+
+      if (res?.success && res.data) {
+        setDownloadState({
+          downloading: false,
+          progress: 100,
+          filePath: res.data.filePath,
+          error: null,
+          done: true,
+        })
+        toast.success('Download complete! Click Install to update.')
+      } else {
+        setDownloadState(prev => ({
+          ...prev,
+          downloading: false,
+          error: res?.error ?? 'Download failed',
+        }))
+      }
+    } catch {
+      cleanup()
+      setDownloadState(prev => ({
+        ...prev,
+        downloading: false,
+        error: 'Download failed',
+      }))
+    }
+  }
+
+  async function handleInstallUpdate(): Promise<void> {
+    if (!downloadState.filePath) return
+    await window.electronAPI.app.installUpdate(downloadState.filePath)
   }
 
   async function saveStatus(): Promise<void> {
@@ -2439,17 +2518,115 @@ export default function SettingsPage(): JSX.Element {
                           <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{updateStatus.releaseNotes}</p>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (updateStatus.releaseUrl) {
-                            void window.electronAPI.shell.openExternal(updateStatus.releaseUrl)
-                          }
-                        }}
-                        className="w-full py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium"
-                      >
-                        Download v{updateStatus.latestVersion} →
-                      </button>
+                      <div className="space-y-3">
+                        {updateStatus.downloadSize != null && updateStatus.downloadSize > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Size: {(updateStatus.downloadSize / 1024 / 1024).toFixed(1)} MB
+                          </p>
+                        )}
+
+                        {!downloadState.downloading &&
+                          !downloadState.done &&
+                          !downloadState.error && (
+                          <div className="flex gap-2">
+                            {updateStatus.downloadUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleDownloadUpdate()}
+                                className="flex-1 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium"
+                              >
+                                ⬇️ Download v{updateStatus.latestVersion}
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (updateStatus.releaseUrl) {
+                                  void window.electronAPI.shell.openExternal(updateStatus.releaseUrl)
+                                }
+                              }}
+                              className={`py-2 text-sm border border-border rounded-md hover:bg-muted/50 ${
+                                updateStatus.downloadUrl ? 'px-3' : 'flex-1'
+                              }`}
+                            >
+                              Open in Browser
+                            </button>
+                          </div>
+                        )}
+
+                        {downloadState.downloading && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Downloading...</span>
+                              <span>
+                                {downloadState.progress > 0
+                                  ? `${downloadState.progress}%`
+                                  : 'Starting...'}
+                              </span>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                              <div
+                                className="h-2 bg-primary rounded-full transition-all duration-300"
+                                style={{
+                                  width:
+                                    downloadState.progress > 0
+                                      ? `${downloadState.progress}%`
+                                      : '10%',
+                                  animation:
+                                    downloadState.progress === 0 ? 'pulse 1s infinite' : 'none',
+                                }}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground text-center">
+                              Please wait — do not close the app
+                            </p>
+                          </div>
+                        )}
+
+                        {downloadState.error && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-destructive">❌ {downloadState.error}</p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void handleDownloadUpdate()}
+                                className="flex-1 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                              >
+                                Retry Download
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (updateStatus.releaseUrl) {
+                                    void window.electronAPI.shell.openExternal(updateStatus.releaseUrl)
+                                  }
+                                }}
+                                className="px-3 py-2 text-sm border border-border rounded-md hover:bg-muted/50"
+                              >
+                                Browser
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {downloadState.done && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-green-600 dark:text-green-400 font-medium">
+                              ✅ Downloaded successfully
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void handleInstallUpdate()}
+                              className="w-full py-2.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+                            >
+                              🚀 Install & Restart
+                            </button>
+                            <p className="text-xs text-muted-foreground text-center">
+                              App will close and installer will run
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div>

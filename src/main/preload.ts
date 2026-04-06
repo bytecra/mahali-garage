@@ -412,8 +412,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
           publishedAt?: string
           releaseNotes?: string
           error?: string
+          downloadUrl?: string | null
+          downloadSize?: number | null
         }
       }>('app:checkForUpdates'),
+    downloadUpdate: (downloadUrl: string) =>
+      invoke<{
+        success: boolean
+        data?: { filePath: string; fileName: string }
+        error?: string
+      }>('app:downloadUpdate', downloadUrl),
+    installUpdate: (filePath: string) =>
+      invoke<{ success: boolean; error?: string }>(
+        'app:installUpdate',
+        filePath
+      ),
+    onDownloadProgress: (
+      callback: (data: {
+        progress: number
+        downloadedBytes: number
+        totalBytes: number
+      }) => void
+    ) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: {
+          progress: number
+          downloadedBytes: number
+          totalBytes: number
+        }
+      ) => {
+        callback(data)
+      }
+      ipcRenderer.on('app:downloadProgress', handler)
+      return () => {
+        ipcRenderer.removeListener('app:downloadProgress', handler)
+      }
+    },
   },
 
   shell: {

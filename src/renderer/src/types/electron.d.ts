@@ -343,8 +343,26 @@ declare global {
             publishedAt?: string
             releaseNotes?: string
             error?: string
+            downloadUrl?: string | null
+            downloadSize?: number | null
           }
         }>
+        downloadUpdate: (downloadUrl: string) => Promise<{
+          success: boolean
+          data?: { filePath: string; fileName: string }
+          error?: string
+        }>
+        installUpdate: (filePath: string) => Promise<{
+          success: boolean
+          error?: string
+        }>
+        onDownloadProgress: (
+          callback: (data: {
+            progress: number
+            downloadedBytes: number
+            totalBytes: number
+          }) => void
+        ) => () => void
       }
       shell: {
         openExternal: (url: string) => Promise<void>

@@ -1,5 +1,9 @@
 import crypto from 'crypto'
-import { app, ipcMain, shell } from 'electron'
+import fs from 'fs'
+import path from 'path'
+import { Transform } from 'stream'
+import { pipeline } from 'stream/promises'
+import { app, ipcMain, net, shell } from 'electron'
 import bcrypt from 'bcryptjs'
 import { getDb } from '../database'
 import { getDeviceId } from '../licensing/device-fingerprint'
@@ -58,10 +62,23 @@ export function registerAppHandlers(): void {
         html_url: string
         published_at: string
         body: string
+        assets?: Array<{
+          name: string
+          browser_download_url: string
+          size: number
+        }>
       }
       const latestVersion = data.tag_name.replace(/^v/, '')
 
       const hasUpdate = compareVersions(currentVersion, latestVersion)
+
+      const assets = data.assets ?? []
+      const windowsAsset = assets.find(
+        a =>
+          a.name.endsWith('.exe') ||
+          a.name.includes('Setup') ||
+          a.name.includes('setup')
+      )
 
       return {
         success: true,
@@ -73,6 +90,8 @@ export function registerAppHandlers(): void {
           releaseUrl: data.html_url,
           publishedAt: data.published_at,
           releaseNotes: (data.body ?? '').slice(0, 300),
+          downloadUrl: windowsAsset?.browser_download_url ?? null,
+          downloadSize: windowsAsset?.size ?? null,
         },
       }
     } catch {
@@ -84,6 +103,122 @@ export function registerAppHandlers(): void {
           error: 'No internet or GitHub unreachable',
         },
       }
+    }
+  })
+
+  ipcMain.handle('app:downloadUpdate', async (event, downloadUrl: string) => {
+    try {
+      if (typeof downloadUrl !== 'string' || !downloadUrl.trim()) {
+        return { success: false, error: 'Invalid download URL' }
+      }
+      const url = downloadUrl.trim()
+      const downloadsPath = app.getPath('downloads')
+      const rawName = url.split('/').pop() ?? 'mahali-garage-update.exe'
+      const fileName = rawName.split('?')[0] || 'mahali-garage-update.exe'
+      const destPath = path.join(downloadsPath, fileName)
+
+      return await new Promise<
+        | { success: true; data: { filePath: string; fileName: string } }
+        | { success: false; error: string }
+      >((resolve) => {
+        const request = net.request(url)
+
+        let totalBytes = 0
+        let downloadedBytes = 0
+
+        request.on('response', (response) => {
+          const code = response.statusCode ?? 0
+          if (code < 200 || code >= 300) {
+            resolve({
+              success: false,
+              error: `Download failed: HTTP ${code}`,
+            })
+            return
+          }
+
+          const contentLength = response.headers['content-length']
+          totalBytes = contentLength
+            ? parseInt(
+                Array.isArray(contentLength) ? contentLength[0] : contentLength,
+                10
+              )
+            : 0
+
+          const fileStream = fs.createWriteStream(destPath)
+          const progressTransform = new Transform({
+            transform(chunk: Buffer, _enc, callback) {
+              downloadedBytes += chunk.length
+              const progress =
+                totalBytes > 0
+                  ? Math.round((downloadedBytes / totalBytes) * 100)
+                  : -1
+              try {
+                event.sender.send('app:downloadProgress', {
+                  progress,
+                  downloadedBytes,
+                  totalBytes,
+                })
+              } catch {
+                // renderer gone
+              }
+              callback(null, chunk)
+            },
+          })
+
+          pipeline(response, progressTransform, fileStream)
+            .then(() => {
+              resolve({
+                success: true,
+                data: {
+                  filePath: destPath,
+                  fileName,
+                },
+              })
+            })
+            .catch((err: Error) => {
+              try {
+                fs.unlinkSync(destPath)
+              } catch {
+                // ignore
+              }
+              resolve({
+                success: false,
+                error: 'Download failed: ' + err.message,
+              })
+            })
+        })
+
+        request.on('error', (err: Error) => {
+          resolve({
+            success: false,
+            error: 'Request failed: ' + err.message,
+          })
+        })
+
+        request.end()
+      })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Download failed'
+      return { success: false, error: msg }
+    }
+  })
+
+  ipcMain.handle('app:installUpdate', async (_event, filePath: string) => {
+    try {
+      if (typeof filePath !== 'string' || !filePath.trim()) {
+        return { success: false, error: 'Invalid file path' }
+      }
+      const errMsg = await shell.openPath(filePath.trim())
+      if (errMsg) {
+        return { success: false, error: errMsg }
+      }
+      setTimeout(() => {
+        app.quit()
+      }, 2000)
+      return { success: true }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to open installer'
+      return { success: false, error: msg }
     }
   })
 
