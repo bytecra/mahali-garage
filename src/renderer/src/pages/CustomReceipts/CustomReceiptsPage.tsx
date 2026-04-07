@@ -64,6 +64,14 @@ interface CustomerLite { id: number; name: string; phone: string | null }
 interface VehicleLite { id: number; make: string; model: string; year: number | null; license_plate: string | null }
 interface BrandLite { id: number; name: string; logo: string | null }
 interface CatalogService { id: number; service_name: string; model: string; price: number; department: 'mechanical' | 'programming' }
+interface InventoryProductLite {
+  id: number
+  name: string
+  category_name: string | null
+  stock_quantity: number
+  unit: string
+  sell_price: number
+}
 type WizardStep = 1 | 2 | 3 | 4 | 5
 
 type LoyaltyCfgCache = {
@@ -582,6 +590,8 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [newModel, setNewModel] = useState('')
   const [catalogServices, setCatalogServices] = useState<Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>>([])
   const [smartCustomServices, setSmartCustomServices] = useState<SmartCustomServiceLine[]>([])
+  const [inventoryProducts, setInventoryProducts] = useState<InventoryProductLite[]>([])
+  const [inventoryLoading, setInventoryLoading] = useState(false)
   const [smartDiscountType, setSmartDiscountType] = useState<'percent' | 'fixed' | ''>('')
   const [smartDiscountValue, setSmartDiscountValue] = useState<string>('')
   const [selectedCustomerLoyalty, setSelectedCustomerLoyalty] = useState<SelectedCustomerLoyalty | null>(null)
@@ -693,6 +703,42 @@ export default function CustomReceiptsPage(): JSX.Element {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    void (async () => {
+      setInventoryLoading(true)
+      try {
+        const res = await window.electronAPI.products.list({ page: 1, pageSize: 5000 })
+        if (res?.success) {
+          const payload = res.data as { items?: unknown[] } | unknown[]
+          const rows = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.items)
+              ? payload.items
+              : []
+          setInventoryProducts(
+            rows
+              .map((r) => {
+                const x = r as Record<string, unknown>
+                const id = Number(x.id)
+                if (!Number.isFinite(id)) return null
+                return {
+                  id,
+                  name: String(x.name ?? ''),
+                  category_name: x.category_name != null ? String(x.category_name) : null,
+                  stock_quantity: Number(x.stock_quantity ?? 0) || 0,
+                  unit: String(x.unit ?? 'pcs'),
+                  sell_price: Number(x.sell_price ?? 0) || 0,
+                }
+              })
+              .filter((p): p is InventoryProductLite => Boolean(p && p.name.trim())),
+          )
+        }
+      } finally {
+        setInventoryLoading(false)
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     void (async () => {
@@ -1486,6 +1532,22 @@ export default function CustomReceiptsPage(): JSX.Element {
                   {t('customReceipts.saveOnly', { defaultValue: 'Save Only' })}
                 </button>
               </div>
+
+              <InventoryQuickAddPanel
+                products={inventoryProducts}
+                loading={inventoryLoading}
+                onAdd={(product) => {
+                  const line = {
+                    ...newLine(),
+                    service_name: product.name,
+                    sell_price: String(product.sell_price),
+                  }
+                  if (department === 'mechanical') setMechanical(prev => [...prev, line])
+                  else if (department === 'programming') setProgramming(prev => [...prev, line])
+                  else setMechanical(prev => [...prev, line])
+                  toast.success(`${product.name} added`)
+                }}
+              />
             </div>
           </div>
         </div>
@@ -1530,6 +1592,8 @@ export default function CustomReceiptsPage(): JSX.Element {
           setCatalogServices={setCatalogServices}
           customServices={smartCustomServices}
           setCustomServices={setSmartCustomServices}
+          inventoryProducts={inventoryProducts}
+          inventoryLoading={inventoryLoading}
           smartDiscountType={smartDiscountType}
           setSmartDiscountType={setSmartDiscountType}
           smartDiscountValue={smartDiscountValue}
@@ -2014,6 +2078,8 @@ function SmartRecipeWizard(props: {
   setCatalogServices: React.Dispatch<React.SetStateAction<Array<{ id: number; name: string; sell: string; checked: boolean; department: 'mechanical' | 'programming' }>>>
   customServices: SmartCustomServiceLine[]
   setCustomServices: React.Dispatch<React.SetStateAction<SmartCustomServiceLine[]>>
+  inventoryProducts: InventoryProductLite[]
+  inventoryLoading: boolean
   smartDiscountType: 'percent' | 'fixed' | ''
   setSmartDiscountType: (v: 'percent' | 'fixed' | '') => void
   smartDiscountValue: string
@@ -2053,6 +2119,7 @@ function SmartRecipeWizard(props: {
     brands, brandSearch, setBrandSearch, selectedBrand, setSelectedBrand,
     modelOptions, selectedModel, setSelectedModel, newModel, setNewModel,
     catalogServices, setCatalogServices, customServices, setCustomServices,
+    inventoryProducts, inventoryLoading,
     smartDiscountType, setSmartDiscountType, smartDiscountValue, setSmartDiscountValue,
     paymentMethod, setPaymentMethod, onLoadVehicles, onCreateCustomer, onSave,
     loadCustomerLoyalty, clearLoyaltyOnWalkIn, loyaltyWidget,
@@ -2395,9 +2462,106 @@ function SmartRecipeWizard(props: {
             <button className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground" onClick={() => void onSave(true)}>Save & Print</button>
             <button className="w-full px-4 py-2 rounded-md border border-border" onClick={() => void onSave(false)}>Save Only</button>
           </div>
+
+          <InventoryQuickAddPanel
+            products={inventoryProducts}
+            loading={inventoryLoading}
+            onAdd={(product) => {
+              setCustomServices(prev => [
+                ...prev,
+                {
+                  ...newSmartCustomLine(department === 'programming' ? 'programming' : 'mechanical'),
+                  service_name: product.name,
+                  sell_price: String(product.sell_price),
+                },
+              ])
+              toast.success(`${product.name} added`)
+            }}
+          />
         </div>
       )}
     </div>
+  )
+}
+
+function InventoryQuickAddPanel({
+  products,
+  loading,
+  onAdd,
+}: {
+  products: InventoryProductLite[]
+  loading: boolean
+  onAdd: (product: InventoryProductLite) => void
+}): JSX.Element {
+  const [search, setSearch] = useState('')
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()),
+  )
+
+  const stockTone = (stock: number): { badge: string; text: string } => {
+    if (stock === 0) return { badge: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400', text: 'Out of Stock' }
+    if (stock < 8) return { badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400', text: `${stock} in stock` }
+    return { badge: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400', text: `${stock} in stock` }
+  }
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-semibold">Available Inventory</h3>
+        <span className="text-xs text-muted-foreground">{products.length} items</span>
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          placeholder="Search item name..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        {search ? (
+          <button
+            type="button"
+            className="px-2 text-xs rounded border border-border hover:bg-muted/50"
+            onClick={() => setSearch('')}
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <div className="max-h-[420px] overflow-auto space-y-2 pr-1">
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading inventory...</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No matching inventory items.</p>
+        ) : (
+          filtered.map((p) => {
+            const tone = stockTone(p.stock_quantity)
+            const isOut = p.stock_quantity === 0
+            return (
+              <div key={p.id} className={`rounded-md border border-border p-3 space-y-2 ${isOut ? 'opacity-70' : ''}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium leading-snug">{p.name}</p>
+                  <span className="text-xs rounded px-2 py-0.5 bg-muted text-muted-foreground">
+                    {p.category_name ?? 'General'}
+                  </span>
+                </div>
+                <p className="text-sm font-bold">AED {p.sell_price.toFixed(2)}</p>
+                <p className={`inline-flex text-xs rounded px-2 py-0.5 ${tone.badge}`}>
+                  {isOut ? 'Out of stock' : tone.text}
+                </p>
+                <button
+                  type="button"
+                  disabled={isOut}
+                  onClick={() => onAdd(p)}
+                  className="w-full py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isOut ? 'Out of Stock' : '+ Add to Recipe'}
+                </button>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </section>
   )
 }
 
