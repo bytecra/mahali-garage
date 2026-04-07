@@ -589,6 +589,34 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [printChoiceOpen, setPrintChoiceOpen] = useState(false)
   const [pendingPrintReceipt, setPendingPrintReceipt] = useState<Receipt | null>(null)
   const [thermalPrinting, setThermalPrinting] = useState(false)
+  const [includeSignatures, setIncludeSignatures] = useState(() => {
+    try {
+      return localStorage.getItem('invoiceIncludeSignatures') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('invoiceIncludeSignatures', includeSignatures ? 'true' : 'false')
+    } catch {
+      /* ignore */
+    }
+  }, [includeSignatures])
+
+  useEffect(() => {
+    const dialogOpen = printChoiceOpen || viewReceipt != null
+    if (!dialogOpen) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault()
+        setIncludeSignatures(s => !s)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [printChoiceOpen, viewReceipt])
 
   const [employees, setEmployees] = useState<ReceiptEmployeePickerRow[]>([])
   const [primaryEmployeeId, setPrimaryEmployeeId] = useState<number | null>(null)
@@ -934,7 +962,7 @@ export default function CustomReceiptsPage(): JSX.Element {
         } catch { /* non-fatal */ }
       }
 
-      await printCustomReceiptA4(printableReceipt)
+      await printCustomReceiptA4(printableReceipt, { includeSignatures })
     } catch (e) {
       console.error('Receipt print failed', e)
       toast.error(t('common.error'))
@@ -1102,7 +1130,7 @@ export default function CustomReceiptsPage(): JSX.Element {
     <div>
       {mode === 'list' && (
         <>
-          <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h1 className="text-2xl font-bold text-foreground">{t('customReceipts.title', { defaultValue: 'Custom Receipts' })}</h1>
             {canCreate && (
               <button
@@ -1114,6 +1142,17 @@ export default function CustomReceiptsPage(): JSX.Element {
               </button>
             )}
           </div>
+
+          <label className="flex items-center gap-2 mb-4 text-sm text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="rounded border-input"
+              checked={includeSignatures}
+              onChange={e => setIncludeSignatures(e.target.checked)}
+            />
+            Include Signatures (A4, inspection block)
+            <span className="text-xs opacity-70">Ctrl+Shift+I when print or view dialog is open</span>
+          </label>
 
           {loading ? (
             <div className="flex justify-center py-16">
@@ -1734,6 +1773,15 @@ export default function CustomReceiptsPage(): JSX.Element {
             <p className="text-sm text-muted-foreground">
               Choose print format for this Programming receipt.
             </p>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-input"
+                checked={includeSignatures}
+                onChange={e => setIncludeSignatures(e.target.checked)}
+              />
+              Include Signatures on A4 (inspection)
+            </label>
             <div className="space-y-2">
               <button
                 type="button"

@@ -1,7 +1,9 @@
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
+import { mkdirSync } from 'fs'
 import { writeFile } from 'fs/promises'
 import { unlinkSync } from 'fs'
 import path from 'path'
+import sharp from 'sharp'
 import { authService } from '../services/authService'
 import { settingsRepo } from '../database/repositories/settingsRepo'
 import { ok, err } from '../utils/ipcResponse'
@@ -20,6 +22,24 @@ function createPrintWindow(parent: BrowserWindow | null): BrowserWindow {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+    },
+  })
+}
+
+/** Sized for ID card HTML (85.6×54mm); higher zoom for sharper PNG capture */
+function createIdCardWindow(parent: BrowserWindow | null): BrowserWindow {
+  return new BrowserWindow({
+    width: 420,
+    height: 280,
+    show: false,
+    parent: parent ?? undefined,
+    autoHideMenuBar: true,
+    webPreferences: {
+      sandbox: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      zoomFactor: 1.5,
     },
   })
 }
@@ -133,7 +153,7 @@ export function registerPrintHandlers(): void {
   })
 
   // ── print:idCard ───────────────────────────────────────────────────────────
-  ipcMain.handle('print:idCard', async (event, html: unknown) => {
+  ipcMain.handle('print:idCard', async (event, html: unknown, format?: unknown) => {
     try {
       if (!authService.getSession(event.sender.id)) {
         return err('Forbidden', 'ERR_FORBIDDEN')
@@ -143,8 +163,9 @@ export function registerPrintHandlers(): void {
         return err('Invalid HTML', 'ERR_VALIDATION')
       }
 
+      const wantPng = format === 'png'
       const parent = BrowserWindow.fromWebContents(event.sender) ?? null
-      const win = createPrintWindow(parent)
+      const win = wantPng ? createIdCardWindow(parent) : createPrintWindow(parent)
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
       const htmlPath = path.join(app.getPath('temp'), `mahali-idcard-${Date.now()}.html`)
@@ -173,24 +194,49 @@ export function registerPrintHandlers(): void {
         win.webContents.once('did-finish-load', () => {
           win.webContents.on('will-navigate', (e) => e.preventDefault())
           win.show()
-          setTimeout(async () => {
-            try {
-              const pdf = await win.webContents.printToPDF({
-                pageSize: {
-                  width: 85600,
-                  height: 54000,
-                },
-                printBackground: true,
-                landscape: false,
-                margins: { marginType: 'none' },
-              })
-              clearTimeout(timeout)
-              finalize(pdf)
-            } catch {
-              clearTimeout(timeout)
-              finalize(null)
-            }
-          }, 500)
+          const delay = wantPng ? 650 : 500
+          setTimeout(() => {
+            void (async () => {
+              try {
+                if (wantPng) {
+                  const shot = await win.webContents.capturePage()
+                  const raw = shot.toPNG()
+                  const processed = await sharp(raw)
+                    .resize(2550, 1600, {
+                      fit: 'contain',
+                      kernel: sharp.kernel.lanczos3,
+                      background: { r: 255, g: 255, b: 255, alpha: 1 },
+                    })
+                    .extend({
+                      top: 10,
+                      bottom: 10,
+                      left: 10,
+                      right: 10,
+                      background: '#e2e8f0',
+                    })
+                    .png()
+                    .toBuffer()
+                  clearTimeout(timeout)
+                  finalize(processed)
+                } else {
+                  const pdf = await win.webContents.printToPDF({
+                    pageSize: {
+                      width: 85600,
+                      height: 54000,
+                    },
+                    printBackground: true,
+                    landscape: false,
+                    margins: { marginType: 'none' },
+                  })
+                  clearTimeout(timeout)
+                  finalize(pdf)
+                }
+              } catch {
+                clearTimeout(timeout)
+                finalize(null)
+              }
+            })()
+          }, delay)
         })
 
         win.webContents.once('did-fail-load', () => {
@@ -202,10 +248,17 @@ export function registerPrintHandlers(): void {
       })
 
       if (!result) {
-        return err('Failed to generate PDF')
+        return err(wantPng ? 'Failed to generate PNG' : 'Failed to generate PDF')
       }
 
-      const savePath = path.join(app.getPath('downloads'), `employee-id-${Date.now()}.pdf`)
+      let savePath: string
+      if (wantPng) {
+        const dir = path.join(app.getPath('userData'), 'employees', 'id-cards-png')
+        mkdirSync(dir, { recursive: true })
+        savePath = path.join(dir, `employee-id-${Date.now()}.png`)
+      } else {
+        savePath = path.join(app.getPath('downloads'), `employee-id-${Date.now()}.pdf`)
+      }
       await writeFile(savePath, result)
       shell.showItemInFolder(savePath)
       return ok({ filePath: savePath })

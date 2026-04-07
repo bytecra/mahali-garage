@@ -329,7 +329,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   print: {
     receipt:              (html: string) => invoke('print:receipt', html),
-    idCard:               (html: string) => invoke('print:idCard', html),
+    idCard:               (html: string, format: 'pdf' | 'png' = 'pdf') =>
+      invoke('print:idCard', html, format),
     chooseDownloadFolder: ()             => invoke('print:chooseDownloadFolder'),
     listPrinters:         () => invoke('print:listPrinters'),
     thermal:              (html: string, printerName: string) =>

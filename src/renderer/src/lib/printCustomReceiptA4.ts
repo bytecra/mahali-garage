@@ -73,7 +73,10 @@ function dateLabel(input: string): string {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function buildInspectionSection(inspectionData: string | null | undefined): string {
+function buildInspectionSection(
+  inspectionData: string | null | undefined,
+  includeSignatures: boolean,
+): string {
   if (!inspectionData) return ''
   try {
     const inspection = JSON.parse(inspectionData) as {
@@ -207,6 +210,8 @@ function buildInspectionSection(inspectionData: string | null | undefined): stri
             </div>
           </div>
 
+          ${includeSignatures
+            ? `
           <div style="margin-top:12px;
             display:flex;gap:40px;">
             <div style="flex:1;
@@ -224,6 +229,8 @@ function buildInspectionSection(inspectionData: string | null | undefined): stri
               Technician Signature
             </div>
           </div>
+          `
+            : ''}
         </div>
       `
   } catch {
@@ -231,7 +238,27 @@ function buildInspectionSection(inspectionData: string | null | undefined): stri
   }
 }
 
-export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Promise<void> {
+const INVOICE_INCLUDE_SIG_KEY = 'invoiceIncludeSignatures'
+
+export type PrintReceiptA4Options = {
+  /** Overrides localStorage when set */
+  includeSignatures?: boolean
+}
+
+function readIncludeSignaturesFromStorage(): boolean {
+  try {
+    return localStorage.getItem(INVOICE_INCLUDE_SIG_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export async function printCustomReceiptA4(
+  receipt: CustomReceiptPrintable,
+  options?: PrintReceiptA4Options,
+): Promise<void> {
+  const includeSignatures =
+    options?.includeSignatures ?? readIncludeSignaturesFromStorage()
   const settingsRes = await window.electronAPI.settings.getAll()
   const settings = (settingsRes.success && settingsRes.data
     ? settingsRes.data
@@ -429,7 +456,7 @@ export async function printCustomReceiptA4(receipt: CustomReceiptPrintable): Pro
       </div>
     </section>
 
-    ${buildInspectionSection(receipt.inspection_data)}
+    ${buildInspectionSection(receipt.inspection_data, includeSignatures)}
 
     ${(receipt.department !== 'programming') && mechanical.length > 0
       ? section('Mechanical Services', mechanical)

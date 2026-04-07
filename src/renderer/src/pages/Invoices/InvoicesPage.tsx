@@ -46,6 +46,33 @@ function InvoicesPageInner(): JSX.Element {
   const [viewOpen, setViewOpen] = useState(false)
   const [viewRow, setViewRow] = useState<InvoiceRow | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<InvoiceRow | null>(null)
+  const [includeSignatures, setIncludeSignatures] = useState(() => {
+    try {
+      return localStorage.getItem('invoiceIncludeSignatures') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('invoiceIncludeSignatures', includeSignatures ? 'true' : 'false')
+    } catch {
+      /* ignore */
+    }
+  }, [includeSignatures])
+
+  useEffect(() => {
+    if (!viewOpen) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault()
+        setIncludeSignatures(s => !s)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [viewOpen])
 
   const loadData = useCallback(async (p = 1) => {
     setLoading(true)
@@ -129,7 +156,9 @@ function InvoicesPageInner(): JSX.Element {
     }
     const res = await window.electronAPI.customReceipts.getById(row.id)
     if (!res.success || !res.data) return
-    await printCustomReceiptA4(res.data as Parameters<typeof printCustomReceiptA4>[0])
+    await printCustomReceiptA4(res.data as Parameters<typeof printCustomReceiptA4>[0], {
+      includeSignatures,
+    })
   }
 
   return (
@@ -153,6 +182,15 @@ function InvoicesPageInner(): JSX.Element {
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="py-2 px-3 text-sm rounded-md border border-input bg-background" />
           {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo('') }} className="p-1.5 rounded hover:bg-muted"><X className="w-4 h-4" /></button>}
         </div>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
+          <input
+            type="checkbox"
+            className="rounded border-input"
+            checked={includeSignatures}
+            onChange={e => setIncludeSignatures(e.target.checked)}
+          />
+          Include Signatures
+        </label>
         <div className="ms-auto flex items-center gap-2">
           <label className="text-sm text-muted-foreground">Records per page</label>
           <select

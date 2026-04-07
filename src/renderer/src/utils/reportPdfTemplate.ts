@@ -1438,3 +1438,121 @@ export function buildEmployeePerformancePdf(params: {
 </body>
 </html>`
 }
+
+/** Pre-formatted string cells (already human-readable). */
+export function buildGenericTablePdf(opts: {
+  storeName: string
+  reportTitle: string
+  periodLabel?: string
+  columnLabels: string[]
+  rows: string[][]
+  summaryLines?: Array<{ label: string; value: string }>
+}): string {
+  const thead = opts.columnLabels.map(l => `<th>${escapeHtml(l)}</th>`).join('')
+  const tbody = opts.rows
+    .map(cells => `<tr>${cells.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`)
+    .join('')
+  const summary = opts.summaryLines?.length
+    ? `<div class="summary-grid summary-3" style="margin-top:14px;">
+        ${opts.summaryLines.map(s => `
+          <div class="summary-box">
+            <p class="summary-label">${escapeHtml(s.label)}</p>
+            <p class="summary-value">${escapeHtml(s.value)}</p>
+          </div>`).join('')}
+       </div>`
+    : ''
+  return layoutHtml(opts.reportTitle, `
+      <header class="header">
+        <h1 class="store-name">${escapeHtml(opts.storeName)}</h1>
+        <p class="subtitle">${escapeHtml(opts.reportTitle)}</p>
+      </header>
+      <section class="meta">
+        ${opts.periodLabel ? `<div class="meta-item"><strong>Period</strong> ${escapeHtml(opts.periodLabel)}</div>` : ''}
+        <div class="meta-item"><strong>Generated</strong> ${escapeHtml(nowLabel())}</div>
+      </section>
+      <div class="table-wrap">
+        <table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>
+      </div>
+      ${summary}
+      <p class="footer">End of Report — Mahali Garage</p>
+  `)
+}
+
+export function buildDepartmentReportsPdf(opts: {
+  storeName: string
+  dateFrom: string
+  dateTo: string
+  mechanical: {
+    revenue: number
+    cost: number
+    gross_profit: number
+    jobs_count: number
+    top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }>
+  }
+  programming: {
+    revenue: number
+    cost: number
+    gross_profit: number
+    jobs_count: number
+    top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }>
+  }
+  currencySymbol: string
+}): string {
+  const fmt = (n: number): string => `${opts.currencySymbol} ${n.toFixed(2)}`
+  const block = (
+    title: string,
+    d: typeof opts.mechanical,
+  ): string => {
+    const svcRows = d.top_services.length
+      ? d.top_services
+        .map(
+          s => `<tr>
+          <td>${escapeHtml(s.service_name)}</td>
+          <td class="amount">${s.total_qty}</td>
+          <td class="amount">${escapeHtml(fmt(s.total_revenue))}</td>
+        </tr>`,
+        )
+        .join('')
+      : '<tr><td colspan="3" style="text-align:center;color:#64748b;">No service data</td></tr>'
+    return `
+      <h3 style="margin:18px 0 10px;font-size:15px;color:#0f172a;">${escapeHtml(title)}</h3>
+      <div class="summary-grid summary-4">
+        <div class="summary-box">
+          <p class="summary-label">Revenue</p>
+          <p class="summary-value">${escapeHtml(fmt(d.revenue))}</p>
+        </div>
+        <div class="summary-box">
+          <p class="summary-label">Cost</p>
+          <p class="summary-value">${escapeHtml(fmt(d.cost))}</p>
+        </div>
+        <div class="summary-box">
+          <p class="summary-label">Gross profit</p>
+          <p class="summary-value">${escapeHtml(fmt(d.gross_profit))}</p>
+        </div>
+        <div class="summary-box">
+          <p class="summary-label">Jobs</p>
+          <p class="summary-value">${d.jobs_count}</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Top services</th><th>Qty</th><th>Revenue</th></tr></thead>
+          <tbody>${svcRows}</tbody>
+        </table>
+      </div>
+    `
+  }
+  return layoutHtml('Department Reports', `
+      <header class="header">
+        <h1 class="store-name">${escapeHtml(opts.storeName)}</h1>
+        <p class="subtitle">Department Reports</p>
+      </header>
+      <section class="meta">
+        <div class="meta-item"><strong>Date range</strong> ${escapeHtml(opts.dateFrom)} → ${escapeHtml(opts.dateTo)}</div>
+        <div class="meta-item"><strong>Generated</strong> ${escapeHtml(nowLabel())}</div>
+      </section>
+      ${block('Mechanical', opts.mechanical)}
+      ${block('Programming', opts.programming)}
+      <p class="footer">End of Report — Mahali Garage</p>
+  `)
+}

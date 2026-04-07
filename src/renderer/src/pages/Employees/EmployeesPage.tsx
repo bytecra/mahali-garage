@@ -1550,7 +1550,7 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
     }
   }
 
-  async function handleGenerateIdCard(): Promise<void> {
+  async function handleGenerateIdCard(format: 'pdf' | 'png'): Promise<void> {
     setIdCardGenerating(true)
     try {
       const html = buildIdCardHtml({
@@ -1563,10 +1563,14 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
         config: idCardConfig,
       })
 
-      const res = await window.electronAPI.print.idCard(html)
+      const res = await window.electronAPI.print.idCard(html, format)
 
       if (res?.success) {
-        toast.success('ID card saved to Downloads folder')
+        toast.success(
+          format === 'png'
+            ? 'PNG saved (employees/id-cards-png in app data). Folder opened.'
+            : 'ID card PDF saved to Downloads folder',
+        )
       } else {
         toast.error('Failed to generate ID card')
       }
@@ -2094,14 +2098,22 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex flex-wrap gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => void handleGenerateIdCard()}
+                  onClick={() => void handleGenerateIdCard('pdf')}
                   disabled={idCardGenerating}
-                  className="flex-1 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium"
+                  className="flex-1 min-w-[140px] py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 font-medium"
                 >
-                  {idCardGenerating ? '⏳ Generating...' : '⬇️ Download ID Card PDF'}
+                  {idCardGenerating ? '⏳ Generating...' : '⬇️ Download PDF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleGenerateIdCard('png')}
+                  disabled={idCardGenerating}
+                  className="flex-1 min-w-[140px] py-2 text-sm border border-border rounded-md hover:bg-muted/50 disabled:opacity-50 font-medium"
+                >
+                  {idCardGenerating ? '⏳ Generating...' : '🖼️ Download PNG (300dpi)'}
                 </button>
                 <button
                   type="button"

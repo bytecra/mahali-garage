@@ -9,8 +9,10 @@ import { toast } from '../../store/notificationStore'
 import {
   buildAttendancePdf,
   buildDailySalesPdf,
+  buildDepartmentReportsPdf,
   buildEmployeePerformancePdf,
   buildEmployeePayslipPdf,
+  buildGenericTablePdf,
   buildProfitPdf,
   buildSalarySummaryPdf,
   buildTopServicesPdf,
@@ -19,6 +21,19 @@ import {
 type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets' | 'attendance' | 'salary' | 'performance'
 type ReportDept = 'all' | 'mechanical' | 'programming'
 type DepartmentPreset = 'today' | 'week' | 'month' | 'custom'
+
+const QUICK_PDF_TABS: ReportTab[] = [
+  'inventory',
+  'lowstock',
+  'topproducts',
+  'debts',
+  'expenses_category',
+  'expenses_monthly',
+  'assets',
+  'department_reports',
+  'sales',
+  'profit',
+]
 
 const today = new Date().toISOString().slice(0, 10)
 const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -58,6 +73,7 @@ function ReportsPageInner(): JSX.Element {
   const [loading, setLoading] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportingQuickPdf, setExportingQuickPdf] = useState(false)
   const [exportPeriod, setExportPeriod] = useState<'weekly' | 'monthly' | 'custom'>('monthly')
   const [exportDateFrom, setExportDateFrom] = useState('')
   const [exportDateTo, setExportDateTo] = useState('')
@@ -540,6 +556,312 @@ function ReportsPageInner(): JSX.Element {
     }
   }
 
+  async function handleQuickReportPdf(): Promise<void> {
+    setExportingQuickPdf(true)
+    try {
+      const [storeRes, currencyRes] = await Promise.all([
+        window.electronAPI.settings.get('store.name'),
+        window.electronAPI.settings.get('store.currency_symbol'),
+      ])
+      const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Mahali Garage'
+      const sym = (currencyRes?.success ? currencyRes.data : null) ?? 'د.إ'
+      const periodLabel = `${dateFrom} → ${dateTo}`
+      const money = (n: number): string => `${sym}${n.toFixed(2)}`
+
+      if (tab === 'department_reports') {
+        if (!departmentData) {
+          toast.error('No data to export')
+          return
+        }
+        const html = buildDepartmentReportsPdf({
+          storeName,
+          dateFrom,
+          dateTo,
+          mechanical: departmentData.mechanical,
+          programming: departmentData.programming,
+          currencySymbol: sym,
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'sales') {
+        const rows = data as Array<{
+          sale_number: string
+          invoice_number: string | null
+          customer_name: string | null
+          total_amount: number
+          status: string
+        }>
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const dept =
+          reportDept === 'all' ? 'Both' : reportDept === 'mechanical' ? 'Mechanical' : 'Programming'
+        const html = buildDailySalesPdf({
+          storeName,
+          dateFrom,
+          dateTo,
+          department: dept,
+          rows: rows.map(r => ({
+            invoice: r.invoice_number ?? r.sale_number,
+            customer: r.customer_name ?? 'Walk-in',
+            car: '—',
+            amount: r.total_amount,
+            status: r.status,
+          })),
+          currency: sym,
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'profit') {
+        const rows = data as Array<{ revenue: number; cogs: number; gross_profit: number }>
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0)
+        const totalCost = rows.reduce((s, r) => s + r.cogs, 0)
+        const grossProfit = rows.reduce((s, r) => s + r.gross_profit, 0)
+        const marginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+        const dept =
+          reportDept === 'all' ? 'Both' : reportDept === 'mechanical' ? 'Mechanical' : 'Programming'
+        const html = buildProfitPdf({
+          storeName,
+          dateFrom,
+          dateTo,
+          department: dept,
+          totalRevenue,
+          totalCost,
+          grossProfit,
+          marginPercent,
+          currency: sym,
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'topproducts') {
+        const rows = (data as Array<{
+          product_name: string
+          total_qty: number
+          total_revenue: number
+        }>)
+          .slice()
+          .sort((a, b) => b.total_revenue - a.total_revenue)
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const dept =
+          reportDept === 'all' ? 'Both' : reportDept === 'mechanical' ? 'Mechanical' : 'Programming'
+        const html = buildTopServicesPdf({
+          storeName,
+          dateFrom,
+          dateTo,
+          department: dept,
+          rows: rows.map((row, idx) => ({
+            rank: idx + 1,
+            serviceName: row.product_name,
+            count: row.total_qty,
+            revenue: row.total_revenue,
+          })),
+          currency: sym,
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'inventory') {
+        const rows = data as Array<{
+          name: string
+          sku: string | null
+          stock_quantity: number
+          unit: string
+          cost_price: number
+          sell_price: number
+          stock_value: number
+        }>
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const html = buildGenericTablePdf({
+          storeName,
+          reportTitle: 'Inventory Report',
+          periodLabel,
+          columnLabels: ['Name', 'SKU', 'Stock', 'Cost', 'Price', 'Value'],
+          rows: rows.map(r => [
+            r.name,
+            r.sku ?? '—',
+            `${r.stock_quantity} ${r.unit}`,
+            money(r.cost_price),
+            money(r.sell_price),
+            money(r.stock_value),
+          ]),
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'lowstock') {
+        const rows = data as Array<{
+          name: string
+          stock_quantity: number
+          low_stock_threshold: number
+          unit: string
+          category: string
+          supplier: string
+        }>
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const html = buildGenericTablePdf({
+          storeName,
+          reportTitle: 'Low Stock Report',
+          periodLabel,
+          columnLabels: ['Name', 'Stock', 'Threshold', 'Category', 'Supplier'],
+          rows: rows.map(r => [
+            r.name,
+            `${r.stock_quantity} ${r.unit}`,
+            String(r.low_stock_threshold),
+            r.category,
+            r.supplier,
+          ]),
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'debts') {
+        const rows = data as Array<{
+          name: string
+          phone: string | null
+          sale_count: number
+          balance: number
+          total_due: number
+        }>
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const html = buildGenericTablePdf({
+          storeName,
+          reportTitle: 'Customer Debts',
+          periodLabel,
+          columnLabels: ['Customer', 'Phone', 'Sales', 'Owes'],
+          rows: rows.map(r => [
+            r.name,
+            r.phone ?? '—',
+            String(r.sale_count),
+            money(reportDept !== 'all' ? r.total_due : Math.abs(r.balance)),
+          ]),
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'expenses_category') {
+        const rows = data as Array<{ category_name: string | null; total: number }>
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const grandTotal = rows.reduce((s, r) => s + r.total, 0)
+        const html = buildGenericTablePdf({
+          storeName,
+          reportTitle: 'Expenses by Category',
+          periodLabel,
+          columnLabels: ['Category', 'Amount', '% of total'],
+          rows: rows.map(r => [
+            r.category_name ?? 'Uncategorized',
+            money(r.total),
+            grandTotal > 0 ? `${((r.total / grandTotal) * 100).toFixed(1)}%` : '—',
+          ]),
+          summaryLines: [{ label: 'Grand total', value: money(grandTotal) }],
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'expenses_monthly') {
+        const rows = data as Array<{ month: string; total: number }>
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const grandTotal = rows.reduce((s, r) => s + r.total, 0)
+        const html = buildGenericTablePdf({
+          storeName,
+          reportTitle: 'Monthly Expenses',
+          periodLabel: `Year ${dateFrom.slice(0, 4)}`,
+          columnLabels: ['Month', 'Amount'],
+          rows: rows.map(r => [r.month, money(r.total)]),
+          summaryLines: [{ label: 'Total', value: money(grandTotal) }],
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'assets') {
+        type AssetR = {
+          name: string
+          category: string
+          purchase_date: string
+          purchase_price: number
+          current_value: number | null
+        }
+        const rows = data as AssetR[]
+        const tp = assetsFooter?.total_purchase ?? rows.reduce((s, r) => s + r.purchase_price, 0)
+        const tc = assetsFooter?.total_current ?? rows.reduce((s, r) => s + (r.current_value ?? 0), 0)
+        if (!rows.length) {
+          toast.error('No data to export')
+          return
+        }
+        const html = buildGenericTablePdf({
+          storeName,
+          reportTitle: 'Assets Report',
+          periodLabel,
+          columnLabels: ['Name', 'Category', 'Purchase date', 'Purchase price', 'Current value'],
+          rows: rows.map(r => [
+            r.name,
+            r.category,
+            formatDate(r.purchase_date),
+            money(r.purchase_price),
+            r.current_value != null ? money(r.current_value) : '—',
+          ]),
+          summaryLines: [
+            { label: 'Total purchase', value: money(tp) },
+            { label: 'Total current value', value: money(tc) },
+          ],
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      toast.error('PDF export is not available for this tab')
+    } catch (e) {
+      const msg = e instanceof Error && e.message ? e.message : 'Failed to export PDF'
+      toast.error(msg)
+    } finally {
+      setExportingQuickPdf(false)
+    }
+  }
+
   const applyDepartmentPreset = (preset: DepartmentPreset): void => {
     const now = new Date()
     const toYmd = (d: Date): string => d.toISOString().slice(0, 10)
@@ -660,6 +982,9 @@ function ReportsPageInner(): JSX.Element {
   const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly', 'department_reports'].includes(tab)
   const showDeptFilter = ['sales', 'profit', 'debts', 'expenses_category', 'expenses_monthly'].includes(tab)
   const canExportPdf = ['sales', 'profit', 'topproducts'].includes(tab)
+  const canQuickExportPdf = QUICK_PDF_TABS.includes(tab)
+  const hasQuickPdfData =
+    tab === 'department_reports' ? departmentData != null : data.length > 0
 
   return (
     <div>
@@ -670,6 +995,18 @@ function ReportsPageInner(): JSX.Element {
             <button onClick={() => setShowExportModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
               <FileText className="w-4 h-4" />Export PDF
+            </button>
+          )}
+          {canQuickExportPdf && (
+            <button
+              type="button"
+              onClick={() => void handleQuickReportPdf()}
+              disabled={exportingQuickPdf || !hasQuickPdfData || loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50"
+              title="Export the current on-screen table and filters to PDF"
+            >
+              <FileText className="w-4 h-4" />
+              {exportingQuickPdf ? 'PDF…' : 'PDF (current view)'}
             </button>
           )}
           {tab !== 'attendance' && tab !== 'salary' && tab !== 'performance' && (
