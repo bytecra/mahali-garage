@@ -23,6 +23,9 @@ interface CustomReceiptPrintable {
   discount_type?: string | null
   discount_value?: number | null
   discount_amount?: number | null
+  payment_method?: string | null
+  cash_received?: number | null
+  change_amount?: number | null
   loyalty_points?: number | null
   loyalty_stamps?: number | null
   loyalty_visits?: number | null
@@ -352,6 +355,20 @@ export async function printCustomReceiptA4(
       : 'Discount'
   const vatAmount = taxEnabled ? (subtotal * (Number.isFinite(taxRate) ? taxRate : 0) / 100) : 0
   const totalDue = subtotal + vatAmount
+  const isCashPayment = String(receipt.payment_method ?? '').toLowerCase() === 'cash'
+  const paidCash = isCashPayment
+    ? Number(receipt.cash_received ?? totalDue)
+    : 0
+  const changeCash = isCashPayment
+    ? Math.max(
+        0,
+        Number(
+          receipt.change_amount != null
+            ? receipt.change_amount
+            : paidCash - totalDue,
+        ),
+      )
+    : 0
 
   const row = (line: ReceiptLine) => `
     <tr>
@@ -410,6 +427,8 @@ export async function printCustomReceiptA4(
     .totals { margin-top: 14px; margin-left: auto; width: 320px; }
     .totals .r { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
     .totals .grand { font-size: 16px; font-weight: 700; border-top: 2px solid #111827; margin-top: 4px; padding-top: 8px; }
+    .totals .cashPaid { border-top: 1px solid #d1d5db; margin-top: 6px; padding-top: 8px; }
+    .totals .change { font-weight: 700; color: #047857; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px 10px; margin-top: 6px; }
     .foot { margin-top: 20px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
     .footTitle { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
     .brands { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -470,6 +489,8 @@ export async function printCustomReceiptA4(
       ${hasDiscount ? `<div class="r" style="color:#dc2626;"><span>${discountLabel}</span><span>- ${currency(discountAmount, currencySymbol)}</span></div>` : ''}
       ${taxEnabled && showVat ? `<div class="r"><span>VAT (${Number.isFinite(taxRate) ? taxRate : 0}%)</span><span>${currency(vatAmount, currencySymbol)}</span></div>` : ''}
       <div class="r grand"><span>Total Amount Due</span><span>${currency(totalDue, currencySymbol)}</span></div>
+      ${isCashPayment ? `<div class="r cashPaid"><span>PAID (CASH)</span><span>${currency(paidCash, currencySymbol)}</span></div>` : ''}
+      ${isCashPayment && changeCash > 0 ? `<div class="r change"><span>CHANGE</span><span>${currency(changeCash, currencySymbol)}</span></div>` : ''}
     </section>
 
     ${showLoyaltyOnReceipt ? `

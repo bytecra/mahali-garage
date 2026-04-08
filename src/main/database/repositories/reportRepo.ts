@@ -2,8 +2,31 @@ import { getDb } from '../index'
 import { expenseRepo } from './expenseRepo'
 import { assetRepo } from './assetRepo'
 import { salaryRepo } from './salaryRepo'
+import { settingsRepo } from './settingsRepo'
 
 export type ReportDepartmentFilter = 'all' | 'mechanical' | 'programming'
+
+function maxYmd(a: string, b: string): string {
+  return a > b ? a : b
+}
+
+function clampDateRange(from: string, to: string): { from: string; to: string; empty: boolean } {
+  const start = settingsRepo.getEffectiveStoreStartDate()
+  if (!start) return { from, to, empty: false }
+  const clampedFrom = maxYmd(from.slice(0, 10), start)
+  const clampedTo = to.slice(0, 10)
+  return { from: clampedFrom, to: clampedTo, empty: clampedFrom > clampedTo }
+}
+
+function clampDateTimeRange(from: string, to: string): { from: string; to: string; empty: boolean } {
+  const dateRange = clampDateRange(from, to)
+  if (dateRange.empty) return { from: from, to: to, empty: true }
+  return {
+    from: `${dateRange.from} 00:00:00`,
+    to: `${dateRange.to} 23:59:59`,
+    empty: false,
+  }
+}
 
 function invoiceDeptPredicate(dept: ReportDepartmentFilter, invoiceAlias = 'i'): string {
   if (dept === 'all') return '1=1'
@@ -23,6 +46,13 @@ function customReceiptDeptPredicate(dept: ReportDepartmentFilter, alias = 'cr'):
 
 export const reportRepo = {
   departmentSummary(dateFrom: string, dateTo: string) {
+    const clamped = clampDateTimeRange(dateFrom, dateTo)
+    if (clamped.empty) {
+      return {
+        mechanical: { revenue: 0, cost: 0, gross_profit: 0, jobs_count: 0, top_services: [] },
+        programming: { revenue: 0, cost: 0, gross_profit: 0, jobs_count: 0, top_services: [] },
+      }
+    }
     const db = getDb()
 
     const customByDept = db.prepare(`
@@ -56,7 +86,7 @@ export const reportRepo = {
         COUNT(DISTINCT receipt_id) as receipts_count
       FROM lines
       GROUP BY dept
-    `).all(dateFrom, dateTo, dateFrom, dateTo) as Array<{
+    `).all(clamped.from, clamped.to, clamped.from, clamped.to) as Array<{
       dept: 'mechanical' | 'programming'
       revenue: number
       cost: number
@@ -79,7 +109,7 @@ export const reportRepo = {
         WHERE 1=0
       )
       GROUP BY dept
-    `).all(dateFrom, dateTo) as Array<{
+    `).all(clamped.from, clamped.to) as Array<{
       dept: 'mechanical' | 'programming'
       jobs_count: number
       jobs_revenue: number
@@ -133,9 +163,9 @@ export const reportRepo = {
       GROUP BY dept, service_name
       ORDER BY dept, total_qty DESC, total_revenue DESC
     `).all(
-      dateFrom, dateTo,  // mechanical custom_receipts
-      dateFrom, dateTo,  // programming custom_receipts
-      dateFrom, dateTo,  // mechanical job_cards (programming branch uses WHERE 1=0, no params)
+      clamped.from, clamped.to,  // mechanical custom_receipts
+      clamped.from, clamped.to,  // programming custom_receipts
+      clamped.from, clamped.to,  // mechanical job_cards (programming branch uses WHERE 1=0, no params)
     ) as Array<{
       dept: 'mechanical' | 'programming'
       service_name: string
@@ -176,16 +206,19 @@ export const reportRepo = {
   dashboard() {
     const db = getDb()
     const today = new Date().toISOString().slice(0, 10)
-    const monthStart = today.slice(0, 7) + '-01'
+    const storeStart = settingsRepo.getEffectiveStoreStartDate()
+    const monthStart = maxYmd(today.slice(0, 7) + '-01', storeStart ?? '0000-01-01')
 
     const todaySalesBase = db.prepare(`
       SELECT COUNT(*) as count, COALESCE(SUM(total_amount),0) as revenue
       FROM sales WHERE date(created_at) = ? AND status != 'voided'
-    `).get(today) as { count: number; revenue: number }
+      ${storeStart ? 'AND date(created_at) >= ?' : ''}
+    `).get(...(storeStart ? [today, storeStart] : [today])) as { count: number; revenue: number }
     const todayCustom = db.prepare(`
       SELECT COUNT(*) as count, COALESCE(SUM(amount),0) as revenue
       FROM custom_receipts WHERE date(created_at) = ?
-    `).get(today) as { count: number; revenue: number }
+      ${storeStart ? 'AND date(created_at) >= ?' : ''}
+    `).get(...(storeStart ? [today, storeStart] : [today])) as { count: number; revenue: number }
     const todaySalesRow = {
       count: (todaySalesBase?.count ?? 0) + (todayCustom?.count ?? 0),
       revenue: (todaySalesBase?.revenue ?? 0) + (todayCustom?.revenue ?? 0),
@@ -290,12 +323,14 @@ export const reportRepo = {
       FROM (
         SELECT date(created_at) as day, COALESCE(SUM(total_amount),0) as revenue, COUNT(*) as count
         FROM sales
-        WHERE date(created_at) >= date('now', '-6 days') AND status != 'voided'
+      WHERE date(created_at) >= date('now', '-6 days') AND status != 'voided'
+        ${storeStart ? `AND date(created_at) >= '${storeStart}'` : ''}
         GROUP BY date(created_at)
         UNION ALL
         SELECT date(created_at) as day, COALESCE(SUM(amount),0) as revenue, COUNT(*) as count
         FROM custom_receipts
-        WHERE date(created_at) >= date('now', '-6 days')
+      WHERE date(created_at) >= date('now', '-6 days')
+        ${storeStart ? `AND date(created_at) >= '${storeStart}'` : ''}
         GROUP BY date(created_at)
       )
       GROUP BY day
@@ -308,10 +343,11 @@ export const reportRepo = {
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
       WHERE date(s.created_at) = ? AND s.status != 'voided'
+      ${storeStart ? 'AND date(s.created_at) >= ?' : ''}
       GROUP BY si.product_name
       ORDER BY total_qty DESC
       LIMIT 5
-    `).all(today)
+    `).all(...(storeStart ? [today, storeStart] : [today]))
 
     // Urgent/high job cards (safe — columns may not exist yet)
     let urgentJobCards: unknown[] = []
@@ -398,6 +434,8 @@ export const reportRepo = {
    * Dates are inclusive on payment/receipt `created_at` (calendar day).
    */
   cashByMethodRange(dateFrom: string, dateTo: string): { cash: number; non_cash: number; total: number } {
+    const clamped = clampDateTimeRange(dateFrom, dateTo)
+    if (clamped.empty) return { cash: 0, non_cash: 0, total: 0 }
     const db = getDb()
     const pos = db.prepare(`
       SELECT
@@ -406,7 +444,7 @@ export const reportRepo = {
       FROM payments p
       INNER JOIN sales s ON s.id = p.sale_id AND s.status != 'voided'
       WHERE p.created_at BETWEEN ? AND ?
-    `).get(dateFrom, dateTo) as { cash_sum: number; non_cash_sum: number }
+    `).get(clamped.from, clamped.to) as { cash_sum: number; non_cash_sum: number }
 
     let custom = { cash_sum: 0, non_cash_sum: 0 }
     try {
@@ -416,7 +454,7 @@ export const reportRepo = {
           COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) != 'cash' THEN amount ELSE 0 END), 0) AS non_cash_sum
         FROM custom_receipts
         WHERE created_at BETWEEN ? AND ?
-      `).get(dateFrom, dateTo) as { cash_sum: number; non_cash_sum: number }
+      `).get(clamped.from, clamped.to) as { cash_sum: number; non_cash_sum: number }
     } catch {
       /* custom_receipts missing in older DBs */
     }
@@ -427,6 +465,8 @@ export const reportRepo = {
   },
 
   salesDaily(dateFrom: string, dateTo: string, department: ReportDepartmentFilter = 'all') {
+    const clamped = clampDateTimeRange(dateFrom, dateTo)
+    if (clamped.empty) return []
     const db = getDb()
     const deptPred = invoiceDeptPredicate(department, 'i')
     const customDeptPred = customReceiptDeptPredicate(department, 'cr')
@@ -460,12 +500,15 @@ export const reportRepo = {
           AND (${customDeptPred})
       )
       ORDER BY created_at
-    `).all(dateFrom, dateTo, dateFrom, dateTo)
+    `).all(clamped.from, clamped.to, clamped.from, clamped.to)
   },
 
   salesMonthly(year: number, month: number) {
     const db = getDb()
     const prefix = `${year}-${String(month).padStart(2, '0')}`
+    const storeStart = settingsRepo.getEffectiveStoreStartDate()
+    const startPrefix = storeStart ? storeStart.slice(0, 7) : ''
+    if (startPrefix && prefix < startPrefix) return []
     return db.prepare(`
       SELECT day,
              COALESCE(SUM(count),0) as count,
@@ -479,6 +522,7 @@ export const reportRepo = {
                COALESCE(SUM(amount_paid),0) as collected,
                COALESCE(SUM(balance_due),0) as outstanding
         FROM sales WHERE strftime('%Y-%m', created_at) = ? AND status != 'voided'
+          ${storeStart ? `AND date(created_at) >= '${storeStart}'` : ''}
         GROUP BY date(created_at)
         UNION ALL
         SELECT date(created_at) as day,
@@ -487,6 +531,7 @@ export const reportRepo = {
                COALESCE(SUM(amount),0) as collected,
                0 as outstanding
         FROM custom_receipts WHERE strftime('%Y-%m', created_at) = ?
+          ${storeStart ? `AND date(created_at) >= '${storeStart}'` : ''}
         GROUP BY date(created_at)
       )
       GROUP BY day
@@ -495,6 +540,8 @@ export const reportRepo = {
   },
 
   profit(dateFrom: string, dateTo: string, department: ReportDepartmentFilter = 'all') {
+    const clamped = clampDateTimeRange(dateFrom, dateTo)
+    if (clamped.empty) return []
     const db = getDb()
     const deptPred = invoiceDeptPredicate(department, 'i')
     const customDeptPred = customReceiptDeptPredicate(department, 'cr')
@@ -540,7 +587,7 @@ export const reportRepo = {
       )
       GROUP BY day
       ORDER BY day
-    `).all(dateFrom, dateTo, dateFrom, dateTo)
+    `).all(clamped.from, clamped.to, clamped.from, clamped.to)
   },
 
   inventory() {
@@ -572,6 +619,8 @@ export const reportRepo = {
   },
 
   topProducts(dateFrom: string, dateTo: string, limit = 20) {
+    const clamped = clampDateTimeRange(dateFrom, dateTo)
+    if (clamped.empty) return []
     const db = getDb()
     return db.prepare(`
       SELECT si.product_name, si.product_sku,
@@ -585,7 +634,7 @@ export const reportRepo = {
       GROUP BY si.product_name, si.product_sku
       ORDER BY total_qty DESC
       LIMIT ?
-    `).all(dateFrom, dateTo, limit)
+    `).all(clamped.from, clamped.to, limit)
   },
 
   customerDebts(department: ReportDepartmentFilter = 'all') {
@@ -762,6 +811,8 @@ export const reportRepo = {
     programming_jobs: number
     both_jobs: number
   }> {
+    const clamped = clampDateRange(params.fromDate, params.toDate)
+    if (clamped.empty) return []
     const db = getDb()
 
     let whereClause = `
@@ -772,7 +823,7 @@ export const reportRepo = {
         OR cr.assistant_employee_id IS NOT NULL
       )
     `
-    const bindValues: unknown[] = [params.fromDate + ' 00:00:00', params.toDate + ' 23:59:59']
+    const bindValues: unknown[] = [clamped.from + ' 00:00:00', clamped.to + ' 23:59:59']
 
     if (params.employeeId) {
       whereClause += `

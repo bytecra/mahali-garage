@@ -6,6 +6,10 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
+/** CR80 at 96dpi — matches Electron printToPDF pageSize 85.6×54 mm (85600×54000 µm). */
+const CARD_W_PX = 323
+const CARD_H_PX = 204
+
 export function buildIdCardHtml(params: {
   fullName: string
   employeeId: string
@@ -41,29 +45,45 @@ export function buildIdCardHtml(params: {
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=${CARD_W_PX}">
   <style>
-    @page {
-      size: 85.6mm 54mm;
+    /*
+     * Pixel-based layout: Chromium's printToPDF often paints blank output when the only
+     * sizing is mm + flex (flex:1 collapses). Grid + explicit px matches the preview reliably.
+     */
+    * {
+      box-sizing: border-box;
       margin: 0;
+      padding: 0;
     }
-    * { 
-      box-sizing: border-box; 
-      margin: 0; padding: 0; 
+    html {
+      width: ${CARD_W_PX}px;
+      height: ${CARD_H_PX}px;
+      background: #ffffff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     body {
-      width: 85.6mm;
-      height: 54mm;
+      width: ${CARD_W_PX}px;
+      height: ${CARD_H_PX}px;
       font-family: 'Segoe UI', Arial, sans-serif;
       overflow: hidden;
-      background: ${safeBg};
+      /* Keep root neutral: printToPDF can map the full page to the PDF; theme color lives on .card only. */
+      background: #ffffff;
       color: ${safeText};
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .card {
-      width: 85.6mm;
-      height: 54mm;
-      display: flex;
-      flex-direction: column;
+      width: ${CARD_W_PX}px;
+      height: ${CARD_H_PX}px;
+      display: grid;
+      grid-template-rows: auto minmax(72px, 1fr) auto;
       position: relative;
+      background: ${safeBg};
+      color: ${safeText};
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .header {
       background: rgba(0,0,0,0.2);
@@ -71,6 +91,7 @@ export function buildIdCardHtml(params: {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      min-height: 26px;
     }
     .store-name {
       font-size: 9px;
@@ -88,15 +109,15 @@ export function buildIdCardHtml(params: {
       color: ${safeText};
     }
     .body {
-      flex: 1;
       display: flex;
       align-items: center;
       padding: 8px 12px;
       gap: 12px;
+      min-height: 0;
     }
     .avatar {
-      width: 36mm;
-      height: 36mm;
+      width: 68px;
+      height: 68px;
       border-radius: 50%;
       background: rgba(255,255,255,0.15);
       display: flex;
@@ -113,6 +134,7 @@ export function buildIdCardHtml(params: {
       display: flex;
       flex-direction: column;
       gap: 3px;
+      min-width: 0;
     }
     .name {
       font-size: 12px;
@@ -150,6 +172,7 @@ export function buildIdCardHtml(params: {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      min-height: 18px;
     }
     .footer-text {
       font-size: 7px;
@@ -158,17 +181,17 @@ export function buildIdCardHtml(params: {
     }
     .stripe {
       position: absolute;
-      bottom: 10mm;
+      bottom: 38px;
       left: 0;
       right: 0;
-      height: 0.5px;
+      height: 1px;
       background: rgba(255,255,255,0.1);
     }
   </style>
 </head>
 <body>
   <div class="card">
-    
+
     <div class="header">
       <span class="store-name">
         ${escapeHtml(storeName)}
@@ -188,7 +211,7 @@ export function buildIdCardHtml(params: {
         ${config.showName ? `<p class="name">${escapeHtml(fullName)}</p>` : ''}
         ${role ? `<p class="role">${escapeHtml(role)}</p>` : ''}
         ${config.showId ? `<p class="id-number">${escapeHtml(employeeId)}</p>` : ''}
-        ${config.showPhone && phone ? `<p class="phone">📞 ${escapeHtml(phone)}</p>` : ''}
+        ${config.showPhone && phone ? `<p class="phone">Tel. ${escapeHtml(phone)}</p>` : ''}
       </div>
     </div>
 

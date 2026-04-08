@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, FileText, X } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts'
+import { Download, FileSpreadsheet, FileText, X } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Legend } from 'recharts'
 import { formatCurrency, formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { FeatureGate } from '../../components/FeatureGate'
@@ -14,9 +14,39 @@ import {
   buildEmployeePayslipPdf,
   buildGenericTablePdf,
   buildProfitPdf,
+  buildDailySalesComparisonPdf,
+  buildProfitComparisonPdf,
+  buildTopProductsComparisonPdf,
   buildSalarySummaryPdf,
   buildTopServicesPdf,
 } from '../../utils/reportPdfTemplate'
+import {
+  resolveComparisonPeriods,
+  resolveSingleExportRange,
+  type ComparisonMode,
+  type MonthComparisonPreset,
+  type DateRange,
+} from '../../utils/reportComparisonRanges'
+import {
+  buildAlignedSalesChart,
+  buildAlignedProfitChart,
+  mergeTopProducts,
+  pctChange,
+  type MergedTopProduct,
+  type SaleRow,
+  type ProfitRow,
+  type TopProductRow,
+} from '../../utils/reportComparisonData'
+import {
+  buildDailySalesComparisonExcelBuffer,
+  buildDailySalesExcelBuffer,
+  buildProfitComparisonExcelBuffer,
+  buildProfitExcelBuffer,
+  buildTopProductsComparisonExcelBuffer,
+  buildTopProductsExcelBuffer,
+  downloadXlsxBuffer,
+  excelFilename,
+} from '../../utils/reportExcelExport'
 
 type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets' | 'attendance' | 'salary' | 'performance'
 type ReportDept = 'all' | 'mechanical' | 'programming'
@@ -72,13 +102,29 @@ function ReportsPageInner(): JSX.Element {
   const [assetsFooter, setAssetsFooter] = useState<{ total_purchase: number; total_current: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
-  const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportModalFormat, setExportModalFormat] = useState<'pdf' | 'excel'>('pdf')
+  const [exportingModal, setExportingModal] = useState(false)
   const [exportingQuickPdf, setExportingQuickPdf] = useState(false)
   const [exportPeriod, setExportPeriod] = useState<'weekly' | 'monthly' | 'custom'>('monthly')
   const [exportDateFrom, setExportDateFrom] = useState('')
   const [exportDateTo, setExportDateTo] = useState('')
   const [exportWeekDate, setExportWeekDate] = useState('')
   const [exportDepartment, setExportDepartment] = useState<'mechanical' | 'programming' | 'both'>('both')
+
+  const [periodCompareMode, setPeriodCompareMode] = useState<ComparisonMode>('single')
+  const [monthComparePreset, setMonthComparePreset] = useState<MonthComparisonPreset>('this_vs_last_month')
+  const [customP1From, setCustomP1From] = useState('')
+  const [customP1To, setCustomP1To] = useState('')
+  const [customP2From, setCustomP2From] = useState('')
+  const [customP2To, setCustomP2To] = useState('')
+  type CompareBundle = {
+    p1: DateRange
+    p2: DateRange
+    sales: [SaleRow[], SaleRow[]] | null
+    profit: [ProfitRow[], ProfitRow[]] | null
+    top: [TopProductRow[], TopProductRow[]] | null
+  }
+  const [compareData, setCompareData] = useState<CompareBundle | null>(null)
 
   const [attendanceEmployees, setAttendanceEmployees] = useState<
     Array<{
@@ -402,58 +448,172 @@ function ReportsPageInner(): JSX.Element {
     }
   }
 
-  async function handleExportPdf(
-    period: 'weekly' | 'monthly' | 'custom',
-    dateFrom: string,
-    dateTo: string,
-    department: 'mechanical' | 'programming' | 'both',
-    weekDate?: string,
-  ): Promise<void> {
-    const toYmd = (d: Date): string => d.toISOString().slice(0, 10)
-    let resolvedFrom = dateFrom
-    let resolvedTo = dateTo
-
-    if (period === 'weekly') {
-      const base = weekDate && weekDate.trim() ? new Date(weekDate) : new Date()
-      const day = base.getDay()
-      const diff = day === 0 ? -6 : 1 - day
-      const monday = new Date(base)
-      monday.setDate(base.getDate() + diff)
-      const sunday = new Date(monday)
-      sunday.setDate(monday.getDate() + 6)
-      resolvedFrom = toYmd(monday)
-      resolvedTo = toYmd(sunday)
-    } else if (period === 'monthly') {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      resolvedFrom = toYmd(start)
-      resolvedTo = toYmd(end)
-    } else if (period === 'custom') {
-      if (!dateFrom || !dateTo) {
-        toast.error('Please select both From and To dates')
-        return
-      }
-      resolvedFrom = dateFrom
-      resolvedTo = dateTo
-    }
-
-    const resolvedFromFull = resolvedFrom + ' 00:00:00'
-    const resolvedToFull = resolvedTo + ' 23:59:59'
-
+  async function handleExportPdf(): Promise<void> {
     const storeRes = await window.electronAPI.settings.get('store_name')
     const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Mahali Garage'
     const currencyRes = await window.electronAPI.settings.get('currency')
     const currency = (currencyRes?.success ? currencyRes.data : null) ?? 'AED'
 
+    const department = exportDepartment
     const depts: Array<'Mechanical' | 'Programming'> = department === 'both'
       ? ['Mechanical', 'Programming']
       : department === 'mechanical'
         ? ['Mechanical']
         : ['Programming']
 
-    setExportingPdf(true)
+    const mapSaleRow = (row: {
+      sale_number: string
+      customer_name: string | null
+      total_amount: number
+      status: string
+    }) => ({
+      invoice: row.sale_number,
+      customer: row.customer_name ?? 'Walk-in',
+      car: '—',
+      amount: row.total_amount,
+      status: row.status,
+    })
+
+    setExportingModal(true)
     try {
+      if (periodCompareMode !== 'single') {
+        const cmp = resolveComparisonPeriods(periodCompareMode, monthComparePreset, {
+          p1From: customP1From,
+          p1To: customP1To,
+          p2From: customP2From,
+          p2To: customP2To,
+        })
+        if (!cmp) {
+          toast.error(t('reports.invalidComparisonRange', { defaultValue: 'Invalid comparison date range' }))
+          return
+        }
+        const f1 = `${cmp.period1.from} 00:00:00`
+        const t1 = `${cmp.period1.to} 23:59:59`
+        const f2 = `${cmp.period2.from} 00:00:00`
+        const t2 = `${cmp.period2.to} 23:59:59`
+
+        for (let i = 0; i < depts.length; i++) {
+          const dept = depts[i]
+          const deptParam = dept.toLowerCase() as 'mechanical' | 'programming'
+          let html = ''
+
+          if (tab === 'sales') {
+            const [salesRes1, salesRes2] = await Promise.all([
+              window.electronAPI.reports.salesDaily(f1, t1, deptParam),
+              window.electronAPI.reports.salesDaily(f2, t2, deptParam),
+            ])
+            if (!salesRes1?.success || !salesRes2?.success) {
+              throw new Error(salesRes1?.error || salesRes2?.error || 'Failed to load daily sales data')
+            }
+            const rows1 = (salesRes1.data as SaleRow[]) ?? []
+            const rows2 = (salesRes2.data as SaleRow[]) ?? []
+            const aligned = buildAlignedSalesChart(rows1, rows2)
+            const dailyAligned = aligned.map((p) => ({
+              day1: p.day1 ?? '—',
+              rev1: p.revenue1,
+              day2: p.day2 ?? '—',
+              rev2: p.revenue2,
+            }))
+            html = buildDailySalesComparisonPdf({
+              storeName,
+              currency,
+              department: dept,
+              period1Label: cmp.period1.label,
+              period2Label: cmp.period2.label,
+              period1From: cmp.period1.from,
+              period1To: cmp.period1.to,
+              period2From: cmp.period2.from,
+              period2To: cmp.period2.to,
+              rows1: rows1.map(mapSaleRow),
+              rows2: rows2.map(mapSaleRow),
+              dailyAligned,
+            })
+          } else if (tab === 'profit') {
+            const [profitRes1, profitRes2] = await Promise.all([
+              window.electronAPI.reports.profit(f1, t1, deptParam),
+              window.electronAPI.reports.profit(f2, t2, deptParam),
+            ])
+            if (!profitRes1?.success || !profitRes2?.success) {
+              throw new Error(profitRes1?.error || profitRes2?.error || 'Failed to load profit data')
+            }
+            const pr1 = (profitRes1.data as ProfitRow[]) ?? []
+            const pr2 = (profitRes2.data as ProfitRow[]) ?? []
+            const total1 = {
+              revenue: pr1.reduce((s, row) => s + row.revenue, 0),
+              cost: pr1.reduce((s, row) => s + row.cogs, 0),
+              grossProfit: pr1.reduce((s, row) => s + row.gross_profit, 0),
+            }
+            const total2 = {
+              revenue: pr2.reduce((s, row) => s + row.revenue, 0),
+              cost: pr2.reduce((s, row) => s + row.cogs, 0),
+              grossProfit: pr2.reduce((s, row) => s + row.gross_profit, 0),
+            }
+            html = buildProfitComparisonPdf({
+              storeName,
+              currency,
+              department: dept,
+              period1Label: cmp.period1.label,
+              period2Label: cmp.period2.label,
+              period1From: cmp.period1.from,
+              period1To: cmp.period1.to,
+              period2From: cmp.period2.from,
+              period2To: cmp.period2.to,
+              total1,
+              total2,
+            })
+          } else if (tab === 'topproducts') {
+            const [topRes1, topRes2] = await Promise.all([
+              window.electronAPI.reports.topProducts(f1, t1),
+              window.electronAPI.reports.topProducts(f2, t2),
+            ])
+            if (!topRes1?.success || !topRes2?.success) {
+              throw new Error(topRes1?.error || topRes2?.error || 'Failed to load top products data')
+            }
+            const tr1 = (topRes1.data as TopProductRow[]) ?? []
+            const tr2 = (topRes2.data as TopProductRow[]) ?? []
+            const merged = mergeTopProducts(tr1, tr2)
+            html = buildTopProductsComparisonPdf({
+              storeName,
+              currency,
+              department: dept,
+              period1Label: cmp.period1.label,
+              period2Label: cmp.period2.label,
+              period1From: cmp.period1.from,
+              period1To: cmp.period1.to,
+              period2From: cmp.period2.from,
+              period2To: cmp.period2.to,
+              rows: merged.map((m) => ({
+                product_name: m.product_name,
+                qty1: m.qty1,
+                rev1: m.rev1,
+                qty2: m.qty2,
+                rev2: m.rev2,
+                deltaRev: m.deltaRev,
+                deltaPct: m.deltaPct,
+              })),
+            })
+          } else {
+            throw new Error('PDF export is only supported for Sales, Profit, and Top Products tabs')
+          }
+
+          const printRes = await window.electronAPI.print.receipt(html)
+          if (!printRes?.success) throw new Error('Print failed')
+          if (depts.length > 1 && i < depts.length - 1) await new Promise((r) => setTimeout(r, 600))
+        }
+        return
+      }
+
+      const single = resolveSingleExportRange(exportPeriod, exportDateFrom, exportDateTo, exportWeekDate)
+      let resolvedFrom = single.from
+      let resolvedTo = single.to
+      if (exportPeriod === 'custom' && (!exportDateFrom || !exportDateTo)) {
+        toast.error('Please select both From and To dates')
+        return
+      }
+
+      const resolvedFromFull = resolvedFrom + ' 00:00:00'
+      const resolvedToFull = resolvedTo + ' 23:59:59'
+
       const topProductsRes = tab === 'topproducts'
         ? await window.electronAPI.reports.topProducts(resolvedFromFull, resolvedToFull)
         : null
@@ -546,13 +706,234 @@ function ReportsPageInner(): JSX.Element {
           await new Promise((r) => setTimeout(r, 600))
         }
       }
-
-      setShowExportModal(false)
     } catch (e) {
       const msg = e instanceof Error && e.message ? e.message : 'Failed to export PDF'
       toast.error(msg)
     } finally {
-      setExportingPdf(false)
+      setExportingModal(false)
+    }
+  }
+
+  async function handleExportExcel(): Promise<void> {
+    const storeRes = await window.electronAPI.settings.get('store_name')
+    const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Mahali Garage'
+    const currencyRes = await window.electronAPI.settings.get('currency')
+    const currencySymbol = (currencyRes?.success ? currencyRes.data : null) ?? 'AED'
+
+    const department = exportDepartment
+    const depts: Array<'Mechanical' | 'Programming'> =
+      department === 'both'
+        ? ['Mechanical', 'Programming']
+        : department === 'mechanical'
+          ? ['Mechanical']
+          : ['Programming']
+
+    setExportingModal(true)
+    try {
+      if (periodCompareMode !== 'single') {
+        const cmp = resolveComparisonPeriods(periodCompareMode, monthComparePreset, {
+          p1From: customP1From,
+          p1To: customP1To,
+          p2From: customP2From,
+          p2To: customP2To,
+        })
+        if (!cmp) {
+          toast.error(t('reports.invalidComparisonRange', { defaultValue: 'Invalid comparison date range' }))
+          return
+        }
+        const f1 = `${cmp.period1.from} 00:00:00`
+        const t1 = `${cmp.period1.to} 23:59:59`
+        const f2 = `${cmp.period2.from} 00:00:00`
+        const t2 = `${cmp.period2.to} 23:59:59`
+
+        for (let i = 0; i < depts.length; i++) {
+          const dept = depts[i]
+          const deptParam = dept.toLowerCase() as 'mechanical' | 'programming'
+
+          if (tab === 'sales') {
+            const [salesRes1, salesRes2] = await Promise.all([
+              window.electronAPI.reports.salesDaily(f1, t1, deptParam),
+              window.electronAPI.reports.salesDaily(f2, t2, deptParam),
+            ])
+            if (!salesRes1?.success || !salesRes2?.success) {
+              throw new Error(salesRes1?.error || salesRes2?.error || 'Failed to load daily sales data')
+            }
+            const rows1 = (salesRes1.data as SaleRow[]) ?? []
+            const rows2 = (salesRes2.data as SaleRow[]) ?? []
+            const buf = await buildDailySalesComparisonExcelBuffer({
+              storeName,
+              currencySymbol,
+              department: dept,
+              p1: cmp.period1,
+              p2: cmp.period2,
+              rows1,
+              rows2,
+            })
+            const name = excelFilename({
+              report: 'Daily-Sales',
+              dateFrom: cmp.period1.from,
+              dateTo: cmp.period2.to,
+              dept,
+              compare: true,
+            })
+            downloadXlsxBuffer(buf, name)
+          } else if (tab === 'profit') {
+            const [profitRes1, profitRes2] = await Promise.all([
+              window.electronAPI.reports.profit(f1, t1, deptParam),
+              window.electronAPI.reports.profit(f2, t2, deptParam),
+            ])
+            if (!profitRes1?.success || !profitRes2?.success) {
+              throw new Error(profitRes1?.error || profitRes2?.error || 'Failed to load profit data')
+            }
+            const pr1 = (profitRes1.data as ProfitRow[]) ?? []
+            const pr2 = (profitRes2.data as ProfitRow[]) ?? []
+            const buf = await buildProfitComparisonExcelBuffer({
+              storeName,
+              currencySymbol,
+              department: dept,
+              p1: cmp.period1,
+              p2: cmp.period2,
+              profit1: pr1,
+              profit2: pr2,
+            })
+            const name = excelFilename({
+              report: 'Profit',
+              dateFrom: cmp.period1.from,
+              dateTo: cmp.period2.to,
+              dept,
+              compare: true,
+            })
+            downloadXlsxBuffer(buf, name)
+          } else if (tab === 'topproducts') {
+            const [topRes1, topRes2] = await Promise.all([
+              window.electronAPI.reports.topProducts(f1, t1),
+              window.electronAPI.reports.topProducts(f2, t2),
+            ])
+            if (!topRes1?.success || !topRes2?.success) {
+              throw new Error(topRes1?.error || topRes2?.error || 'Failed to load top products data')
+            }
+            const tr1 = (topRes1.data as TopProductRow[]) ?? []
+            const tr2 = (topRes2.data as TopProductRow[]) ?? []
+            const buf = await buildTopProductsComparisonExcelBuffer({
+              storeName,
+              currencySymbol,
+              department: dept,
+              p1: cmp.period1,
+              p2: cmp.period2,
+              rows1: tr1,
+              rows2: tr2,
+            })
+            const name = excelFilename({
+              report: 'Top-Products',
+              dateFrom: cmp.period1.from,
+              dateTo: cmp.period2.to,
+              dept,
+              compare: true,
+            })
+            downloadXlsxBuffer(buf, name)
+          } else {
+            throw new Error('Excel export is only supported for Sales, Profit, and Top Products tabs')
+          }
+
+          if (depts.length > 1 && i < depts.length - 1) await new Promise((r) => setTimeout(r, 400))
+        }
+        return
+      }
+
+      const single = resolveSingleExportRange(exportPeriod, exportDateFrom, exportDateTo, exportWeekDate)
+      const resolvedFrom = single.from
+      const resolvedTo = single.to
+      if (exportPeriod === 'custom' && (!exportDateFrom || !exportDateTo)) {
+        toast.error('Please select both From and To dates')
+        return
+      }
+
+      const resolvedFromFull = `${resolvedFrom} 00:00:00`
+      const resolvedToFull = `${resolvedTo} 23:59:59`
+
+      const topProductsRes =
+        tab === 'topproducts' ? await window.electronAPI.reports.topProducts(resolvedFromFull, resolvedToFull) : null
+
+      for (let i = 0; i < depts.length; i++) {
+        const dept = depts[i]
+        const deptParam = dept.toLowerCase() as 'mechanical' | 'programming'
+
+        if (tab === 'sales') {
+          const salesRes = await window.electronAPI.reports.salesDaily(resolvedFromFull, resolvedToFull, deptParam)
+          if (!salesRes?.success) throw new Error(salesRes?.error || 'Failed to load daily sales data')
+          const salesRows =
+            (salesRes.data as Array<{
+              sale_number: string
+              customer_name: string | null
+              total_amount: number
+              status: string
+              created_at: string
+            }>) ?? []
+          const buf = await buildDailySalesExcelBuffer({
+            storeName,
+            currencySymbol,
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            department: dept,
+            salesRows,
+          })
+          const name = excelFilename({
+            report: 'Daily-Sales',
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            dept,
+          })
+          downloadXlsxBuffer(buf, name)
+        } else if (tab === 'profit') {
+          const profitRes = await window.electronAPI.reports.profit(resolvedFromFull, resolvedToFull, deptParam)
+          if (!profitRes?.success) throw new Error(profitRes?.error || 'Failed to load profit data')
+          const profitRows = (profitRes.data as ProfitRow[]) ?? []
+          const buf = await buildProfitExcelBuffer({
+            storeName,
+            currencySymbol,
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            department: dept,
+            profitRows,
+          })
+          const name = excelFilename({
+            report: 'Profit',
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            dept,
+          })
+          downloadXlsxBuffer(buf, name)
+        } else if (tab === 'topproducts') {
+          if (!topProductsRes?.success) throw new Error(topProductsRes?.error || 'Failed to load top products data')
+          const topRows = (topProductsRes.data as TopProductRow[]) ?? []
+          const buf = await buildTopProductsExcelBuffer({
+            storeName,
+            currencySymbol,
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            department: dept,
+            rows: topRows,
+          })
+          const name = excelFilename({
+            report: 'Top-Products',
+            dateFrom: resolvedFrom,
+            dateTo: resolvedTo,
+            dept,
+          })
+          downloadXlsxBuffer(buf, name)
+        } else {
+          throw new Error('Excel export is only supported for Sales, Profit, and Top Products tabs')
+        }
+
+        if (depts.length > 1 && i < depts.length - 1) {
+          await new Promise((r) => setTimeout(r, 400))
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error && e.message ? e.message : 'Failed to export Excel'
+      toast.error(msg)
+    } finally {
+      setExportingModal(false)
     }
   }
 
@@ -580,6 +961,118 @@ function ReportsPageInner(): JSX.Element {
           mechanical: departmentData.mechanical,
           programming: departmentData.programming,
           currencySymbol: sym,
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      const deptLabelQuick =
+        reportDept === 'all' ? 'Both' : reportDept === 'mechanical' ? 'Mechanical' : 'Programming'
+
+      if (tab === 'sales' && compareData?.sales) {
+        const [a, b] = compareData.sales
+        if (!a.length && !b.length) {
+          toast.error('No data to export')
+          return
+        }
+        const aligned = buildAlignedSalesChart(a, b)
+        const dailyAligned = aligned.map((p) => ({
+          day1: p.day1 ?? '—',
+          rev1: p.revenue1,
+          day2: p.day2 ?? '—',
+          rev2: p.revenue2,
+        }))
+        const html = buildDailySalesComparisonPdf({
+          storeName,
+          currency: sym,
+          department: deptLabelQuick,
+          period1Label: compareData.p1.label,
+          period2Label: compareData.p2.label,
+          period1From: compareData.p1.from,
+          period1To: compareData.p1.to,
+          period2From: compareData.p2.from,
+          period2To: compareData.p2.to,
+          rows1: a.map((row) => ({
+            invoice: row.sale_number,
+            customer: row.customer_name ?? 'Walk-in',
+            car: '—',
+            amount: row.total_amount,
+            status: row.status,
+          })),
+          rows2: b.map((row) => ({
+            invoice: row.sale_number,
+            customer: row.customer_name ?? 'Walk-in',
+            car: '—',
+            amount: row.total_amount,
+            status: row.status,
+          })),
+          dailyAligned,
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'profit' && compareData?.profit) {
+        const [pr1, pr2] = compareData.profit
+        if (!pr1.length && !pr2.length) {
+          toast.error('No data to export')
+          return
+        }
+        const total1 = {
+          revenue: pr1.reduce((s, row) => s + row.revenue, 0),
+          cost: pr1.reduce((s, row) => s + row.cogs, 0),
+          grossProfit: pr1.reduce((s, row) => s + row.gross_profit, 0),
+        }
+        const total2 = {
+          revenue: pr2.reduce((s, row) => s + row.revenue, 0),
+          cost: pr2.reduce((s, row) => s + row.cogs, 0),
+          grossProfit: pr2.reduce((s, row) => s + row.gross_profit, 0),
+        }
+        const html = buildProfitComparisonPdf({
+          storeName,
+          currency: sym,
+          department: deptLabelQuick,
+          period1Label: compareData.p1.label,
+          period2Label: compareData.p2.label,
+          period1From: compareData.p1.from,
+          period1To: compareData.p1.to,
+          period2From: compareData.p2.from,
+          period2To: compareData.p2.to,
+          total1,
+          total2,
+        })
+        const printRes = await window.electronAPI.print.receipt(html)
+        if (!printRes?.success) throw new Error('Print failed')
+        return
+      }
+
+      if (tab === 'topproducts' && compareData?.top) {
+        const merged = mergeTopProducts(compareData.top[0], compareData.top[1])
+        if (!merged.length) {
+          toast.error('No data to export')
+          return
+        }
+        const html = buildTopProductsComparisonPdf({
+          storeName,
+          currency: sym,
+          department: deptLabelQuick,
+          period1Label: compareData.p1.label,
+          period2Label: compareData.p2.label,
+          period1From: compareData.p1.from,
+          period1To: compareData.p1.to,
+          period2From: compareData.p2.from,
+          period2To: compareData.p2.to,
+          rows: merged.map((m) => ({
+            product_name: m.product_name,
+            qty1: m.qty1,
+            rev1: m.rev1,
+            qty2: m.qty2,
+            rev2: m.rev2,
+            deltaRev: m.deltaRev,
+            deltaPct: m.deltaPct,
+          })),
         })
         const printRes = await window.electronAPI.print.receipt(html)
         if (!printRes?.success) throw new Error('Print failed')
@@ -893,12 +1386,86 @@ function ReportsPageInner(): JSX.Element {
       setData([])
       setDepartmentData(null)
       setAssetsFooter(null)
+      setCompareData(null)
       return
     }
     setLoading(true)
     setData([])
     setDepartmentData(null)
     setAssetsFooter(null)
+
+    const compareTabs: ReportTab[] = ['sales', 'profit', 'topproducts']
+    if (compareTabs.includes(tab) && periodCompareMode !== 'single') {
+      const cmp = resolveComparisonPeriods(periodCompareMode, monthComparePreset, {
+        p1From: customP1From,
+        p1To: customP1To,
+        p2From: customP2From,
+        p2To: customP2To,
+      })
+      if (!cmp) {
+        toast.error(t('reports.invalidComparisonRange', { defaultValue: 'Invalid comparison date range' }))
+        setCompareData(null)
+        setLoading(false)
+        return
+      }
+      const f1 = `${cmp.period1.from} 00:00:00`
+      const t1 = `${cmp.period1.to} 23:59:59`
+      const f2 = `${cmp.period2.from} 00:00:00`
+      const t2 = `${cmp.period2.to} 23:59:59`
+      try {
+        if (tab === 'sales') {
+          const [a, b] = await Promise.all([
+            window.electronAPI.reports.salesDaily(f1, t1, reportDept),
+            window.electronAPI.reports.salesDaily(f2, t2, reportDept),
+          ])
+          if (!a?.success || !b?.success) throw new Error(a?.error || b?.error || 'Failed')
+          setCompareData({
+            p1: cmp.period1,
+            p2: cmp.period2,
+            sales: [a.data as SaleRow[], b.data as SaleRow[]],
+            profit: null,
+            top: null,
+          })
+          setData([])
+        } else if (tab === 'profit') {
+          const [a, b] = await Promise.all([
+            window.electronAPI.reports.profit(f1, t1, reportDept),
+            window.electronAPI.reports.profit(f2, t2, reportDept),
+          ])
+          if (!a?.success || !b?.success) throw new Error(a?.error || b?.error || 'Failed')
+          setCompareData({
+            p1: cmp.period1,
+            p2: cmp.period2,
+            sales: null,
+            profit: [a.data as ProfitRow[], b.data as ProfitRow[]],
+            top: null,
+          })
+          setData([])
+        } else {
+          const [a, b] = await Promise.all([
+            window.electronAPI.reports.topProducts(f1, t1),
+            window.electronAPI.reports.topProducts(f2, t2),
+          ])
+          if (!a?.success || !b?.success) throw new Error(a?.error || b?.error || 'Failed')
+          setCompareData({
+            p1: cmp.period1,
+            p2: cmp.period2,
+            sales: null,
+            profit: null,
+            top: [a.data as TopProductRow[], b.data as TopProductRow[]],
+          })
+          setData([])
+        }
+      } catch {
+        toast.error(t('common.error'))
+        setCompareData(null)
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    setCompareData(null)
     try {
       let res
       if (tab === 'sales') res = await window.electronAPI.reports.salesDaily(dateFrom, dateTo, reportDept)
@@ -932,7 +1499,20 @@ function ReportsPageInner(): JSX.Element {
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [tab, dateFrom, dateTo, reportDept])
+  useEffect(() => {
+    void load()
+  }, [
+    tab,
+    dateFrom,
+    dateTo,
+    reportDept,
+    periodCompareMode,
+    monthComparePreset,
+    customP1From,
+    customP1To,
+    customP2From,
+    customP2To,
+  ])
 
   useEffect(() => {
     if (tab !== 'performance') return
@@ -981,10 +1561,77 @@ function ReportsPageInner(): JSX.Element {
 
   const showDateRange = ['sales', 'profit', 'topproducts', 'expenses_category', 'expenses_monthly', 'department_reports'].includes(tab)
   const showDeptFilter = ['sales', 'profit', 'debts', 'expenses_category', 'expenses_monthly'].includes(tab)
+  const showComparisonControls = ['sales', 'profit', 'topproducts'].includes(tab)
   const canExportPdf = ['sales', 'profit', 'topproducts'].includes(tab)
   const canQuickExportPdf = QUICK_PDF_TABS.includes(tab)
   const hasQuickPdfData =
-    tab === 'department_reports' ? departmentData != null : data.length > 0
+    tab === 'department_reports'
+      ? departmentData != null
+      : compareData != null || data.length > 0
+
+  function handleExportCsvClick(): void {
+    if (compareData?.sales && tab === 'sales') {
+      const [a, b] = compareData.sales
+      const rows: Record<string, unknown>[] = [
+        ...a.map((r) => ({
+          period: compareData.p1.label,
+          sale_number: r.sale_number,
+          customer: r.customer_name ?? '',
+          total_amount: r.total_amount,
+          status: r.status,
+          created_at: r.created_at,
+        })),
+        ...b.map((r) => ({
+          period: compareData.p2.label,
+          sale_number: r.sale_number,
+          customer: r.customer_name ?? '',
+          total_amount: r.total_amount,
+          status: r.status,
+          created_at: r.created_at,
+        })),
+      ]
+      exportCsv(rows, 'sales-comparison.csv')
+      return
+    }
+    if (compareData?.profit && tab === 'profit') {
+      const [a, b] = compareData.profit
+      const rows: Record<string, unknown>[] = [
+        ...a.map((r) => ({
+          period: compareData.p1.label,
+          day: r.day,
+          revenue: r.revenue,
+          cogs: r.cogs,
+          gross_profit: r.gross_profit,
+        })),
+        ...b.map((r) => ({
+          period: compareData.p2.label,
+          day: r.day,
+          revenue: r.revenue,
+          cogs: r.cogs,
+          gross_profit: r.gross_profit,
+        })),
+      ]
+      exportCsv(rows, 'profit-comparison.csv')
+      return
+    }
+    if (compareData?.top && tab === 'topproducts') {
+      const merged = mergeTopProducts(compareData.top[0], compareData.top[1])
+      exportCsv(
+        merged.map((m) => ({
+          product: m.product_name,
+          qty_period_1: m.qty1,
+          revenue_period_1: m.rev1,
+          qty_period_2: m.qty2,
+          revenue_period_2: m.rev2,
+          delta_revenue: m.deltaRev,
+          delta_pct: m.deltaPct ?? '',
+        })),
+        'top-products-comparison.csv',
+      )
+      return
+    }
+    exportCsv(data as Record<string, unknown>[], `${tab}-report.csv`)
+  }
 
   return (
     <div>
@@ -992,10 +1639,30 @@ function ReportsPageInner(): JSX.Element {
         <h1 className="text-2xl font-bold text-foreground">{t('reports.title')}</h1>
         <div className="flex items-center gap-2">
           {canExportPdf && (
-            <button onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
-              <FileText className="w-4 h-4" />Export PDF
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setExportModalFormat('pdf')
+                  setShowExportModal(true)
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
+              >
+                <FileText className="w-4 h-4" />
+                {t('reports.exportPdf', { defaultValue: 'Export PDF' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExportModalFormat('excel')
+                  setShowExportModal(true)
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {t('reports.exportExcel', { defaultValue: 'Export Excel' })}
+              </button>
+            </>
           )}
           {canQuickExportPdf && (
             <button
@@ -1010,8 +1677,11 @@ function ReportsPageInner(): JSX.Element {
             </button>
           )}
           {tab !== 'attendance' && tab !== 'salary' && tab !== 'performance' && (
-            <button onClick={() => exportCsv(data as Record<string, unknown>[], `${tab}-report.csv`)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
+            <button
+              type="button"
+              onClick={() => handleExportCsvClick()}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
+            >
               <Download className="w-4 h-4" />{t('reports.exportCsv')}
             </button>
           )}
@@ -1051,13 +1721,23 @@ function ReportsPageInner(): JSX.Element {
           )}
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">{t('common.from')}</label>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              disabled={showComparisonControls && periodCompareMode !== 'single'}
+              className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            />
           </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">{t('common.to')}</label>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              disabled={showComparisonControls && periodCompareMode !== 'single'}
+              className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            />
           </div>
           {showDeptFilter && (
             <div className="flex items-center gap-2 ms-auto">
@@ -1072,6 +1752,100 @@ function ReportsPageInner(): JSX.Element {
                 <option value="programming">{t('reports.dept.programming', { defaultValue: 'Programming' })}</option>
               </select>
             </div>
+          )}
+        </div>
+      )}
+
+      {showDateRange && showComparisonControls && (
+        <div className="mb-4 rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+          <p className="text-sm font-medium">{t('reports.comparisonMode', { defaultValue: 'Comparison mode' })}</p>
+          <div className="flex flex-wrap gap-3 items-center">
+            <select
+              value={periodCompareMode}
+              onChange={(e) => setPeriodCompareMode(e.target.value as ComparisonMode)}
+              className="px-3 py-1.5 text-sm border border-input rounded-md bg-background min-w-[180px]"
+            >
+              <option value="single">{t('reports.compareSingle', { defaultValue: 'Single period' })}</option>
+              <option value="mom">{t('reports.compareMom', { defaultValue: 'Month-over-month' })}</option>
+              <option value="qoq">{t('reports.compareQoq', { defaultValue: 'Quarter-over-quarter' })}</option>
+              <option value="custom">{t('reports.compareCustom', { defaultValue: 'Custom (two ranges)' })}</option>
+            </select>
+            {periodCompareMode === 'mom' && (
+              <select
+                value={monthComparePreset}
+                onChange={(e) => setMonthComparePreset(e.target.value as MonthComparisonPreset)}
+                className="px-3 py-1.5 text-sm border border-input rounded-md bg-background max-w-[min(100%,320px)]"
+              >
+                <option value="this_vs_last_month">
+                  {t('reports.presetThisVsLast', { defaultValue: 'This month vs last month' })}
+                </option>
+                <option value="last2_blocks">
+                  {t('reports.presetLast2', { defaultValue: 'Last 2 months vs prior 2 months' })}
+                </option>
+                <option value="last3_blocks">{t('reports.presetLast3', { defaultValue: 'Last 3 months vs prior 3 months' })}</option>
+                <option value="last4_blocks">{t('reports.presetLast4', { defaultValue: 'Last 4 months vs prior 4 months' })}</option>
+                <option value="last6_blocks">{t('reports.presetLast6', { defaultValue: 'Last 6 months vs prior 6 months' })}</option>
+                <option value="ytd_vs_prior">{t('reports.presetYtd', { defaultValue: 'Year-to-date vs same span prior year' })}</option>
+              </select>
+            )}
+          </div>
+          {periodCompareMode === 'custom' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2 rounded-md border border-border p-3 bg-background">
+                <p className="text-xs font-semibold text-muted-foreground">{t('reports.range1', { defaultValue: 'Range 1' })}</p>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <label className="text-muted-foreground">{t('common.from')}</label>
+                  <input
+                    type="date"
+                    value={customP1From}
+                    onChange={(e) => setCustomP1From(e.target.value)}
+                    className="px-2 py-1 border border-input rounded-md bg-background text-sm"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <label className="text-muted-foreground">{t('common.to')}</label>
+                  <input
+                    type="date"
+                    value={customP1To}
+                    min={customP1From}
+                    onChange={(e) => setCustomP1To(e.target.value)}
+                    className="px-2 py-1 border border-input rounded-md bg-background text-sm"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2 rounded-md border border-border p-3 bg-background">
+                <p className="text-xs font-semibold text-muted-foreground">{t('reports.range2', { defaultValue: 'Range 2' })}</p>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <label className="text-muted-foreground">{t('common.from')}</label>
+                  <input
+                    type="date"
+                    value={customP2From}
+                    onChange={(e) => setCustomP2From(e.target.value)}
+                    className="px-2 py-1 border border-input rounded-md bg-background text-sm"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <label className="text-muted-foreground">{t('common.to')}</label>
+                  <input
+                    type="date"
+                    value={customP2To}
+                    min={customP2From}
+                    onChange={(e) => setCustomP2To(e.target.value)}
+                    className="px-2 py-1 border border-input rounded-md bg-background text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          {periodCompareMode === 'qoq' && (
+            <p className="text-xs text-muted-foreground">
+              {t('reports.qoqHint', { defaultValue: 'Compares the previous full calendar quarter to the current quarter (from quarter start through today).' })}
+            </p>
+          )}
+          {periodCompareMode !== 'single' && (
+            <p className="text-xs text-muted-foreground">
+              {t('reports.comparisonDateHint', { defaultValue: 'The main From/To filters above are ignored while comparison is active.' })}
+            </p>
           )}
         </div>
       )}
@@ -1469,7 +2243,32 @@ function ReportsPageInner(): JSX.Element {
       ) : (
         <>
           {/* Chart */}
-          {tab === 'sales' && data.length > 0 && (
+          {tab === 'sales' && compareData?.sales && (
+            <div className="bg-card border border-border rounded-lg p-5 mb-4">
+              <p className="text-xs text-muted-foreground mb-2 flex flex-wrap items-center gap-3">
+                <span>
+                  <span className="inline-block w-3 h-3 rounded-sm bg-[#2563eb] align-middle mr-1" aria-hidden />
+                  {compareData.p1.label}
+                </span>
+                <span>
+                  <span className="inline-block w-3 h-3 rounded-sm bg-[#d97706] align-middle mr-1" aria-hidden />
+                  {compareData.p2.label}
+                </span>
+              </p>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={buildAlignedSalesChart(compareData.sales[0], compareData.sales[1])}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="idx" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Legend />
+                  <Bar dataKey="revenue1" name={compareData.p1.label} fill="#2563eb" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="revenue2" name={compareData.p2.label} fill="#d97706" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {tab === 'sales' && !compareData?.sales && data.length > 0 && (
             <div className="bg-card border border-border rounded-lg p-5 mb-4">
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={data as Array<Record<string, unknown>>}>
@@ -1482,7 +2281,32 @@ function ReportsPageInner(): JSX.Element {
               </ResponsiveContainer>
             </div>
           )}
-          {tab === 'profit' && data.length > 0 && (
+          {tab === 'profit' && compareData?.profit && (
+            <div className="bg-card border border-border rounded-lg p-5 mb-4">
+              <p className="text-xs text-muted-foreground mb-2 flex flex-wrap items-center gap-3">
+                <span>
+                  <span className="inline-block w-3 h-3 rounded-sm bg-[#2563eb] align-middle mr-1" aria-hidden />
+                  {compareData.p1.label}
+                </span>
+                <span>
+                  <span className="inline-block w-3 h-3 rounded-sm bg-[#d97706] align-middle mr-1" aria-hidden />
+                  {compareData.p2.label}
+                </span>
+              </p>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={buildAlignedProfitChart(compareData.profit[0], compareData.profit[1])}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="idx" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Legend />
+                  <Line type="monotone" dataKey="revenue1" name={`${compareData.p1.label} revenue`} stroke="#2563eb" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="revenue2" name={`${compareData.p2.label} revenue`} stroke="#d97706" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {tab === 'profit' && !compareData?.profit && data.length > 0 && (
             <div className="bg-card border border-border rounded-lg p-5 mb-4">
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={data as Array<Record<string, unknown>>}>
@@ -1530,16 +2354,49 @@ function ReportsPageInner(): JSX.Element {
               mechanical={departmentData.mechanical}
               programming={departmentData.programming}
             />
+          ) : tab === 'sales' && compareData?.sales ? (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold mb-2">{compareData.p1.label}</h3>
+                <ReportTable tab="sales" data={compareData.sales[0] as unknown[]} reportDept={reportDept} assetsFooter={null} />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold mb-2">{compareData.p2.label}</h3>
+                <ReportTable tab="sales" data={compareData.sales[1] as unknown[]} reportDept={reportDept} assetsFooter={null} />
+              </div>
+            </div>
+          ) : tab === 'profit' && compareData?.profit ? (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold mb-2">{compareData.p1.label}</h3>
+                <ReportTable tab="profit" data={compareData.profit[0] as unknown[]} reportDept={reportDept} assetsFooter={null} />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold mb-2">{compareData.p2.label}</h3>
+                <ReportTable tab="profit" data={compareData.profit[1] as unknown[]} reportDept={reportDept} assetsFooter={null} />
+              </div>
+            </div>
+          ) : tab === 'topproducts' && compareData?.top ? (
+            <TopProductsComparisonTable rows={mergeTopProducts(compareData.top[0], compareData.top[1])} />
           ) : (
             <ReportTable tab={tab} data={data} reportDept={reportDept} assetsFooter={assetsFooter} />
           )}
         </>
       )}
       {showExportModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-background border border-border rounded-xl p-6 w-full max-w-md shadow-xl">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3">
+          <div className="bg-background border border-border rounded-xl p-6 w-full max-w-xl max-h-[92vh] overflow-y-auto shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-base">Export PDF Report</h2>
+              <div>
+                <h2 className="font-semibold text-base">
+                  {t('reports.exportReportTitle', { defaultValue: 'Export report' })}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {exportModalFormat === 'pdf'
+                    ? t('reports.exportFormatPdf', { defaultValue: 'Format: PDF (print)' })
+                    : t('reports.exportFormatExcel', { defaultValue: 'Format: Excel (.xlsx)' })}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowExportModal(false)}
@@ -1549,56 +2406,126 @@ function ReportsPageInner(): JSX.Element {
               </button>
             </div>
 
-            <div className="mb-4">
-              <p className="text-sm font-medium mb-2">Time Period</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {([
-                  ['weekly', 'Weekly'],
-                  ['monthly', 'Monthly'],
-                  ['custom', 'Custom'],
-                ] as const).map(([value, label]) => (
-                  <label key={value} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="export-period"
-                      value={value}
-                      checked={exportPeriod === value}
-                      onChange={() => setExportPeriod(value)}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-              {exportPeriod === 'weekly' && (
-                <div className="mt-3">
-                  <label className="block text-xs text-muted-foreground mb-1">Pick any day in the week</label>
-                  <input
-                    type="date"
-                    value={exportWeekDate}
-                    onChange={e => setExportWeekDate(e.target.value)}
-                    className="border border-border rounded-md px-2 py-1.5 text-sm bg-background w-full"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">The full Mon–Sun week will be exported</p>
+            {periodCompareMode === 'single' && (
+              <div className="mb-4">
+                <p className="text-sm font-medium mb-2">{t('reports.timePeriod', { defaultValue: 'Time Period' })}</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {([
+                    ['weekly', 'Weekly'],
+                    ['monthly', 'Monthly'],
+                    ['custom', 'Custom'],
+                  ] as const).map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="export-period"
+                        value={value}
+                        checked={exportPeriod === value}
+                        onChange={() => setExportPeriod(value)}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
                 </div>
-              )}
-              {exportPeriod === 'custom' && (
-                <div className="grid grid-cols-2 gap-2 mt-3">
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">From</label>
+                {exportPeriod === 'weekly' && (
+                  <div className="mt-3">
+                    <label className="block text-xs text-muted-foreground mb-1">Pick any day in the week</label>
                     <input
                       type="date"
-                      value={exportDateFrom}
-                      onChange={e => setExportDateFrom(e.target.value)}
-                      className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring w-full"
+                      value={exportWeekDate}
+                      onChange={e => setExportWeekDate(e.target.value)}
+                      className="border border-border rounded-md px-2 py-1.5 text-sm bg-background w-full"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">The full Mon–Sun week will be exported</p>
+                  </div>
+                )}
+                {exportPeriod === 'custom' && (
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">From</label>
+                      <input
+                        type="date"
+                        value={exportDateFrom}
+                        onChange={e => setExportDateFrom(e.target.value)}
+                        className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">To</label>
+                      <input
+                        type="date"
+                        value={exportDateTo}
+                        onChange={e => setExportDateTo(e.target.value)}
+                        className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring w-full"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mb-4 rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <p className="text-sm font-medium">{t('reports.comparisonMode', { defaultValue: 'Comparison mode' })}</p>
+              <select
+                value={periodCompareMode}
+                onChange={(e) => setPeriodCompareMode(e.target.value as ComparisonMode)}
+                className="w-full px-3 py-1.5 text-sm border border-input rounded-md bg-background"
+              >
+                <option value="single">{t('reports.compareSingle', { defaultValue: 'Single period' })}</option>
+                <option value="mom">{t('reports.compareMom', { defaultValue: 'Month-over-month' })}</option>
+                <option value="qoq">{t('reports.compareQoq', { defaultValue: 'Quarter-over-quarter' })}</option>
+                <option value="custom">{t('reports.compareCustom', { defaultValue: 'Custom (two ranges)' })}</option>
+              </select>
+              {periodCompareMode === 'mom' && (
+                <select
+                  value={monthComparePreset}
+                  onChange={(e) => setMonthComparePreset(e.target.value as MonthComparisonPreset)}
+                  className="w-full px-3 py-1.5 text-sm border border-input rounded-md bg-background"
+                >
+                  <option value="this_vs_last_month">
+                    {t('reports.presetThisVsLast', { defaultValue: 'This month vs last month' })}
+                  </option>
+                  <option value="last2_blocks">
+                    {t('reports.presetLast2', { defaultValue: 'Last 2 months vs prior 2 months' })}
+                  </option>
+                  <option value="last3_blocks">{t('reports.presetLast3', { defaultValue: 'Last 3 months vs prior 3 months' })}</option>
+                  <option value="last4_blocks">{t('reports.presetLast4', { defaultValue: 'Last 4 months vs prior 4 months' })}</option>
+                  <option value="last6_blocks">{t('reports.presetLast6', { defaultValue: 'Last 6 months vs prior 6 months' })}</option>
+                  <option value="ytd_vs_prior">{t('reports.presetYtd', { defaultValue: 'Year-to-date vs same span prior year' })}</option>
+                </select>
+              )}
+              {periodCompareMode === 'custom' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="space-y-1">
+                    <p className="font-medium text-muted-foreground">{t('reports.range1', { defaultValue: 'Range 1' })}</p>
+                    <input
+                      type="date"
+                      value={customP1From}
+                      onChange={(e) => setCustomP1From(e.target.value)}
+                      className="w-full px-2 py-1 border border-input rounded-md bg-background"
+                    />
+                    <input
+                      type="date"
+                      value={customP1To}
+                      min={customP1From}
+                      onChange={(e) => setCustomP1To(e.target.value)}
+                      className="w-full px-2 py-1 border border-input rounded-md bg-background"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">To</label>
+                  <div className="space-y-1">
+                    <p className="font-medium text-muted-foreground">{t('reports.range2', { defaultValue: 'Range 2' })}</p>
                     <input
                       type="date"
-                      value={exportDateTo}
-                      onChange={e => setExportDateTo(e.target.value)}
-                      className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring w-full"
+                      value={customP2From}
+                      onChange={(e) => setCustomP2From(e.target.value)}
+                      className="w-full px-2 py-1 border border-input rounded-md bg-background"
+                    />
+                    <input
+                      type="date"
+                      value={customP2To}
+                      min={customP2From}
+                      onChange={(e) => setCustomP2To(e.target.value)}
+                      className="w-full px-2 py-1 border border-input rounded-md bg-background"
                     />
                   </div>
                 </div>
@@ -1652,22 +2579,69 @@ function ReportsPageInner(): JSX.Element {
               </button>
               <button
                 type="button"
-                disabled={exportingPdf}
+                disabled={exportingModal}
                 onClick={() => {
-                  setExportingPdf(true)
-                  void handleExportPdf(exportPeriod, exportDateFrom, exportDateTo, exportDepartment, exportWeekDate).finally(() => {
-                    setExportingPdf(false)
-                  })
                   setShowExportModal(false)
+                  void (exportModalFormat === 'pdf' ? handleExportPdf() : handleExportExcel())
                 }}
                 className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
               >
-                {exportingPdf ? 'Generating...' : 'Generate PDF'}
+                {exportingModal
+                  ? t('reports.exportGenerating', { defaultValue: 'Generating…' })
+                  : exportModalFormat === 'pdf'
+                    ? t('reports.generatePdf', { defaultValue: 'Generate PDF' })
+                    : t('reports.generateExcel', { defaultValue: 'Generate Excel' })}
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function TopProductsComparisonTable({ rows }: { rows: MergedTopProduct[] }): JSX.Element {
+  const { t } = useTranslation()
+  if (!rows.length) {
+    return <p className="py-8 text-center text-muted-foreground text-sm">{t('common.noData')}</p>
+  }
+  return (
+    <div className="bg-card border border-border rounded-lg overflow-hidden overflow-x-auto">
+      <table className="w-full text-sm min-w-[640px]">
+        <thead className="bg-muted/50 text-muted-foreground">
+          <tr>
+            <th className="text-start px-4 py-3 font-medium">{t('common.name')}</th>
+            <th className="text-end px-3 py-3 font-medium">Qty P1</th>
+            <th className="text-end px-3 py-3 font-medium">Rev P1</th>
+            <th className="text-end px-3 py-3 font-medium">Qty P2</th>
+            <th className="text-end px-3 py-3 font-medium">Rev P2</th>
+            <th className="text-end px-3 py-3 font-medium">Δ Rev</th>
+            <th className="text-end px-3 py-3 font-medium">Δ %</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((r, i) => {
+            const pct = pctChange(r.rev1, r.rev2)
+            return (
+              <tr key={`${r.product_name}-${i}`} className="hover:bg-muted/30">
+                <td className="px-4 py-3 font-medium">{r.product_name}</td>
+                <td className="px-3 py-3 text-end">{r.qty1}</td>
+                <td className="px-3 py-3 text-end tabular-nums">
+                  <CurrencyText amount={r.rev1} />
+                </td>
+                <td className="px-3 py-3 text-end">{r.qty2}</td>
+                <td className="px-3 py-3 text-end tabular-nums">
+                  <CurrencyText amount={r.rev2} />
+                </td>
+                <td className="px-3 py-3 text-end tabular-nums">
+                  <CurrencyText amount={r.deltaRev} />
+                </td>
+                <td className="px-3 py-3 text-end text-muted-foreground text-xs">{pct.text}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

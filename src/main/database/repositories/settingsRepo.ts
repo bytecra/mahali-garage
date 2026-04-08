@@ -3,6 +3,7 @@ import { getDb } from '../index'
 interface SettingRow {
   key: string
   value: string | null
+  updated_at?: string
 }
 
 export const settingsRepo = {
@@ -14,6 +15,13 @@ export const settingsRepo = {
   get(key: string): string | null {
     const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as SettingRow | undefined
     return row?.value ?? null
+  },
+
+  getWithMeta(key: string): { value: string | null; updated_at: string | null } {
+    const row = getDb()
+      .prepare('SELECT value, updated_at FROM settings WHERE key = ?')
+      .get(key) as SettingRow | undefined
+    return { value: row?.value ?? null, updated_at: row?.updated_at ?? null }
   },
 
   set(key: string, value: string): void {
@@ -53,5 +61,48 @@ export const settingsRepo = {
       WHERE key = 'invoice.next_number'
     `).run(String(next))
     return current
+  },
+
+  getStoreStartDate(): string | null {
+    const raw = this.get('store.start_date')
+    if (!raw) return null
+    const v = raw.trim()
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null
+  },
+
+  getEarliestBusinessDate(): string | null {
+    const row = getDb()
+      .prepare(`
+        SELECT MIN(d) as min_date
+        FROM (
+          SELECT date(created_at) as d FROM sales
+          UNION ALL
+          SELECT date(created_at) as d FROM custom_receipts
+          UNION ALL
+          SELECT date(date) as d FROM expenses
+        )
+      `)
+      .get() as { min_date: string | null }
+    return row?.min_date ?? null
+  },
+
+  getLatestBusinessDate(): string | null {
+    const row = getDb()
+      .prepare(`
+        SELECT MAX(d) as max_date
+        FROM (
+          SELECT date(created_at) as d FROM sales
+          UNION ALL
+          SELECT date(created_at) as d FROM custom_receipts
+          UNION ALL
+          SELECT date(date) as d FROM expenses
+        )
+      `)
+      .get() as { max_date: string | null }
+    return row?.max_date ?? null
+  },
+
+  getEffectiveStoreStartDate(): string | null {
+    return this.getStoreStartDate() ?? this.getEarliestBusinessDate()
   },
 }

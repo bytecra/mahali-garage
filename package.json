@@ -1,6 +1,6 @@
 {
   "name": "mahali-garage",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Professional garage and auto repair shop management system",
   "main": "./out/main/index.js",
   "author": "",
@@ -54,6 +54,7 @@
     "date-fns": "^4.1.0",
     "electron-log": "^5.2.4",
     "electron-store": "^10.0.1",
+    "exceljs": "^4.4.0",
     "i18next": "^24.2.2",
     "lucide-react": "^0.469.0",
     "node-machine-id": "^1.1.12",

@@ -26,7 +26,7 @@ function createPrintWindow(parent: BrowserWindow | null): BrowserWindow {
   })
 }
 
-/** Sized for ID card HTML (85.6×54mm); higher zoom for sharper PNG capture */
+/** Sized for ID card HTML (~323×204 CSS px); PNG uses zoom >1 for sharper capture. */
 function createIdCardWindow(parent: BrowserWindow | null): BrowserWindow {
   return new BrowserWindow({
     width: 420,
@@ -39,7 +39,6 @@ function createIdCardWindow(parent: BrowserWindow | null): BrowserWindow {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
-      zoomFactor: 1.5,
     },
   })
 }
@@ -165,7 +164,9 @@ export function registerPrintHandlers(): void {
 
       const wantPng = format === 'png'
       const parent = BrowserWindow.fromWebContents(event.sender) ?? null
-      const win = wantPng ? createIdCardWindow(parent) : createPrintWindow(parent)
+      // PDF and PNG both use a viewport sized to the card so printToPDF does not scale a tiny
+      // mm-based layout inside a large window (which often yields blank or clipped pages).
+      const win = createIdCardWindow(parent)
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
       const htmlPath = path.join(app.getPath('temp'), `mahali-idcard-${Date.now()}.html`)
@@ -193,8 +194,10 @@ export function registerPrintHandlers(): void {
 
         win.webContents.once('did-finish-load', () => {
           win.webContents.on('will-navigate', (e) => e.preventDefault())
+          // PDF must stay at zoom 1 so printToPDF matches the px-sized template; PNG uses higher zoom for capture.
+          win.webContents.setZoomFactor(wantPng ? 1.5 : 1)
           win.show()
-          const delay = wantPng ? 650 : 500
+          const delay = wantPng ? 650 : 750
           setTimeout(() => {
             void (async () => {
               try {
@@ -220,6 +223,7 @@ export function registerPrintHandlers(): void {
                   finalize(processed)
                 } else {
                   const pdf = await win.webContents.printToPDF({
+                    // CR80 card: 85.6 × 54 mm (must match idCardTemplate px layout)
                     pageSize: {
                       width: 85600,
                       height: 54000,
@@ -227,6 +231,8 @@ export function registerPrintHandlers(): void {
                     printBackground: true,
                     landscape: false,
                     margins: { marginType: 'none' },
+                    preferCSSPageSize: false,
+                    displayHeaderFooter: false,
                   })
                   clearTimeout(timeout)
                   finalize(pdf)

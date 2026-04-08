@@ -209,6 +209,14 @@ export default function SettingsPage(): JSX.Element {
   const [showStoreDocForm, setShowStoreDocForm] = useState(false)
 
   const [storeDocSaving, setStoreDocSaving] = useState(false)
+  const [storeStartDateDraft, setStoreStartDateDraft] = useState('')
+  const [storeStartMeta, setStoreStartMeta] = useState<{
+    updatedAt: string | null
+    effectiveValue: string | null
+    earliestBusinessDate: string | null
+    latestBusinessDate: string | null
+  } | null>(null)
+  const [storeStartSaving, setStoreStartSaving] = useState(false)
 
   const [empIdFormat, setEmpIdFormat] = useState({ ...DEFAULT_EMP_ID_FORMAT })
   const [empIdPreview, setEmpIdPreview] = useState('')
@@ -242,7 +250,13 @@ export default function SettingsPage(): JSX.Element {
     if (res.success) {
       const data = res.data as Record<string, string>
       setSettings(data)
+      setStoreStartDateDraft(data['store.start_date'] ?? '')
       syncCurrency(data)
+    }
+    const ssRes = await window.electronAPI.settings.getStoreStartDateMeta()
+    if (ssRes?.success && ssRes.data) {
+      setStoreStartMeta(ssRes.data)
+      setStoreStartDateDraft(ssRes.data.value ?? '')
     }
     const lcRes = await window.electronAPI.settings.get('loyalty.config')
     if (lcRes?.success && lcRes.data) {
@@ -808,6 +822,45 @@ export default function SettingsPage(): JSX.Element {
     }
   }
 
+  async function saveStoreStartDate(): Promise<void> {
+    if (!storeStartDateDraft) {
+      toast.error('Please select a date')
+      return
+    }
+    const today = new Date().toISOString().slice(0, 10)
+    if (storeStartDateDraft > today) {
+      toast.error('Store start date cannot be in the future')
+      return
+    }
+    setStoreStartSaving(true)
+    try {
+      const res = await window.electronAPI.settings.setStoreStartDate(storeStartDateDraft)
+      if (!res.success) {
+        toast.error(res.error ?? 'Failed to save store start date')
+        return
+      }
+      toast.success(`Store start date set to ${storeStartDateDraft}`)
+      await load()
+    } finally {
+      setStoreStartSaving(false)
+    }
+  }
+
+  async function clearStoreStartDate(): Promise<void> {
+    setStoreStartSaving(true)
+    try {
+      const res = await window.electronAPI.settings.clearStoreStartDate()
+      if (!res.success) {
+        toast.error(res.error ?? 'Failed to clear store start date')
+        return
+      }
+      toast.success('Store start date cleared')
+      await load()
+    } finally {
+      setStoreStartSaving(false)
+    }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground mb-6">{t('settings.title')}</h1>
@@ -905,6 +958,46 @@ export default function SettingsPage(): JSX.Element {
             >
               {saving ? t('common.loading') : t('common.save')}
             </button>
+
+            <div className="pt-4 mt-2 border-t border-border space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Business Timeline</h3>
+              <p className="text-xs text-muted-foreground">
+                All reports, profit calculations, and business metrics start from this date. Transactions before this date are excluded from analysis.
+              </p>
+              <div>
+                <label className={labelCls}>Store Start Date</label>
+                <input
+                  type="date"
+                  value={storeStartDateDraft}
+                  onChange={(e) => setStoreStartDateDraft(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>Effective start: {storeStartMeta?.effectiveValue ?? 'Not set'}</p>
+                <p>Earliest transaction: {storeStartMeta?.earliestBusinessDate ?? '—'}</p>
+                <p>Latest transaction: {storeStartMeta?.latestBusinessDate ?? '—'}</p>
+                <p>Last updated: {storeStartMeta?.updatedAt ? new Date(storeStartMeta.updatedAt).toLocaleString() : '—'}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void saveStoreStartDate()}
+                  disabled={storeStartSaving || !canSettings}
+                  className={saveBtnCls}
+                >
+                  {storeStartSaving ? t('common.loading') : 'Set Store Start Date'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void clearStoreStartDate()}
+                  disabled={storeStartSaving || !canSettings}
+                  className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-60"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

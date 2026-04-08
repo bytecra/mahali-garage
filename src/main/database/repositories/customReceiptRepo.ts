@@ -25,6 +25,8 @@ export interface CustomReceiptInput {
   payment_method?: string | null
   /** For Cash: actual bills/coins received (≥ amount). Omitted = exact amount. */
   cash_received?: number | null
+  /** For Cash: change returned to customer. */
+  change_amount?: number | null
   notes?: string | null
   smart_recipe?: boolean
   discount_type?: string | null
@@ -105,6 +107,7 @@ export const customReceiptRepo = {
       push('smart_recipe', input.smart_recipe ? 1 : 0)
       push('created_by', input.created_by)
       push('cash_received', cashReceivedCol)
+      push('change_amount', method === 'cash' && cashReceivedCol != null ? Math.max(0, cashReceivedCol - input.amount) : (input.change_amount ?? 0))
       push('primary_employee_id', input.primary_employee_id ?? null)
       push('assistant_employee_id', input.assistant_employee_id ?? null)
       push('hours_worked', input.hours_worked ?? null)

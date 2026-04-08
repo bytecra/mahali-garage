@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Eye, ChevronLeft, ChevronRight, FileText, CalendarDays, X, Trash2, Printer } from 'lucide-react'
+import { Search, Eye, ChevronLeft, ChevronRight, FileText, CalendarDays, X, Trash2, Printer, Download } from 'lucide-react'
 import { cn, formatCurrency, formatDateTime } from '../../lib/utils'
 import { printCustomReceiptA4 } from '../../lib/printCustomReceiptA4'
 import { FeatureGate } from '../../components/FeatureGate'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { toast } from '../../store/notificationStore'
+import ExcelJS from 'exceljs'
 
 type SourceType = 'invoice' | 'custom' | 'smart'
 
@@ -19,6 +20,10 @@ interface InvoiceRow {
   department: string | null
   amount: number
   payment_method: string | null
+  paid_amount: number
+  change_amount: number
+  due_amount: number
+  status: string
   source_type: SourceType
   invoice_id?: number | null
 }
@@ -46,6 +51,8 @@ function InvoicesPageInner(): JSX.Element {
   const [viewOpen, setViewOpen] = useState(false)
   const [viewRow, setViewRow] = useState<InvoiceRow | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<InvoiceRow | null>(null)
+  const [changeSort, setChangeSort] = useState<'none' | 'asc' | 'desc'>('none')
+  const [withChangeOnly, setWithChangeOnly] = useState(false)
   const [includeSignatures, setIncludeSignatures] = useState(() => {
     try {
       return localStorage.getItem('invoiceIncludeSignatures') === 'true'
@@ -97,33 +104,56 @@ function InvoicesPageInner(): JSX.Element {
       const salesRows = salesRes.success && salesRes.data ? (salesRes.data as { rows: Array<Record<string, unknown>> }).rows : []
       const customRows = customRes.success && customRes.data ? (customRes.data as { rows: Array<Record<string, unknown>> }).rows : []
 
-      const mappedSales: InvoiceRow[] = salesRows.map(s => ({
+      const mappedSales: InvoiceRow[] = salesRows.map(s => {
+        const totalAmount = Number(s.total_amount || 0)
+        const paidAmount = Number(s.amount_paid || 0)
+        const dueAmount = Math.max(0, Number(s.balance_due || 0))
+        return {
         id: Number(s.id),
         invoice_number: String(s.invoice_number || s.sale_number || ''),
         created_at: String(s.created_at || ''),
         customer_name: (s.customer_name as string | null) ?? null,
         car: null,
         department: (s.department as string | null) ?? null,
-        amount: Number(s.total_amount || 0),
+        amount: totalAmount,
         payment_method: (s.payment_method as string | null) ?? null,
+        paid_amount: paidAmount,
+        change_amount: 0,
+        due_amount: dueAmount,
+        status: String(s.status || 'completed'),
         source_type: 'invoice',
         invoice_id: (s.invoice_id as number | null) ?? null,
-      }))
+        }
+      })
 
-      const mappedCustom: InvoiceRow[] = customRows.map(r => ({
+      const mappedCustom: InvoiceRow[] = customRows.map(r => {
+        const totalAmount = Number(r.amount || 0)
+        const paymentMethod = (r.payment_method as string | null) ?? null
+        const isCash = String(paymentMethod ?? '').toLowerCase() === 'cash'
+        const paidAmount = isCash ? Number(r.cash_received ?? totalAmount) : totalAmount
+        const changeAmount = isCash ? Math.max(0, Number(r.change_amount ?? (paidAmount - totalAmount))) : 0
+        return {
         id: Number(r.id),
         invoice_number: String(r.receipt_number || ''),
         created_at: String(r.created_at || ''),
         customer_name: (r.customer_name as string | null) ?? null,
         car: [r.plate_number, r.car_company, r.car_model].filter(Boolean).join(' • ') || null,
         department: (r.department as string | null) ?? null,
-        amount: Number(r.amount || 0),
-        payment_method: (r.payment_method as string | null) ?? null,
+        amount: totalAmount,
+        payment_method: paymentMethod,
+        paid_amount: paidAmount,
+        change_amount: changeAmount,
+        due_amount: 0,
+        status: 'completed',
         source_type: Number(r.smart_recipe || 0) === 1 ? 'smart' : 'custom',
-      }))
+        }
+      })
 
-      const merged = [...mappedSales, ...mappedCustom]
+      let merged = [...mappedSales, ...mappedCustom]
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      if (withChangeOnly) merged = merged.filter((r) => r.change_amount > 0)
+      if (changeSort === 'asc') merged = merged.slice().sort((a, b) => a.change_amount - b.change_amount)
+      if (changeSort === 'desc') merged = merged.slice().sort((a, b) => b.change_amount - a.change_amount)
       const start = (p - 1) * pageSize
       setRows(merged.slice(start, start + pageSize))
       setTotal(merged.length)
@@ -131,7 +161,75 @@ function InvoicesPageInner(): JSX.Element {
     } finally {
       setLoading(false)
     }
-  }, [search, dateFrom, dateTo, pageSize])
+  }, [search, dateFrom, dateTo, pageSize, withChangeOnly, changeSort])
+
+  const exportCsv = (): void => {
+    if (!rows.length) return
+    const records = rows.map((r) => ({
+      invoice_number: r.invoice_number,
+      customer: r.customer_name ?? 'Walk-in Customer',
+      date: r.created_at,
+      total_aed: r.amount.toFixed(2),
+      paid_aed: r.paid_amount.toFixed(2),
+      change_aed: r.change_amount.toFixed(2),
+      due_aed: r.due_amount.toFixed(2),
+      payment_method: r.payment_method ?? '',
+      status: r.status,
+      source: r.source_type,
+    }))
+    const headers = Object.keys(records[0] ?? {})
+    const csv = [headers.join(','), ...records.map((rec) => headers.map((h) => JSON.stringify(rec[h as keyof typeof rec] ?? '')).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportExcel = async (): Promise<void> => {
+    if (!rows.length) return
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Transactions')
+    ws.getRow(1).values = ['Invoice', 'Customer', 'Date', 'Total (AED)', 'Paid (AED)', 'Change (AED)', 'Due (AED)', 'Payment', 'Status', 'Source']
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    for (let c = 1; c <= 10; c++) ws.getCell(1, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }
+    let r = 2
+    for (const row of rows) {
+      ws.getRow(r).values = [
+        row.invoice_number,
+        row.customer_name ?? 'Walk-in Customer',
+        row.created_at.slice(0, 19).replace('T', ' '),
+        row.amount,
+        row.paid_amount,
+        row.change_amount,
+        row.due_amount,
+        row.payment_method ?? '—',
+        row.status,
+        row.source_type,
+      ]
+      ws.getCell(r, 4).numFmt = '#,##0.00'
+      ws.getCell(r, 5).numFmt = '#,##0.00'
+      ws.getCell(r, 6).numFmt = '#,##0.00'
+      ws.getCell(r, 7).numFmt = '#,##0.00'
+      if (row.change_amount > 0) {
+        ws.getCell(r, 6).font = { bold: true, color: { argb: 'FF047857' } }
+        ws.getCell(r, 6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } }
+      }
+      r++
+    }
+    ws.views = [{ state: 'frozen', ySplit: 1 }]
+    ws.columns.forEach((col) => { col.width = 18 })
+    const buf = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `transactions-${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(() => { void loadData(1) }, [loadData])
 
@@ -192,6 +290,23 @@ function InvoicesPageInner(): JSX.Element {
           Include Signatures
         </label>
         <div className="ms-auto flex items-center gap-2">
+          <label className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
+            <input
+              type="checkbox"
+              className="rounded border-input"
+              checked={withChangeOnly}
+              onChange={(e) => { setWithChangeOnly(e.target.checked); setPage(1) }}
+            />
+            With change only
+          </label>
+          <button type="button" onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-input bg-background hover:bg-muted">
+            <Download className="w-4 h-4" />
+            CSV
+          </button>
+          <button type="button" onClick={() => void exportExcel()} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-input bg-background hover:bg-muted">
+            <Download className="w-4 h-4" />
+            Excel
+          </button>
           <label className="text-sm text-muted-foreground">Records per page</label>
           <select
             value={pageSize}
@@ -220,6 +335,16 @@ function InvoicesPageInner(): JSX.Element {
                 <th className="px-4 py-3 text-start font-medium text-muted-foreground">Car</th>
                 <th className="px-4 py-3 text-start font-medium text-muted-foreground">Department</th>
                 <th className="px-4 py-3 text-end font-medium text-muted-foreground">{t('common.total')}</th>
+                <th className="px-4 py-3 text-end font-medium text-muted-foreground">Paid</th>
+                <th
+                  className="px-4 py-3 text-end font-medium text-muted-foreground cursor-pointer select-none"
+                  onClick={() => setChangeSort((s) => (s === 'none' ? 'desc' : s === 'desc' ? 'asc' : 'none'))}
+                  title="Sort by change amount"
+                >
+                  Change {changeSort === 'desc' ? '↓' : changeSort === 'asc' ? '↑' : ''}
+                </th>
+                <th className="px-4 py-3 text-end font-medium text-muted-foreground">Due</th>
+                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-center font-medium text-muted-foreground">Payment</th>
                 <th className="px-4 py-3 text-center font-medium text-muted-foreground">Source</th>
                 <th className="px-4 py-3 text-center font-medium text-muted-foreground">{t('common.actions')}</th>
@@ -234,6 +359,14 @@ function InvoicesPageInner(): JSX.Element {
                   <td className="px-4 py-3">{row.car || '—'}</td>
                   <td className="px-4 py-3">{row.department || '—'}</td>
                   <td className="px-4 py-3 text-end font-medium"><CurrencyText amount={row.amount} /></td>
+                  <td className="px-4 py-3 text-end tabular-nums"><CurrencyText amount={row.paid_amount} /></td>
+                  <td className={cn('px-4 py-3 text-end tabular-nums', row.change_amount > 0 && 'bg-emerald-50 text-emerald-700 font-semibold dark:bg-emerald-950/30 dark:text-emerald-400')}>
+                    {row.change_amount > 0
+                      ? <CurrencyText amount={row.change_amount} />
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-end tabular-nums"><CurrencyText amount={row.due_amount} /></td>
+                  <td className="px-4 py-3 text-center text-xs">{row.status}</td>
                   <td className="px-4 py-3 text-center text-xs">{row.payment_method || '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={cn(
@@ -263,6 +396,7 @@ function InvoicesPageInner(): JSX.Element {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-muted-foreground">Showing {rangeStart}-{rangeEnd} of {total} records</p>
+            <p className="text-xs text-muted-foreground">Total change in view: {formatCurrency(rows.reduce((s, r) => s + r.change_amount, 0))}</p>
             <p className="text-xs text-muted-foreground">{t('invoices.page', { current: page, total: totalPages })}</p>
           </div>
           <div className="flex items-center gap-1">

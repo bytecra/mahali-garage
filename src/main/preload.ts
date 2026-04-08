@@ -34,6 +34,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get:     (key: string)                   => invoke('settings:get', key),
     set:     (key: string, value: string)    => invoke('settings:set', key, value),
     setBulk: (entries: Record<string, string>) => invoke('settings:setBulk', entries),
+    getStoreStartDateMeta: ()                => invoke('settings:getStoreStartDateMeta'),
+    setStoreStartDate: (value: string)       => invoke('settings:setStoreStartDate', value),
+    clearStoreStartDate: ()                  => invoke('settings:clearStoreStartDate'),
   },
 
   // ── Products / Inventory ──────────────────────────────────────────────────

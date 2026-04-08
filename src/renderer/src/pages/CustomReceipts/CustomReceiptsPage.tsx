@@ -39,6 +39,8 @@ interface Receipt {
   programming_services_json: string | null
   amount: number
   payment_method: string | null
+  cash_received?: number | null
+  change_amount?: number | null
   notes: string | null
   created_by_name: string | null
   created_at: string
@@ -166,6 +168,16 @@ async function buildThermalHtml(receipt: Receipt): Promise<string> {
 
   const date = new Date(receipt.created_at).toLocaleDateString()
   const time = new Date(receipt.created_at).toLocaleTimeString()
+  const isCashPayment = String(receipt.payment_method ?? '').toLowerCase() === 'cash'
+  const paidCash = isCashPayment
+    ? Number(receipt.cash_received ?? receipt.amount ?? 0)
+    : 0
+  const changeCash = isCashPayment
+    ? Math.max(
+      0,
+      Number(receipt.change_amount != null ? receipt.change_amount : paidCash - Number(receipt.amount || 0)),
+    )
+    : 0
 
   const rows = services
     .map(
@@ -302,6 +314,30 @@ async function buildThermalHtml(receipt: Receipt): Promise<string> {
         ${Number(receipt.amount).toFixed(2)}
       </span>
     </div>
+    ${isCashPayment
+      ? `
+    <div class="row" style="margin-top:3px;">
+      <span>PAID (CASH):</span>
+      <span>${escapeThermalHtml(currencySymbol)}
+        ${paidCash.toFixed(2)}
+      </span>
+    </div>
+    `
+      : ''}
+    ${isCashPayment && changeCash > 0
+      ? `
+    <div style="border-top:1px dashed #000;margin:4px 0 2px;"></div>
+    <div class="row"
+      style="font-weight:bold;color:#065f46;
+      background:#eff6ff;border:1px solid #bfdbfe;
+      border-radius:4px;padding:2px 4px;">
+      <span>CHANGE:</span>
+      <span>${escapeThermalHtml(currencySymbol)}
+        ${changeCash.toFixed(2)}
+      </span>
+    </div>
+    `
+      : ''}
   `
     : ''}
 
@@ -572,6 +608,7 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [programming, setProgramming] = useState<ServiceLine[]>([newLine()])
   const [discountType, setDiscountType] = useState<'percent' | 'fixed' | ''>('')
   const [discountValue, setDiscountValue] = useState<string>('')
+  const [customPaidAmount, setCustomPaidAmount] = useState<string>('')
   const [smartStep, setSmartStep] = useState<WizardStep>(1)
   const [smartDepartment, setSmartDepartment] = useState<Department>('mechanical')
   const [customerQuery, setCustomerQuery] = useState('')
@@ -594,6 +631,7 @@ export default function CustomReceiptsPage(): JSX.Element {
   const [inventoryLoading, setInventoryLoading] = useState(false)
   const [smartDiscountType, setSmartDiscountType] = useState<'percent' | 'fixed' | ''>('')
   const [smartDiscountValue, setSmartDiscountValue] = useState<string>('')
+  const [smartPaidAmount, setSmartPaidAmount] = useState<string>('')
   const [selectedCustomerLoyalty, setSelectedCustomerLoyalty] = useState<SelectedCustomerLoyalty | null>(null)
   const [loyaltyCfgCache, setLoyaltyCfgCache] = useState<LoyaltyCfgCache | null>(null)
   const [printChoiceOpen, setPrintChoiceOpen] = useState(false)
@@ -917,6 +955,7 @@ export default function CustomReceiptsPage(): JSX.Element {
     setProgramming([newLine()])
     setDiscountType('')
     setDiscountValue('')
+    setCustomPaidAmount('')
     setSelectedCustomer(null)
     setCustomerQuery('')
     setCustomerResults([])
@@ -952,6 +991,7 @@ export default function CustomReceiptsPage(): JSX.Element {
     setSmartCustomServices([])
     setSmartDiscountType('')
     setSmartDiscountValue('')
+    setSmartPaidAmount('')
     setPaymentMethod('Cash')
     setSelectedCustomerLoyalty(null)
     setPrimaryEmployeeId(null)
@@ -1098,6 +1138,15 @@ export default function CustomReceiptsPage(): JSX.Element {
       toast.error(t('customReceipts.paymentMethodRequired', { defaultValue: 'Payment method is required' }))
       return
     }
+    const customPaidAmountNum = parseFloat(customPaidAmount) || 0
+    const customChangeAmount =
+      paymentMethod === 'Cash'
+        ? Math.max(0, customPaidAmountNum - finalTotal)
+        : 0
+    if (paymentMethod === 'Cash' && customPaidAmountNum > 0 && customPaidAmountNum < finalTotal) {
+      toast.error('Paid amount must be greater than or equal to total amount')
+      return
+    }
     setSaving(true)
     try {
       const payload = {
@@ -1117,6 +1166,8 @@ export default function CustomReceiptsPage(): JSX.Element {
         discount_amount: discountAmount,
         amount: finalTotal,
         payment_method: paymentMethod,
+        cash_received: paymentMethod === 'Cash' ? (customPaidAmountNum || finalTotal) : finalTotal,
+        change_amount: customChangeAmount,
         notes: null,
         primary_employee_id: primaryEmployeeId ?? undefined,
         assistant_employee_id: assistantEmployeeId ?? undefined,
@@ -1158,6 +1209,13 @@ export default function CustomReceiptsPage(): JSX.Element {
 
   const inputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
   const labelCls = 'block text-sm font-medium text-foreground mb-1'
+
+  useEffect(() => {
+    if (paymentMethod !== 'Cash') {
+      setCustomPaidAmount('')
+      setSmartPaidAmount('')
+    }
+  }, [paymentMethod])
 
   const loyaltyWidget: ReactNode = useMemo(() => {
     if (!selectedCustomerLoyalty || !loyaltyCfgCache?.enabled) return null
@@ -1477,7 +1535,15 @@ export default function CustomReceiptsPage(): JSX.Element {
                 {loyaltyWidget}
                 <div>
                   <label className={labelCls}>{t('customReceipts.paymentMethod', { defaultValue: 'Payment Method' })}</label>
-                  <select className={inputCls} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'Cash' | 'Card' | 'Bank Transfer')}>
+                  <select
+                    className={inputCls}
+                    value={paymentMethod}
+                    onChange={e => {
+                      const method = e.target.value as 'Cash' | 'Card' | 'Bank Transfer'
+                      setPaymentMethod(method)
+                      if (method !== 'Cash') setCustomPaidAmount('')
+                    }}
+                  >
                     <option value="Cash">{t('customReceipts.cash', { defaultValue: 'Cash' })}</option>
                     <option value="Card">{t('customReceipts.card', { defaultValue: 'Card' })}</option>
                     <option value="Bank Transfer">{t('customReceipts.transfer', { defaultValue: 'Bank Transfer' })}</option>
@@ -1525,6 +1591,35 @@ export default function CustomReceiptsPage(): JSX.Element {
                   <span>Total</span>
                   <CurrencyText amount={finalTotal} />
                 </div>
+                {paymentMethod === 'Cash' && (
+                  <div>
+                    <label className={labelCls}>Paid Amount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customPaidAmount}
+                      onChange={(e) => setCustomPaidAmount(e.target.value)}
+                      placeholder="Enter amount paid"
+                      className={inputCls}
+                    />
+                  </div>
+                )}
+                {paymentMethod === 'Cash' && (parseFloat(customPaidAmount) || 0) > 0 && (
+                  <div className="flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 p-3">
+                    <span className="font-semibold text-foreground">Change</span>
+                    <span className="text-lg font-bold text-emerald-600">
+                      AED {Math.max(0, (parseFloat(customPaidAmount) || 0) - finalTotal).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {paymentMethod === 'Cash' &&
+                  (parseFloat(customPaidAmount) || 0) > 0 &&
+                  (parseFloat(customPaidAmount) || 0) < finalTotal && (
+                  <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+                    Paid amount must be greater than or equal to total (AED {finalTotal.toFixed(2)}).
+                  </div>
+                )}
                 <button onClick={() => void saveReceipt(true)} disabled={saving} className="w-full px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
                   {t('customReceipts.createAndPrint', { defaultValue: 'Save & Print' })}
                 </button>
@@ -1600,6 +1695,8 @@ export default function CustomReceiptsPage(): JSX.Element {
           setSmartDiscountValue={setSmartDiscountValue}
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
+          paidAmount={smartPaidAmount}
+          setPaidAmount={setSmartPaidAmount}
           filteredSmartEmployees={filteredSmartEmployees}
           primaryEmployeeId={primaryEmployeeId}
           setPrimaryEmployeeId={setPrimaryEmployeeId}
@@ -1663,6 +1760,15 @@ export default function CustomReceiptsPage(): JSX.Element {
                   ? Math.min(smartDiscountValueNum, subtotalSmart)
                   : 0
             const smartFinalTotal = subtotalSmart - smartDiscountAmount
+            const smartPaidAmountNum = parseFloat(smartPaidAmount) || 0
+            const smartChangeAmount =
+              paymentMethod === 'Cash'
+                ? Math.max(0, smartPaidAmountNum - smartFinalTotal)
+                : 0
+            if (paymentMethod === 'Cash' && smartPaidAmountNum > 0 && smartPaidAmountNum < smartFinalTotal) {
+              toast.error('Paid amount must be greater than or equal to total amount')
+              return
+            }
             const mech = merged.filter(s => s.department === 'mechanical').map(({ service_name, cost, sell_price }) => ({ service_name, cost, sell_price }))
             const prog = merged.filter(s => s.department === 'programming').map(({ service_name, cost, sell_price }) => ({ service_name, cost, sell_price }))
             const effectiveSmartDepartment =
@@ -1750,6 +1856,8 @@ export default function CustomReceiptsPage(): JSX.Element {
               discount_amount: smartDiscountAmount,
               amount: smartFinalTotal,
               payment_method: paymentMethod,
+              cash_received: paymentMethod === 'Cash' ? (smartPaidAmountNum || smartFinalTotal) : smartFinalTotal,
+              change_amount: smartChangeAmount,
               smart_recipe: true,
               notes: null,
               primary_employee_id: primaryEmployeeId ?? undefined,
@@ -2086,6 +2194,8 @@ function SmartRecipeWizard(props: {
   setSmartDiscountValue: (v: string) => void
   paymentMethod: 'Cash' | 'Card' | 'Bank Transfer'
   setPaymentMethod: (v: 'Cash' | 'Card' | 'Bank Transfer') => void
+  paidAmount: string
+  setPaidAmount: (v: string) => void
   onLoadVehicles: (customerId: number) => Promise<void>
   onCreateCustomer: () => Promise<CustomerLite | null>
   onSave: (andPrint: boolean) => Promise<void>
@@ -2121,7 +2231,7 @@ function SmartRecipeWizard(props: {
     catalogServices, setCatalogServices, customServices, setCustomServices,
     inventoryProducts, inventoryLoading,
     smartDiscountType, setSmartDiscountType, smartDiscountValue, setSmartDiscountValue,
-    paymentMethod, setPaymentMethod, onLoadVehicles, onCreateCustomer, onSave,
+    paymentMethod, setPaymentMethod, paidAmount, setPaidAmount, onLoadVehicles, onCreateCustomer, onSave,
     loadCustomerLoyalty, clearLoyaltyOnWalkIn, loyaltyWidget,
     filteredSmartEmployees,
     primaryEmployeeId,
@@ -2157,6 +2267,8 @@ function SmartRecipeWizard(props: {
         ? Math.min(smartDiscountValueNum, subtotal)
         : 0
   const smartFinalTotal = subtotal - smartDiscountAmount
+  const paidAmountNum = parseFloat(paidAmount) || 0
+  const changeAmount = smartFinalTotal > 0 ? Math.max(0, paidAmountNum - smartFinalTotal) : 0
   const smartLabelCls = 'block text-sm font-medium text-foreground mb-1'
   const smartInputCls = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
   const handleHeaderBack = (): void => {
@@ -2411,7 +2523,15 @@ function SmartRecipeWizard(props: {
             {loyaltyWidget}
             <div>
               <label className={smartLabelCls}>{t('customReceipts.paymentMethod', { defaultValue: 'Payment Method' })}</label>
-              <select className={smartInputCls} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'Cash' | 'Card' | 'Bank Transfer')}>
+              <select
+                className={smartInputCls}
+                value={paymentMethod}
+                onChange={e => {
+                  const method = e.target.value as 'Cash' | 'Card' | 'Bank Transfer'
+                  setPaymentMethod(method)
+                  if (method !== 'Cash') setPaidAmount('')
+                }}
+              >
                 <option value="Cash">{t('customReceipts.cash', { defaultValue: 'Cash' })}</option>
                 <option value="Card">{t('customReceipts.card', { defaultValue: 'Card' })}</option>
                 <option value="Bank Transfer">{t('customReceipts.transfer', { defaultValue: 'Bank Transfer' })}</option>
@@ -2459,6 +2579,33 @@ function SmartRecipeWizard(props: {
               <span>Total</span>
               <CurrencyText amount={smartFinalTotal} />
             </div>
+            {paymentMethod === 'Cash' && (
+              <div>
+                <label className={smartLabelCls}>Paid Amount</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(e.target.value)}
+                  placeholder="Enter amount paid"
+                  className={smartInputCls}
+                />
+              </div>
+            )}
+            {paymentMethod === 'Cash' && paidAmountNum > 0 && (
+              <div className="flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 p-3">
+                <span className="font-semibold text-foreground">Change</span>
+                <span className="text-lg font-bold text-emerald-600">
+                  AED {changeAmount.toFixed(2)}
+                </span>
+              </div>
+            )}
+            {paymentMethod === 'Cash' && paidAmountNum > 0 && paidAmountNum < smartFinalTotal && (
+              <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+                Paid amount must be greater than or equal to total (AED {smartFinalTotal.toFixed(2)}).
+              </div>
+            )}
             <button className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground" onClick={() => void onSave(true)}>Save & Print</button>
             <button className="w-full px-4 py-2 rounded-md border border-border" onClick={() => void onSave(false)}>Save Only</button>
           </div>

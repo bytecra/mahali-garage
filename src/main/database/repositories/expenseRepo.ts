@@ -1,7 +1,20 @@
 import { getDb } from '../index'
+import { settingsRepo } from './settingsRepo'
 
 /** Department slice for expense reports (NULL = shared / applies to both). */
 export type ExpenseReportDepartment = 'all' | 'mechanical' | 'programming'
+
+function maxYmd(a: string, b: string): string {
+  return a > b ? a : b
+}
+
+function clampExpenseRange(from: string, to: string): { from: string; to: string; empty: boolean } {
+  const start = settingsRepo.getEffectiveStoreStartDate()
+  if (!start) return { from, to, empty: false }
+  const clampedFrom = maxYmd(from.slice(0, 10), start)
+  const clampedTo = to.slice(0, 10)
+  return { from: clampedFrom, to: clampedTo, empty: clampedFrom > clampedTo }
+}
 
 function expenseReportDeptSql(dept: ExpenseReportDepartment, tableAlias = 'e'): string {
   if (dept === 'all') return ''
@@ -161,6 +174,8 @@ export const expenseRepo = {
 
   // ── Report queries ────────────────────────────────────────────────────────
   sumByCategory(from: string, to: string, department: ExpenseReportDepartment = 'all'): { category_name: string; color: string; total: number }[] {
+    const clamped = clampExpenseRange(from, to)
+    if (clamped.empty) return []
     const dsql = expenseReportDeptSql(department, 'e')
     return getDb().prepare(`
       SELECT COALESCE(ec.name, 'Uncategorized') as category_name,
@@ -171,23 +186,30 @@ export const expenseRepo = {
       WHERE e.date BETWEEN ? AND ? ${dsql}
       GROUP BY e.category_id
       ORDER BY total DESC
-    `).all(from, to) as { category_name: string; color: string; total: number }[]
+    `).all(clamped.from, clamped.to) as { category_name: string; color: string; total: number }[]
   },
 
   sumByMonth(year: number, department: ExpenseReportDepartment = 'all'): { month: string; total: number }[] {
+    const storeStart = settingsRepo.getEffectiveStoreStartDate()
+    const startYear = storeStart ? Number(storeStart.slice(0, 4)) : 0
+    if (startYear && year < startYear) return []
     const dsql = expenseReportDeptSql(department, 'e')
     return getDb().prepare(`
       SELECT strftime('%Y-%m', e.date) as month, SUM(e.amount) as total
       FROM expenses e
-      WHERE strftime('%Y', e.date) = ? ${dsql}
+      WHERE strftime('%Y', e.date) = ?
+      ${storeStart ? `AND date(e.date) >= '${storeStart}'` : ''}
+      ${dsql}
       GROUP BY month ORDER BY month
     `).all(String(year)) as { month: string; total: number }[]
   },
 
   monthTotal(monthStart: string): number {
+    const storeStart = settingsRepo.getEffectiveStoreStartDate()
+    const effectiveStart = storeStart ? maxYmd(monthStart.slice(0, 10), storeStart) : monthStart
     const row = getDb().prepare(
       `SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date >= ? AND date < date(?, '+1 month')`
-    ).get(monthStart, monthStart) as { total: number }
+    ).get(effectiveStart, effectiveStart) as { total: number }
     return row.total
   },
 }

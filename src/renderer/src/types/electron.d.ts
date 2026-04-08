@@ -72,6 +72,15 @@ declare global {
         get: (key: string) => Promise<IpcResponse<string | null>>
         set: (key: string, value: string) => Promise<IpcResponse<null>>
         setBulk: (entries: Record<string, string>) => Promise<IpcResponse<null>>
+        getStoreStartDateMeta: () => Promise<IpcResponse<{
+          value: string | null
+          updatedAt: string | null
+          effectiveValue: string | null
+          earliestBusinessDate: string | null
+          latestBusinessDate: string | null
+        }>>
+        setStoreStartDate: (value: string) => Promise<IpcResponse<{ value: string }>>
+        clearStoreStartDate: () => Promise<IpcResponse<null>>
       }
       products: {
         list: (filters?: unknown) => Promise<IpcResponse<unknown>>
