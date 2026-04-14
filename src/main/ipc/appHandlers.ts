@@ -30,6 +30,48 @@ function compareVersions(current: string, latest: string): boolean {
   return false
 }
 
+/** Pick installer from GitHub release assets for the current OS (Squirrel/NSIS .exe on Windows, .dmg on macOS, etc.). */
+function pickReleaseAsset(
+  assets: Array<{ name: string; browser_download_url: string; size: number }>,
+): { name: string; browser_download_url: string; size: number } | undefined {
+  if (!assets?.length) return undefined
+  const plat = process.platform
+
+  const score = (name: string): number => {
+    const n = name.toLowerCase()
+    let s = 0
+    if (plat === 'win32') {
+      if (n.endsWith('.exe')) s += 5
+      if (n.endsWith('.msi')) s += 4
+      if (/setup|installer|squirrel|full|x64|win64|amd64/i.test(n)) s += 3
+      if (/^mahali|garage/i.test(n)) s += 1
+    } else if (plat === 'darwin') {
+      if (n.endsWith('.dmg')) s += 5
+      if (n.endsWith('.pkg')) s += 4
+    } else {
+      if (/\.appimage$/i.test(n)) s += 5
+      if (n.endsWith('.deb')) s += 3
+    }
+    return s
+  }
+
+  const candidates = assets.filter((a) => {
+    const n = a.name.toLowerCase()
+    if (plat === 'win32') {
+      return n.endsWith('.exe') || n.endsWith('.msi')
+    }
+    if (plat === 'darwin') {
+      return n.endsWith('.dmg') || n.endsWith('.pkg') || n.endsWith('.zip')
+    }
+    return /\.(appimage|deb|rpm)$/i.test(n) || n.endsWith('.zip')
+  })
+
+  if (!candidates.length) return undefined
+
+  const sorted = [...candidates].sort((a, b) => score(b.name) - score(a.name))
+  return sorted[0]
+}
+
 export function registerAppHandlers(): void {
   ipcMain.handle('app:getVersion', () => app.getVersion())
 
@@ -73,12 +115,7 @@ export function registerAppHandlers(): void {
       const hasUpdate = compareVersions(currentVersion, latestVersion)
 
       const assets = data.assets ?? []
-      const windowsAsset = assets.find(
-        a =>
-          a.name.endsWith('.exe') ||
-          a.name.includes('Setup') ||
-          a.name.includes('setup')
-      )
+      const picked = pickReleaseAsset(assets)
 
       return {
         success: true,
@@ -90,8 +127,8 @@ export function registerAppHandlers(): void {
           releaseUrl: data.html_url,
           publishedAt: data.published_at,
           releaseNotes: (data.body ?? '').slice(0, 300),
-          downloadUrl: windowsAsset?.browser_download_url ?? null,
-          downloadSize: windowsAsset?.size ?? null,
+          downloadUrl: picked?.browser_download_url ?? null,
+          downloadSize: picked?.size ?? null,
         },
       }
     } catch {
@@ -114,7 +151,9 @@ export function registerAppHandlers(): void {
       const url = downloadUrl.trim()
       const downloadsPath = app.getPath('downloads')
       const rawName = url.split('/').pop() ?? 'mahali-garage-update.exe'
-      const fileName = rawName.split('?')[0] || 'mahali-garage-update.exe'
+      const baseClean = rawName.split('?')[0] || 'setup.exe'
+      const ext = path.extname(baseClean) || (process.platform === 'win32' ? '.exe' : '')
+      const fileName = `mahali-garage-update-${Date.now()}${ext}`
       const destPath = path.join(downloadsPath, fileName)
 
       return await new Promise<

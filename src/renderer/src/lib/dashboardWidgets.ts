@@ -5,6 +5,7 @@ export const DASHBOARD_WIDGETS = [
   { id: 'total_vehicles', label: 'Total Vehicles' },
   { id: 'today_sales', label: "Today's Sales" },
   { id: 'revenue_month', label: 'Revenue (Month)' },
+  { id: 'total_customer_debt', label: 'Total customer debt' },
   { id: 'low_stock_items', label: 'Low Stock Items' },
   { id: 'gross_profit_month', label: 'Gross Profit (Month)' },
   { id: 'expenses_month', label: 'Expenses (Month)' },

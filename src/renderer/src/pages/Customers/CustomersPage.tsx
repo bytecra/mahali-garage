@@ -14,7 +14,7 @@ import VehicleHistoryPage from './VehicleHistoryPage'
 
 interface Customer {
   id: number; name: string; phone: string | null; email: string | null
-  balance: number; sale_count: number; repair_count: number
+  balance: number; amount_owed?: number; sale_count: number; repair_count: number
 }
 
 function CustomerList(): JSX.Element {
@@ -108,10 +108,10 @@ function CustomerList(): JSX.Element {
                     <td className="px-4 py-3 text-center text-muted-foreground">{item.sale_count}</td>
                     <td className="px-4 py-3 text-center text-muted-foreground">{item.repair_count}</td>
                     <td className="px-4 py-3 text-end">
-                      {item.balance < 0 ? (
+                      {(item.amount_owed ?? 0) > 0.0001 ? (
                         <span className="flex items-center justify-end gap-1 font-medium text-destructive">
                           <AlertCircle className="w-3.5 h-3.5" />
-                          <CurrencyText amount={Math.abs(item.balance)} /> owes
+                          <CurrencyText amount={item.amount_owed ?? 0} /> owes
                         </span>
                       ) : item.balance > 0 ? (
                         <span className="font-medium text-green-600"><CurrencyText amount={item.balance} /> credit</span>

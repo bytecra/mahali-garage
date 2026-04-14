@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { userRepo } from '../database/repositories/userRepo'
+import { userRepo, type UserPreferences } from '../database/repositories/userRepo'
 import { authService, ROLE_DEFAULTS } from '../services/authService'
 import { activityLogRepo } from '../database/repositories/activityLogRepo'
 import { getTieredLicenseInfo } from '../licensing/license-manager'
@@ -17,7 +17,13 @@ export function registerUserHandlers(): void {
     } catch (e) { log.error('users:list', e); return err('Failed', 'ERR_USERS') }
   })
 
-  ipcMain.handle('users:create', (event, input: { username: string; password: string; full_name: string; role: string }) => {
+  ipcMain.handle('users:create', (event, input: {
+    username: string
+    password: string
+    full_name: string
+    role: string
+    work_department?: string | null
+  }) => {
     try {
       if (!authService.hasPermission(event.sender.id, 'users.manage')) return err('Forbidden', 'ERR_FORBIDDEN')
       // Enforce license user limit
@@ -36,7 +42,13 @@ export function registerUserHandlers(): void {
         log.error('users:create license check error (allowing creation):', e)
       }
       const hash = bcrypt.hashSync(input.password, 12)
-      const id = userRepo.create({ ...input, password_hash: hash })
+      const id = userRepo.create({
+        username: input.username,
+        password_hash: hash,
+        full_name: input.full_name,
+        role: input.role,
+        work_department: input.work_department,
+      })
       const session = authService.getSession(event.sender.id)
       try { activityLogRepo.log({ userId: session?.userId ?? null, action: 'user.create', entity: 'user', entityId: id, details: JSON.stringify({ username: input.username, role: input.role }) }) } catch {}
       return ok(id)
@@ -46,13 +58,25 @@ export function registerUserHandlers(): void {
     }
   })
 
-  ipcMain.handle('users:update', (event, id: number, input: { full_name?: string; role?: string; is_active?: boolean }) => {
+  ipcMain.handle('users:update', (event, id: number, input: {
+    full_name?: string
+    role?: string
+    is_active?: boolean
+    work_department?: string | null
+  }) => {
     try {
       if (!authService.hasPermission(event.sender.id, 'users.manage')) return err('Forbidden', 'ERR_FORBIDDEN')
-      const payload: { full_name?: string; role?: string; is_active?: number; password_hash?: string } = {
+      const payload: {
+        full_name?: string
+        role?: string
+        is_active?: number
+        password_hash?: string
+        work_department?: string | null
+      } = {
         full_name: input.full_name,
         role: input.role,
       }
+      if (input.work_department !== undefined) payload.work_department = input.work_department
       if (typeof input.is_active === 'boolean') payload.is_active = input.is_active ? 1 : 0
       const withPassword = input as { new_password?: string }
       if (withPassword.new_password && withPassword.new_password.length >= 4) {
@@ -221,5 +245,30 @@ export function registerUserHandlers(): void {
       const overrides = userRepo.getUserOverrides(id)
       return ok(overrides.filter(o => o.granted).map(o => ({ key: o.key })))
     } catch (e) { log.error('users:getUserPermissions', e); return err('Failed', 'ERR_USERS') }
+  })
+
+  /** Current session: personal UI preferences (theme, language, job cards view). */
+  ipcMain.handle('users:getMyPreferences', (event) => {
+    try {
+      const session = authService.getSession(event.sender.id)
+      if (!session) return err('Forbidden', 'ERR_FORBIDDEN')
+      return ok(userRepo.getPreferences(session.userId))
+    } catch (e) {
+      log.error('users:getMyPreferences', e)
+      return err('Failed', 'ERR_USERS')
+    }
+  })
+
+  ipcMain.handle('users:updateMyPreferences', (event, patch: Partial<UserPreferences>) => {
+    try {
+      const session = authService.getSession(event.sender.id)
+      if (!session) return err('Forbidden', 'ERR_FORBIDDEN')
+      if (!patch || typeof patch !== 'object') return err('Invalid params', 'ERR_VALIDATION')
+      userRepo.updatePreferences(session.userId, patch)
+      return ok(null)
+    } catch (e) {
+      log.error('users:updateMyPreferences', e)
+      return err('Failed', 'ERR_USERS')
+    }
   })
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, Bell, CheckCheck, Palette, Package, AlertTriangle, CalendarClock, CircleDollarSign, Sparkles, FileEdit, Tv } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, LogOut, User, Moon, Sun, Monitor, Globe, Bell, CheckCheck, Palette, Package, AlertTriangle, CalendarClock, CircleDollarSign, Plus, Tv } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
@@ -10,7 +10,6 @@ import { cn, formatCurrency } from '../../lib/utils'
 import CurrencyText from '../shared/CurrencyText'
 import { toast } from '../../store/notificationStore'
 import { usePermission } from '../../hooks/usePermission'
-import { useCartStore } from '../../store/cartStore'
 import { useNotificationPoll } from '../../hooks/useNotificationPoll'
 import { useNavColorStore, NAV_COLOR_PRESETS, NavColorPreset } from '../../store/navColorStore'
 
@@ -65,10 +64,9 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
   const { lang, setLang } = useLangStore()
   const { navColor, setNavColor } = useNavColorStore()
   const navigate = useNavigate()
-  const canSales      = usePermission('sales.create')
+  const canCreateJob  = usePermission('repairs.edit')
   const canInventory  = usePermission('inventory.view')
   const canExpenses   = usePermission('expenses.view')
-  const clearCart = useCartStore(s => s.clear)
   const { unreadCount, lowStockCount, dueSoonCount, resetRequestCount, refresh } = useNotificationPoll(60_000)
 
   const [notifOpen, setNotifOpen]         = useState(false)
@@ -95,14 +93,8 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
     navigate('/login')
   }
 
-  const handleSmartRecipe = (): void => {
-    clearCart()
-    navigate('/custom-receipts?mode=smart')
-  }
-
-  const handleCustomRecipe = (): void => {
-    clearCart()
-    navigate('/custom-receipts?mode=custom')
+  const handleCreateNewJob = (): void => {
+    navigate('/job-cards?new=1')
   }
 
   const handleOpenTvDisplay = async (): Promise<void> => {
@@ -198,24 +190,16 @@ export default function Topbar({ collapsed, onToggle }: TopbarProps): JSX.Elemen
         }
       </button>
 
-      {/* Center: Smart Recipe + Custom Recipe */}
-      {canSales && (
+      {/* Center: Create new job (opens chooser on Job Cards) */}
+      {canCreateJob && (
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleSmartRecipe}
+            onClick={handleCreateNewJob}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
           >
-            <Sparkles className="w-4 h-4 shrink-0" />
-            {t('nav.smartRecipe')}
-          </button>
-          <button
-            type="button"
-            onClick={handleCustomRecipe}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground hover:bg-accent transition-colors"
-          >
-            <FileEdit className="w-4 h-4 shrink-0" />
-            {t('nav.customRecipe')}
+            <Plus className="w-4 h-4 shrink-0" />
+            {t('nav.createNewJob')}
           </button>
         </div>
       )}

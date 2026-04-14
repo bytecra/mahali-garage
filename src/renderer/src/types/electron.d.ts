@@ -151,16 +151,6 @@ declare global {
         getDraftById: (id: number) => Promise<IpcResponse<unknown>>
         deleteDraft: (id: number) => Promise<IpcResponse<null>>
       }
-      payments: {
-        addPayment: (saleId: number, data: unknown) => Promise<IpcResponse<null>>
-        getForSale: (saleId: number) => Promise<IpcResponse<unknown[]>>
-      }
-      invoices: {
-        getForSale: (saleId: number) => Promise<IpcResponse<unknown>>
-        generatePdf: (invoiceId: number) => Promise<IpcResponse<string>>
-        print: (invoiceId: number) => Promise<IpcResponse<null>>
-        openPdf: (invoiceId: number) => Promise<IpcResponse<null>>
-      }
       repairs: {
         list: (filters?: unknown) => Promise<IpcResponse<unknown>>
         getByStatus: () => Promise<IpcResponse<unknown[]>>
@@ -172,7 +162,7 @@ declare global {
       }
       jobCards: {
         list: (filters?: unknown) => Promise<IpcResponse<unknown>>
-        getByStatus: () => Promise<IpcResponse<unknown[]>>
+        getByStatus: (filters?: { profile?: 'all' | 'complete' | 'incomplete' }) => Promise<IpcResponse<unknown[]>>
         getById: (id: number) => Promise<IpcResponse<unknown>>
         create: (data: unknown) => Promise<IpcResponse<unknown>>
         update: (id: number, data: unknown) => Promise<IpcResponse<null>>
@@ -181,6 +171,38 @@ declare global {
         addPart: (jobCardId: number, part: unknown) => Promise<IpcResponse<unknown>>
         removePart: (partId: number) => Promise<IpcResponse<null>>
         getForVehicle: (vehicleId: number) => Promise<IpcResponse<unknown[]>>
+        listProgressComments: (jobCardId: number) => Promise<IpcResponse<unknown>>
+        listLogs: (jobCardId: number) => Promise<IpcResponse<unknown[]>>
+        listAttachments: (jobCardId: number) => Promise<IpcResponse<unknown[]>>
+        addAttachment: (jobCardId: number, payload: unknown) => Promise<IpcResponse<{ id: number }>>
+        updateAttachment: (attachmentId: number, patch: unknown) => Promise<IpcResponse<boolean>>
+        deleteAttachment: (attachmentId: number) => Promise<IpcResponse<boolean>>
+        openAttachment: (attachmentId: number) => Promise<IpcResponse<boolean>>
+        addProgressComment: (jobCardId: number, text: string) => Promise<IpcResponse<unknown>>
+        deleteProgressComment: (commentId: number) => Promise<IpcResponse<null>>
+        createJobInvoice: (jobCardId: number, payload?: unknown) => Promise<IpcResponse<unknown>>
+        updateJobInvoice: (invoiceId: number, payload: unknown) => Promise<IpcResponse<unknown>>
+        patchJobInvoiceInspection: (invoiceId: number, include: boolean) => Promise<IpcResponse<unknown>>
+        getJobInvoice: (invoiceId: number) => Promise<IpcResponse<unknown>>
+        getJobInvoiceForJob: (jobCardId: number) => Promise<IpcResponse<unknown>>
+        listJobInvoices: (filters?: { search?: string }) => Promise<IpcResponse<unknown>>
+        deleteJobInvoice: (invoiceId: number) => Promise<IpcResponse<null>>
+        listWarrantyTemplates: (activeOnly?: boolean) => Promise<IpcResponse<unknown[]>>
+        createWarrantyTemplate: (data: unknown) => Promise<IpcResponse<{ id: number }>>
+        updateWarrantyTemplate: (id: number, data: unknown) => Promise<IpcResponse<null>>
+        deleteWarrantyTemplate: (id: number) => Promise<IpcResponse<null>>
+        listJobInvoiceWarranties: (invoiceId: number) => Promise<IpcResponse<unknown[]>>
+        listWarrantiesForJob: (jobCardId: number) => Promise<IpcResponse<unknown[]>>
+        replaceJobInvoiceWarranties: (
+          jobCardId: number,
+          invoiceId: number,
+          rows: unknown,
+        ) => Promise<IpcResponse<null>>
+        dismissJobInvoiceAutoWarranty: (
+          jobCardId: number,
+          invoiceId: number,
+          warrantyId: number,
+        ) => Promise<IpcResponse<null>>
       }
       cashDrawer: {
         summary: (filters?: { from?: string | null; to?: string | null }) => Promise<IpcResponse<{
@@ -306,6 +328,18 @@ declare global {
         setOverride: (id: number, key: string, granted: boolean) => Promise<IpcResponse<null>>
         removeOverride: (id: number, key: string) => Promise<IpcResponse<null>>
         setAuth: (id: number, data: { auth_type: 'password' | 'passcode_4' | 'passcode_6'; passcode?: string | null }) => Promise<IpcResponse<null>>
+        getMyPreferences: () => Promise<
+          IpcResponse<{
+            theme?: 'light' | 'dark' | 'system'
+            language?: 'en' | 'ar'
+            jobCardsView?: 'kanban' | 'list'
+          }>
+        >
+        updateMyPreferences: (patch: {
+          theme?: 'light' | 'dark' | 'system'
+          language?: 'en' | 'ar'
+          jobCardsView?: 'kanban' | 'list'
+        }) => Promise<IpcResponse<null>>
       }
       backup: {
         create: () => Promise<IpcResponse<unknown>>
@@ -479,7 +513,10 @@ declare global {
         delete: (id: number) => Promise<IpcResponse<null>>
       }
       serviceCatalog: {
-        list: (filters?: unknown) => Promise<IpcResponse<unknown[]>>
+        list: (filters?: unknown) => Promise<
+          IpcResponse<{ items: Array<Record<string, unknown>>; total: number }>
+        >
+        search: (query: string) => Promise<IpcResponse<Array<Record<string, unknown>>>>
         forVehicle: (make: string, model: string) => Promise<IpcResponse<unknown>>
         create: (data: unknown) => Promise<IpcResponse<{ id: number }>>
         update: (id: number, data: unknown) => Promise<IpcResponse<null>>

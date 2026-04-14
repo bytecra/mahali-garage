@@ -76,7 +76,8 @@ function dateLabel(input: string): string {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function buildInspectionSection(
+/** Used by job invoice print when the per-invoice “include diagram” option is on. Pass `includeSignatures: false`. */
+export function buildInspectionSection(
   inspectionData: string | null | undefined,
   includeSignatures: boolean,
 ): string {
@@ -145,10 +146,14 @@ function buildInspectionSection(
           padding-top:12px;">
           <p style="font-size:12px;
             font-weight:600;
-            margin-bottom:8px;
-            color:#334155;">
+            margin-bottom:10px;
+            color:#334155;
+            text-align:center;">
             Car Condition at Arrival
           </p>
+          <div style="display:flex;
+            justify-content:center;
+            width:100%;">
           <div style="display:flex;
             gap:16px;align-items:flex-start;">
             
@@ -201,7 +206,7 @@ function buildInspectionSection(
               </svg>
             </div>
 
-            <div style="flex:1;">
+            <div style="flex:0 1 auto;min-width:0;max-width:280px;">
               ${legendItems}
               ${notes ? `
                 <p style="font-size:11px;
@@ -211,6 +216,7 @@ function buildInspectionSection(
                 </p>
               ` : ''}
             </div>
+          </div>
           </div>
 
           ${includeSignatures

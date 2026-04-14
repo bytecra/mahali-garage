@@ -25,7 +25,6 @@ const CalendarPage    = lazy(() => import('./pages/Calendar/CalendarPage'))
 const InvoicesPage    = lazy(() => import('./pages/Invoices/InvoicesPage'))
 const VehiclesPage    = lazy(() => import('./pages/Vehicles/VehiclesPage'))
 const ServiceCatalogPage = lazy(() => import('./pages/ServiceCatalog/ServiceCatalogPage'))
-const CustomReceiptsPage = lazy(() => import('./pages/CustomReceipts/CustomReceiptsPage'))
 const EmployeesPage     = lazy(() => import('./pages/Employees/EmployeesPage'))
 const AssetsPage        = lazy(() => import('./pages/Assets/AssetsPage'))
 const AiAssistantPage   = lazy(() => import('./pages/AiAssistant/AiAssistantPage'))
@@ -49,12 +48,53 @@ function CustomersToOwnersRedirect(): JSX.Element {
 /** `file://` + BrowserRouter breaks on Windows; HashRouter works in packaged builds. Dev uses http://localhost — BrowserRouter is fine. */
 const Router = import.meta.env.DEV ? BrowserRouter : HashRouter
 
+async function reapplyGlobalAppearance(
+  setTheme: (t: 'light' | 'dark' | 'system') => void,
+  setLang: (l: 'en' | 'ar') => void,
+): Promise<void> {
+  const settingsRes = await window.electronAPI.settings.getAll()
+  if (!settingsRes.success || !settingsRes.data) return
+  const s = settingsRes.data
+  const theme = (s['appearance.theme'] as 'light' | 'dark' | 'system') || 'system'
+  setTheme(theme)
+  applyTheme(theme)
+  const lang = (s['appearance.language'] as 'en' | 'ar') || 'en'
+  setLang(lang)
+  applyLanguage(lang)
+}
+
+async function applyUserPreferences(
+  setTheme: (t: 'light' | 'dark' | 'system') => void,
+  setLang: (l: 'en' | 'ar') => void,
+): Promise<void> {
+  const res = await window.electronAPI.users.getMyPreferences()
+  if (!res.success || !res.data) return
+  const p = res.data
+  if (p.theme === 'light' || p.theme === 'dark' || p.theme === 'system') {
+    setTheme(p.theme)
+    applyTheme(p.theme)
+  }
+  if (p.language === 'en' || p.language === 'ar') {
+    setLang(p.language)
+    applyLanguage(p.language)
+  }
+}
+
 export default function App(): JSX.Element {
-  const { setUser, setLoading } = useAuthStore()
+  const { setUser, setLoading, user, isLoading } = useAuthStore()
   const { setTheme } = useThemeStore()
   const { setLang } = useLangStore()
   const { load: loadBranding } = useBrandingStore()
   const { syncFromSettings: syncCurrency } = useCurrencyStore()
+
+  useEffect(() => {
+    if (isLoading) return
+    if (!user) {
+      void reapplyGlobalAppearance(setTheme, setLang)
+      return
+    }
+    void applyUserPreferences(setTheme, setLang)
+  }, [user?.userId, isLoading, setTheme, setLang])
 
   useEffect(() => {
     async function init(): Promise<void> {
@@ -101,9 +141,11 @@ export default function App(): JSX.Element {
             <Route path="/quick-invoice" element={
               <Suspense fallback={<LoadingFallback />}><POSPage /></Suspense>
             } />
-            <Route path="/smart-recipe" element={<Navigate to="/custom-receipts?mode=smart" replace />} />
             <Route path="/pos" element={<Navigate to="/quick-invoice" replace />} />
             <Route path="/job-cards" element={
+              <Suspense fallback={<LoadingFallback />}><RepairsPage /></Suspense>
+            } />
+            <Route path="/job-cards/archived" element={
               <Suspense fallback={<LoadingFallback />}><RepairsPage /></Suspense>
             } />
             <Route path="/repairs/*" element={<Navigate to="/job-cards" replace />} />
@@ -145,9 +187,8 @@ export default function App(): JSX.Element {
             <Route path="/invoices" element={
               <Suspense fallback={<LoadingFallback />}><InvoicesPage /></Suspense>
             } />
-            <Route path="/custom-receipts" element={
-              <Suspense fallback={<LoadingFallback />}><CustomReceiptsPage /></Suspense>
-            } />
+            <Route path="/smart-recipe" element={<Navigate to="/invoices" replace />} />
+            <Route path="/custom-receipts" element={<Navigate to="/invoices" replace />} />
             <Route path="/employees" element={
               <Suspense fallback={<LoadingFallback />}><EmployeesPage /></Suspense>
             } />

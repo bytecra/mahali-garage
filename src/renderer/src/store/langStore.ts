@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { applyLanguage } from '../i18n/index'
+import { useAuthStore } from './authStore'
 
 type Lang = 'en' | 'ar'
 
@@ -14,6 +15,11 @@ export const useLangStore = create<LangState>((set) => ({
   setLang: (lang) => {
     set({ lang })
     applyLanguage(lang)
-    window.electronAPI.settings.set('appearance.language', lang).catch(() => {})
+    const loggedIn = useAuthStore.getState().user != null
+    if (loggedIn) {
+      void window.electronAPI.users.updateMyPreferences({ language: lang }).catch(() => {})
+    } else {
+      void window.electronAPI.settings.set('appearance.language', lang).catch(() => {})
+    }
   },
 }))

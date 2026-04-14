@@ -101,6 +101,7 @@ function baseStyles(): string {
     .summary-2 { grid-template-columns: repeat(2, 1fr); }
     .summary-3 { grid-template-columns: repeat(3, 1fr); }
     .summary-4 { grid-template-columns: repeat(4, 1fr); }
+    .summary-6 { grid-template-columns: repeat(3, 1fr); }
     .summary-box {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -1835,30 +1836,29 @@ export function buildGenericTablePdf(opts: {
   `)
 }
 
+type DeptReportBlock = {
+  revenue: number
+  cost: number
+  gross_profit: number
+  jobs_count: number
+  payments_cash?: number
+  payments_non_cash?: number
+  top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }>
+}
+
 export function buildDepartmentReportsPdf(opts: {
   storeName: string
   dateFrom: string
   dateTo: string
-  mechanical: {
-    revenue: number
-    cost: number
-    gross_profit: number
-    jobs_count: number
-    top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }>
-  }
-  programming: {
-    revenue: number
-    cost: number
-    gross_profit: number
-    jobs_count: number
-    top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }>
-  }
+  mechanical: DeptReportBlock
+  programming: DeptReportBlock
+  both: DeptReportBlock
   currencySymbol: string
 }): string {
   const fmt = (n: number): string => `${opts.currencySymbol} ${n.toFixed(2)}`
   const block = (
     title: string,
-    d: typeof opts.mechanical,
+    d: DeptReportBlock,
   ): string => {
     const svcRows = d.top_services.length
       ? d.top_services
@@ -1871,9 +1871,11 @@ export function buildDepartmentReportsPdf(opts: {
         )
         .join('')
       : '<tr><td colspan="3" style="text-align:center;color:#64748b;">No service data</td></tr>'
+    const cash = d.payments_cash ?? 0
+    const nonCash = d.payments_non_cash ?? 0
     return `
       <h3 style="margin:18px 0 10px;font-size:15px;color:#0f172a;">${escapeHtml(title)}</h3>
-      <div class="summary-grid summary-4">
+      <div class="summary-grid summary-6">
         <div class="summary-box">
           <p class="summary-label">Revenue</p>
           <p class="summary-value">${escapeHtml(fmt(d.revenue))}</p>
@@ -1889,6 +1891,14 @@ export function buildDepartmentReportsPdf(opts: {
         <div class="summary-box">
           <p class="summary-label">Jobs</p>
           <p class="summary-value">${d.jobs_count}</p>
+        </div>
+        <div class="summary-box">
+          <p class="summary-label">Cash collected</p>
+          <p class="summary-value">${escapeHtml(fmt(cash))}</p>
+        </div>
+        <div class="summary-box">
+          <p class="summary-label">Card / bank / other</p>
+          <p class="summary-value">${escapeHtml(fmt(nonCash))}</p>
         </div>
       </div>
       <div class="table-wrap">
@@ -1910,6 +1920,7 @@ export function buildDepartmentReportsPdf(opts: {
       </section>
       ${block('Mechanical', opts.mechanical)}
       ${block('Programming', opts.programming)}
+      ${block('Both (mechanical + programming)', opts.both)}
       <p class="footer">End of Report — Mahali Garage</p>
   `)
 }

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  LayoutDashboard, ReceiptText, Package, Users, Wrench,
+  LayoutDashboard, Package, Users, Wrench,
   BarChart3, UserCog, Settings, Receipt, CheckSquare, CalendarDays, FileText, Lock,
-  Car, HardHat, ClipboardList, Building2, Brain,
+  Car, HardHat, ClipboardList, Building2, Brain, Archive,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
@@ -19,8 +19,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard',     icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-  { to: '/custom-receipts?mode=smart', icon: ReceiptText, labelKey: 'nav.smartRecipe', permission: 'sales.view' },
   { to: '/job-cards',     icon: Wrench,          labelKey: 'nav.jobCards',     permission: 'repairs.view',   feature: 'job_cards.view' },
+  { to: '/job-cards/archived', icon: Archive,    labelKey: 'nav.archivedJobs', permission: 'repairs.view',   feature: 'job_cards.view' },
   { to: '/vehicles',      icon: Car,             labelKey: 'nav.vehicles',     permission: 'repairs.view',   feature: 'vehicles.view' },
   { to: '/service-catalog', icon: ClipboardList, labelKey: 'nav.serviceCatalog', permission: 'repairs.view', feature: 'job_cards.view' },
   { to: '/parts',         icon: Package,         labelKey: 'nav.parts',        permission: 'inventory.view' },
@@ -44,8 +44,6 @@ interface SidebarProps {
 export default function Sidebar({ collapsed }: SidebarProps): JSX.Element {
   const { t } = useTranslation()
   const { hasPermission } = useAuthStore()
-  const navigate = useNavigate()
-  const location = useLocation()
   const [locked, setLocked] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -74,15 +72,6 @@ export default function Sidebar({ collapsed }: SidebarProps): JSX.Element {
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.permission || hasPermission(item.permission)
   )
-
-  function isItemActive(to: string, navIsActive: boolean): boolean {
-    // Keep normal behavior for everything except the two custom-receipts variants.
-    if (!to.startsWith('/custom-receipts')) return navIsActive
-    const isSmart = to.includes('mode=smart')
-    const currentMode = new URLSearchParams(location.search).get('mode')
-    if (isSmart) return location.pathname === '/custom-receipts' && currentMode === 'smart'
-    return location.pathname === '/custom-receipts' && currentMode !== 'smart'
-  }
 
   return (
     <aside
@@ -117,10 +106,11 @@ export default function Sidebar({ collapsed }: SidebarProps): JSX.Element {
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.to === '/job-cards'}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium',
-                    isItemActive(item.to, isActive)
+                    isActive
                       ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                   )

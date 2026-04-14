@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useAuthStore } from './authStore'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -23,7 +24,12 @@ export const useThemeStore = create<ThemeState>((set) => ({
   setTheme: (theme) => {
     set({ theme })
     applyTheme(theme)
-    window.electronAPI.settings.set('appearance.theme', theme).catch(() => {})
+    const loggedIn = useAuthStore.getState().user != null
+    if (loggedIn) {
+      void window.electronAPI.users.updateMyPreferences({ theme }).catch(() => {})
+    } else {
+      void window.electronAPI.settings.set('appearance.theme', theme).catch(() => {})
+    }
   },
 }))
 

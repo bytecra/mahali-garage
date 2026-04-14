@@ -44,13 +44,36 @@ function customReceiptDeptPredicate(dept: ReportDepartmentFilter, alias = 'cr'):
   return `COALESCE(json_array_length(CASE WHEN json_valid(${alias}.programming_services_json) THEN ${alias}.programming_services_json ELSE '[]' END), 0) > 0`
 }
 
+/** Job card department filter (aligns with invoice-style mechanical / programming + both). */
+function jobDeptPredicate(dept: ReportDepartmentFilter, alias = 'j'): string {
+  if (dept === 'all') return '1=1'
+  if (dept === 'mechanical') {
+    return `COALESCE(${alias}.department, 'mechanical') IN ('mechanical','both')`
+  }
+  return `COALESCE(${alias}.department, 'mechanical') IN ('programming','both')`
+}
+
+/** Amount collected on a job (matches customer summary semantics). */
+const JOB_COLLECTED_SQL =
+  '(CASE WHEN j.balance_due IS NOT NULL AND j.balance_due > 0 THEN COALESCE(j.total,0) - COALESCE(j.balance_due,0) ELSE COALESCE(j.total,0) END)'
+
 export const reportRepo = {
   departmentSummary(dateFrom: string, dateTo: string) {
     const clamped = clampDateTimeRange(dateFrom, dateTo)
     if (clamped.empty) {
+      const emptySlice = {
+        revenue: 0,
+        cost: 0,
+        gross_profit: 0,
+        jobs_count: 0,
+        top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }>,
+        payments_cash: 0,
+        payments_non_cash: 0,
+      }
       return {
-        mechanical: { revenue: 0, cost: 0, gross_profit: 0, jobs_count: 0, top_services: [] },
-        programming: { revenue: 0, cost: 0, gross_profit: 0, jobs_count: 0, top_services: [] },
+        mechanical: { ...emptySlice },
+        programming: { ...emptySlice },
+        both: { ...emptySlice },
       }
     }
     const db = getDb()
@@ -95,22 +118,23 @@ export const reportRepo = {
 
     const jobsByDept = db.prepare(`
       SELECT
-        dept,
+        CASE
+          WHEN department = 'programming' THEN 'programming'
+          WHEN department = 'both' THEN 'both'
+          ELSE 'mechanical'
+        END as dept,
         COUNT(*) as jobs_count,
         COALESCE(SUM(COALESCE(labor_total,0) + COALESCE(parts_total,0)),0) as jobs_revenue
-      FROM (
-        SELECT 'mechanical' as dept, labor_total, parts_total
-        FROM job_cards
-        WHERE created_at BETWEEN ? AND ?
-          AND status != 'cancelled'
-        UNION ALL
-        SELECT 'programming' as dept, labor_total, parts_total
-        FROM job_cards
-        WHERE 1=0
-      )
-      GROUP BY dept
+      FROM job_cards
+      WHERE created_at BETWEEN ? AND ?
+        AND status != 'cancelled'
+      GROUP BY CASE
+        WHEN department = 'programming' THEN 'programming'
+        WHEN department = 'both' THEN 'both'
+        ELSE 'mechanical'
+      END
     `).all(clamped.from, clamped.to) as Array<{
-      dept: 'mechanical' | 'programming'
+      dept: 'mechanical' | 'programming' | 'both'
       jobs_count: number
       jobs_revenue: number
     }>
@@ -141,23 +165,17 @@ export const reportRepo = {
         UNION ALL
 
         SELECT
-          'mechanical' as dept,
+          CASE
+            WHEN department = 'programming' THEN 'programming'
+            WHEN department = 'both' THEN 'both'
+            ELSE 'mechanical'
+          END as dept,
           TRIM(COALESCE(job_type, 'Job Card')) as service_name,
           1 as qty,
           COALESCE(labor_total,0) + COALESCE(parts_total,0) as revenue
         FROM job_cards
         WHERE created_at BETWEEN ? AND ?
           AND status != 'cancelled'
-
-        UNION ALL
-
-        SELECT
-          'programming' as dept,
-          TRIM(COALESCE(job_type, 'Job Card')) as service_name,
-          1 as qty,
-          COALESCE(labor_total,0) + COALESCE(parts_total,0) as revenue
-        FROM job_cards
-        WHERE 1=0
       )
       WHERE service_name != ''
       GROUP BY dept, service_name
@@ -165,17 +183,132 @@ export const reportRepo = {
     `).all(
       clamped.from, clamped.to,  // mechanical custom_receipts
       clamped.from, clamped.to,  // programming custom_receipts
-      clamped.from, clamped.to,  // mechanical job_cards (programming branch uses WHERE 1=0, no params)
+      clamped.from, clamped.to,  // job_cards
     ) as Array<{
-      dept: 'mechanical' | 'programming'
+      dept: 'mechanical' | 'programming' | 'both'
       service_name: string
       total_qty: number
       total_revenue: number
     }>
 
+    type PayDeptSlice = {
+      dept: 'mechanical' | 'programming' | 'both'
+      cash_sum: number
+      non_cash_sum: number
+    }
+    let jobPartsCogsByDept: Array<{ dept: string; parts_cost: number }> = []
+    try {
+      jobPartsCogsByDept = db.prepare(`
+        SELECT
+          CASE
+            WHEN j.department = 'programming' THEN 'programming'
+            WHEN j.department = 'both' THEN 'both'
+            ELSE 'mechanical'
+          END AS dept,
+          COALESCE(SUM(COALESCE(p.cost_price, 0) * COALESCE(p.quantity, 0)), 0) AS parts_cost
+        FROM job_parts p
+        INNER JOIN job_cards j ON j.id = p.job_card_id
+        WHERE j.created_at BETWEEN ? AND ?
+          AND j.status != 'cancelled'
+        GROUP BY 1
+      `).all(clamped.from, clamped.to) as Array<{ dept: string; parts_cost: number }>
+    } catch {
+      /* job_parts / job_cards not migrated */
+    }
+
+    let posPayByDept: PayDeptSlice[] = []
+    try {
+      posPayByDept = db
+        .prepare(`
+        SELECT
+          CASE
+            WHEN COALESCE(i.department, 'mechanical') = 'programming' THEN 'programming'
+            WHEN COALESCE(i.department, 'mechanical') = 'both' THEN 'both'
+            ELSE 'mechanical'
+          END AS dept,
+          COALESCE(SUM(CASE WHEN p.method = 'cash' THEN p.amount ELSE 0 END), 0) AS cash_sum,
+          COALESCE(SUM(CASE WHEN p.method != 'cash' THEN p.amount ELSE 0 END), 0) AS non_cash_sum
+        FROM payments p
+        INNER JOIN sales s ON s.id = p.sale_id AND s.status != 'voided'
+        LEFT JOIN invoices i ON i.sale_id = s.id
+        WHERE p.created_at BETWEEN ? AND ?
+        GROUP BY 1
+      `)
+        .all(clamped.from, clamped.to) as PayDeptSlice[]
+    } catch {
+      /* payments / invoices */
+    }
+
+    let customPayByDept: PayDeptSlice[] = []
+    try {
+      customPayByDept = db.prepare(`
+        SELECT
+          CASE
+            WHEN department = 'programming' THEN 'programming'
+            WHEN department = 'both' THEN 'both'
+            ELSE 'mechanical'
+          END AS dept,
+          COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) = 'cash' THEN amount ELSE 0 END), 0) AS cash_sum,
+          COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) != 'cash' THEN amount ELSE 0 END), 0) AS non_cash_sum
+        FROM custom_receipts
+        WHERE created_at BETWEEN ? AND ?
+        GROUP BY 1
+      `).all(clamped.from, clamped.to) as PayDeptSlice[]
+    } catch {
+      /* custom_receipts */
+    }
+
+    let jobPayByDept: PayDeptSlice[] = []
+    try {
+      jobPayByDept = db
+        .prepare(`
+        SELECT
+          CASE
+            WHEN j.department = 'programming' THEN 'programming'
+            WHEN j.department = 'both' THEN 'both'
+            ELSE 'mechanical'
+          END AS dept,
+          COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(j.payment_method, ''))) = 'cash' THEN ${JOB_COLLECTED_SQL} ELSE 0 END), 0) AS cash_sum,
+          COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(j.payment_method, ''))) != 'cash' THEN ${JOB_COLLECTED_SQL} ELSE 0 END), 0) AS non_cash_sum
+        FROM job_cards j
+        WHERE j.status != 'cancelled'
+          AND (${JOB_COLLECTED_SQL}) > 0.0001
+          AND datetime(COALESCE(j.date_out, j.updated_at)) BETWEEN ? AND ?
+        GROUP BY 1
+      `)
+        .all(clamped.from, clamped.to) as PayDeptSlice[]
+    } catch {
+      /* job_cards columns */
+    }
+
     const byDept = {
-      mechanical: { revenue: 0, cost: 0, gross_profit: 0, jobs_count: 0, top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }> },
-      programming: { revenue: 0, cost: 0, gross_profit: 0, jobs_count: 0, top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }> },
+      mechanical: {
+        revenue: 0,
+        cost: 0,
+        gross_profit: 0,
+        jobs_count: 0,
+        top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }>,
+        payments_cash: 0,
+        payments_non_cash: 0,
+      },
+      programming: {
+        revenue: 0,
+        cost: 0,
+        gross_profit: 0,
+        jobs_count: 0,
+        top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }>,
+        payments_cash: 0,
+        payments_non_cash: 0,
+      },
+      both: {
+        revenue: 0,
+        cost: 0,
+        gross_profit: 0,
+        jobs_count: 0,
+        top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }>,
+        payments_cash: 0,
+        payments_non_cash: 0,
+      },
     }
 
     for (const row of customByDept) {
@@ -184,21 +317,41 @@ export const reportRepo = {
       byDept[row.dept].jobs_count += row.receipts_count ?? 0
     }
     for (const row of jobsByDept) {
-      byDept[row.dept].revenue += row.jobs_revenue ?? 0
-      byDept[row.dept].jobs_count += row.jobs_count ?? 0
+      const key = row.dept === 'both' ? 'both' : row.dept
+      byDept[key].revenue += row.jobs_revenue ?? 0
+      byDept[key].jobs_count += row.jobs_count ?? 0
     }
     for (const row of topServicesRaw) {
-      byDept[row.dept].top_services.push({
+      const key = row.dept === 'both' ? 'both' : row.dept
+      byDept[key].top_services.push({
         service_name: row.service_name,
         total_qty: row.total_qty ?? 0,
         total_revenue: row.total_revenue ?? 0,
       })
     }
 
+    for (const row of jobPartsCogsByDept) {
+      const d = row.dept === 'programming' ? 'programming' : row.dept === 'both' ? 'both' : 'mechanical'
+      byDept[d].cost += row.parts_cost ?? 0
+    }
+
+    function mergeDeptPayments(rows: PayDeptSlice[]): void {
+      for (const row of rows) {
+        const k = row.dept === 'both' ? 'both' : row.dept === 'programming' ? 'programming' : 'mechanical'
+        byDept[k].payments_cash += row.cash_sum ?? 0
+        byDept[k].payments_non_cash += row.non_cash_sum ?? 0
+      }
+    }
+    mergeDeptPayments(posPayByDept)
+    mergeDeptPayments(customPayByDept)
+    mergeDeptPayments(jobPayByDept)
+
     byDept.mechanical.gross_profit = byDept.mechanical.revenue - byDept.mechanical.cost
     byDept.programming.gross_profit = byDept.programming.revenue - byDept.programming.cost
+    byDept.both.gross_profit = byDept.both.revenue - byDept.both.cost
     byDept.mechanical.top_services = byDept.mechanical.top_services.slice(0, 5)
     byDept.programming.top_services = byDept.programming.top_services.slice(0, 5)
+    byDept.both.top_services = byDept.both.top_services.slice(0, 5)
 
     return byDept
   },
@@ -219,9 +372,17 @@ export const reportRepo = {
       FROM custom_receipts WHERE date(created_at) = ?
       ${storeStart ? 'AND date(created_at) >= ?' : ''}
     `).get(...(storeStart ? [today, storeStart] : [today])) as { count: number; revenue: number }
+    let todayJobs = { count: 0, revenue: 0 }
+    try {
+      todayJobs = db.prepare(`
+        SELECT COUNT(*) as count, COALESCE(SUM(COALESCE(total,0)),0) as revenue
+        FROM job_cards WHERE date(created_at) = ? AND status != 'cancelled'
+        ${storeStart ? 'AND date(created_at) >= ?' : ''}
+      `).get(...(storeStart ? [today, storeStart] : [today])) as { count: number; revenue: number }
+    } catch { /* job_cards */ }
     const todaySalesRow = {
-      count: (todaySalesBase?.count ?? 0) + (todayCustom?.count ?? 0),
-      revenue: (todaySalesBase?.revenue ?? 0) + (todayCustom?.revenue ?? 0),
+      count: (todaySalesBase?.count ?? 0) + (todayCustom?.count ?? 0) + (todayJobs?.count ?? 0),
+      revenue: (todaySalesBase?.revenue ?? 0) + (todayCustom?.revenue ?? 0) + (todayJobs?.revenue ?? 0),
     }
 
     const monthRevenueBase = db.prepare(`
@@ -232,8 +393,18 @@ export const reportRepo = {
       SELECT COALESCE(SUM(amount),0) as revenue
       FROM custom_receipts WHERE created_at >= ?
     `).get(monthStart) as { revenue: number }
+    let monthRevenueJobs = { revenue: 0 }
+    try {
+      monthRevenueJobs = db.prepare(`
+        SELECT COALESCE(SUM(COALESCE(total,0)),0) as revenue
+        FROM job_cards WHERE created_at >= ? AND status != 'cancelled'
+      `).get(monthStart) as { revenue: number }
+    } catch { /* job_cards */ }
     const monthRevenueRow = {
-      revenue: (monthRevenueBase?.revenue ?? 0) + (monthRevenueCustom?.revenue ?? 0),
+      revenue:
+        (monthRevenueBase?.revenue ?? 0) +
+        (monthRevenueCustom?.revenue ?? 0) +
+        (monthRevenueJobs?.revenue ?? 0),
     }
 
     const activeRepairs = (db.prepare(`
@@ -261,43 +432,43 @@ export const reportRepo = {
     try {
       totalVehicles = (db.prepare('SELECT COUNT(*) as cnt FROM vehicles').get() as { cnt: number }).cnt
       vehiclesInGarage = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards WHERE status IN ('pending','in_progress','waiting_parts','waiting_for_programming')`
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE COALESCE(archived,0)=0 AND status IN ('pending','in_progress','waiting_parts','waiting_for_programming')`
       ).get() as { cnt: number }).cnt
       vehiclesInGarageMechanical = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('pending','in_progress','waiting_parts','waiting_for_programming')
-           AND department IN ('mechanical','both')`
+         WHERE COALESCE(archived,0)=0 AND status IN ('pending','in_progress','waiting_parts','waiting_for_programming')
+           AND COALESCE(department, 'mechanical') IN ('mechanical','both')`
       ).get() as { cnt: number }).cnt
       vehiclesInGarageProgramming = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('pending','in_progress','waiting_parts','waiting_for_programming')
+         WHERE COALESCE(archived,0)=0 AND status IN ('pending','in_progress','waiting_parts','waiting_for_programming')
            AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
       readyForPickup = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards WHERE status = 'ready'`
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE COALESCE(archived,0)=0 AND status = 'ready'`
       ).get() as { cnt: number }).cnt
       readyForPickupMechanical = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status = 'ready' AND department IN ('mechanical','both')`
+         WHERE COALESCE(archived,0)=0 AND status = 'ready' AND COALESCE(department, 'mechanical') IN ('mechanical','both')`
       ).get() as { cnt: number }).cnt
       readyForPickupProgramming = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status = 'ready' AND department IN ('programming','both')`
+         WHERE COALESCE(archived,0)=0 AND status = 'ready' AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
       activeJobCards = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards WHERE status NOT IN ('delivered','completed_delivered','cancelled')`
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE COALESCE(archived,0)=0 AND status NOT IN ('delivered','completed_delivered','cancelled')`
       ).get() as { cnt: number }).cnt
       activeJobCardsMechanical = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status NOT IN ('delivered','completed_delivered','cancelled') AND department IN ('mechanical','both')`
+         WHERE COALESCE(archived,0)=0 AND status NOT IN ('delivered','completed_delivered','cancelled') AND COALESCE(department, 'mechanical') IN ('mechanical','both')`
       ).get() as { cnt: number }).cnt
       activeJobCardsProgramming = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status NOT IN ('delivered','completed_delivered','cancelled') AND department IN ('programming','both')`
+         WHERE COALESCE(archived,0)=0 AND status NOT IN ('delivered','completed_delivered','cancelled') AND department IN ('programming','both')`
       ).get() as { cnt: number }).cnt
       todayDelivered = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('delivered','completed_delivered')
+         WHERE COALESCE(archived,0)=0 AND status IN ('delivered','completed_delivered')
            AND date(COALESCE(date_out, updated_at)) = ?`
       ).get(today) as { cnt: number }).cnt
     } catch { /* tables not ready yet */ }
@@ -305,37 +476,70 @@ export const reportRepo = {
     try {
       todayDeliveredMechanical = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('delivered','completed_delivered')
+         WHERE COALESCE(archived,0)=0 AND status IN ('delivered','completed_delivered')
            AND date(COALESCE(date_out, updated_at)) = ?
-           AND department IN ('mechanical','both')`
+           AND COALESCE(department, 'mechanical') IN ('mechanical','both')`
       ).get(today) as { cnt: number }).cnt
       todayDeliveredProgramming = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE status IN ('delivered','completed_delivered')
+         WHERE COALESCE(archived,0)=0 AND status IN ('delivered','completed_delivered')
            AND date(COALESCE(date_out, updated_at)) = ?
            AND department IN ('programming','both')`
       ).get(today) as { cnt: number }).cnt
     } catch { /* department column not available */ }
 
-    // 7-day sales trend
-    const salesTrend = db.prepare(`
+    // 7-day sales trend (include job_cards when present)
+    const trendStore = storeStart ? `AND date(created_at) >= '${storeStart}'` : ''
+    let salesTrend: unknown[] = []
+    try {
+      salesTrend = db.prepare(`
       SELECT day, COALESCE(SUM(revenue),0) as revenue, COALESCE(SUM(count),0) as count
       FROM (
         SELECT date(created_at) as day, COALESCE(SUM(total_amount),0) as revenue, COUNT(*) as count
         FROM sales
       WHERE date(created_at) >= date('now', '-6 days') AND status != 'voided'
-        ${storeStart ? `AND date(created_at) >= '${storeStart}'` : ''}
+        ${trendStore}
         GROUP BY date(created_at)
         UNION ALL
         SELECT date(created_at) as day, COALESCE(SUM(amount),0) as revenue, COUNT(*) as count
         FROM custom_receipts
       WHERE date(created_at) >= date('now', '-6 days')
-        ${storeStart ? `AND date(created_at) >= '${storeStart}'` : ''}
+        ${trendStore}
+        GROUP BY date(created_at)
+        UNION ALL
+        SELECT date(created_at) as day, COALESCE(SUM(COALESCE(total,0)),0) as revenue, COUNT(*) as count
+        FROM job_cards
+      WHERE date(created_at) >= date('now', '-6 days') AND status != 'cancelled'
+        ${trendStore}
         GROUP BY date(created_at)
       )
       GROUP BY day
       ORDER BY day
     `).all()
+    } catch {
+      try {
+        salesTrend = db.prepare(`
+      SELECT day, COALESCE(SUM(revenue),0) as revenue, COALESCE(SUM(count),0) as count
+      FROM (
+        SELECT date(created_at) as day, COALESCE(SUM(total_amount),0) as revenue, COUNT(*) as count
+        FROM sales
+      WHERE date(created_at) >= date('now', '-6 days') AND status != 'voided'
+        ${trendStore}
+        GROUP BY date(created_at)
+        UNION ALL
+        SELECT date(created_at) as day, COALESCE(SUM(amount),0) as revenue, COUNT(*) as count
+        FROM custom_receipts
+      WHERE date(created_at) >= date('now', '-6 days')
+        ${trendStore}
+        GROUP BY date(created_at)
+      )
+      GROUP BY day
+      ORDER BY day
+    `).all()
+      } catch {
+        salesTrend = []
+      }
+    }
 
     // Top 5 products today (by qty sold)
     const topProducts = db.prepare(`
@@ -360,7 +564,7 @@ export const reportRepo = {
         FROM job_cards j
         LEFT JOIN customers c ON j.owner_id = c.id
         LEFT JOIN vehicles v ON j.vehicle_id = v.id
-        WHERE j.priority IN ('urgent','high') AND j.status NOT IN ('delivered','cancelled')
+        WHERE COALESCE(j.archived,0)=0 AND j.priority IN ('urgent','high') AND j.status NOT IN ('delivered','cancelled')
         ORDER BY CASE j.priority WHEN 'urgent' THEN 0 ELSE 1 END, j.created_at
         LIMIT 5
       `).all()
@@ -389,8 +593,19 @@ export const reportRepo = {
       WHERE cr.created_at >= ?
     `).get(monthStart) as { cogs: number }
 
+    let monthCogsJobs = { cogs: 0 }
+    try {
+      monthCogsJobs = db.prepare(`
+        SELECT COALESCE(SUM(COALESCE(p.cost_price, 0) * COALESCE(p.quantity, 0)), 0) AS cogs
+        FROM job_parts p
+        INNER JOIN job_cards j ON j.id = p.job_card_id
+        WHERE j.created_at >= ? AND j.status != 'cancelled'
+      `).get(monthStart) as { cogs: number }
+    } catch { /* job_parts */ }
+
     const monthExpenses = expenseRepo.monthTotal(monthStart)
-    const monthCogs = (monthCogsSales?.cogs ?? 0) + (monthCogsCustom?.cogs ?? 0)
+    const monthCogs =
+      (monthCogsSales?.cogs ?? 0) + (monthCogsCustom?.cogs ?? 0) + (monthCogsJobs?.cogs ?? 0)
     const monthGrossProfit = monthRevenueRow.revenue - monthCogs
     const monthNetProfit   = monthGrossProfit - monthExpenses
     const totalAssetsPurchase = assetRepo.totalPurchaseValue()
@@ -398,6 +613,24 @@ export const reportRepo = {
     try {
       unpaidSalariesTotal = salaryRepo.totalUnpaidDue()
     } catch { /* payroll tables missing */ }
+
+    /**
+     * Accounts receivable owed by named customers only (matches sum of per-customer `amount_owed` / profile debt).
+     * Excludes walk-in POS rows (`customer_id` NULL) so credits/overpayments on those lines do not reduce this total.
+     */
+    let totalCustomerDebt = 0
+    try {
+      totalCustomerDebt += (db.prepare(`
+        SELECT COALESCE(SUM(balance_due), 0) AS v FROM sales
+        WHERE status NOT IN ('draft', 'voided') AND customer_id IS NOT NULL
+      `).get() as { v: number }).v
+    } catch { /* sales.balance_due missing */ }
+    try {
+      totalCustomerDebt += (db.prepare(`
+        SELECT COALESCE(SUM(balance_due), 0) AS v FROM job_cards
+        WHERE status != 'cancelled' AND owner_id IS NOT NULL
+      `).get() as { v: number }).v
+    } catch { /* job_cards */ }
 
     return {
       todaySalesCount: todaySalesRow.count,
@@ -426,12 +659,13 @@ export const reportRepo = {
       todayDeliveredProgramming,
       urgentJobCards,
       unpaidSalariesTotal,
+      totalCustomerDebt,
     }
   },
 
   /**
-   * Cash vs non-cash receipts: POS `payments` (by method) + custom receipts (payment_method text).
-   * Dates are inclusive on payment/receipt `created_at` (calendar day).
+   * Cash vs non-cash receipts: POS `payments`, custom receipts, and job cards (collected vs payment_method).
+   * POS/custom use row `created_at`. Jobs use `datetime(COALESCE(date_out, updated_at))` when there is a positive collected amount.
    */
   cashByMethodRange(dateFrom: string, dateTo: string): { cash: number; non_cash: number; total: number } {
     const clamped = clampDateTimeRange(dateFrom, dateTo)
@@ -459,8 +693,23 @@ export const reportRepo = {
       /* custom_receipts missing in older DBs */
     }
 
-    const cash = (pos?.cash_sum ?? 0) + (custom?.cash_sum ?? 0)
-    const nonCash = (pos?.non_cash_sum ?? 0) + (custom?.non_cash_sum ?? 0)
+    let jobs = { cash_sum: 0, non_cash_sum: 0 }
+    try {
+      jobs = db.prepare(`
+        SELECT
+          COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(j.payment_method, ''))) = 'cash' THEN ${JOB_COLLECTED_SQL} ELSE 0 END), 0) AS cash_sum,
+          COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(j.payment_method, ''))) != 'cash' THEN ${JOB_COLLECTED_SQL} ELSE 0 END), 0) AS non_cash_sum
+        FROM job_cards j
+        WHERE j.status != 'cancelled'
+          AND (${JOB_COLLECTED_SQL}) > 0.0001
+          AND datetime(COALESCE(j.date_out, j.updated_at)) BETWEEN ? AND ?
+      `).get(clamped.from, clamped.to) as { cash_sum: number; non_cash_sum: number }
+    } catch {
+      /* job_cards */
+    }
+
+    const cash = (pos?.cash_sum ?? 0) + (custom?.cash_sum ?? 0) + (jobs?.cash_sum ?? 0)
+    const nonCash = (pos?.non_cash_sum ?? 0) + (custom?.non_cash_sum ?? 0) + (jobs?.non_cash_sum ?? 0)
     return { cash, non_cash: nonCash, total: cash + nonCash }
   },
 
@@ -545,6 +794,7 @@ export const reportRepo = {
     const db = getDb()
     const deptPred = invoiceDeptPredicate(department, 'i')
     const customDeptPred = customReceiptDeptPredicate(department, 'cr')
+    const jobDeptPred = jobDeptPredicate(department, 'j')
     return db.prepare(`
       SELECT
         day,
@@ -584,10 +834,27 @@ export const reportRepo = {
         WHERE cr.created_at BETWEEN ? AND ?
           AND (${customDeptPred})
         GROUP BY date(cr.created_at)
+
+        UNION ALL
+
+        SELECT
+          date(j.created_at) as day,
+          COALESCE(SUM(COALESCE(j.total, 0)), 0) as revenue,
+          COALESCE(SUM(COALESCE(jp.line_cogs, 0)), 0) as cogs
+        FROM job_cards j
+        LEFT JOIN (
+          SELECT job_card_id, SUM(COALESCE(cost_price, 0) * COALESCE(quantity, 0)) AS line_cogs
+          FROM job_parts
+          GROUP BY job_card_id
+        ) jp ON jp.job_card_id = j.id
+        WHERE j.created_at BETWEEN ? AND ?
+          AND j.status != 'cancelled'
+          AND (${jobDeptPred})
+        GROUP BY date(j.created_at)
       )
       GROUP BY day
       ORDER BY day
-    `).all(clamped.from, clamped.to, clamped.from, clamped.to)
+    `).all(clamped.from, clamped.to, clamped.from, clamped.to, clamped.from, clamped.to)
   },
 
   inventory() {

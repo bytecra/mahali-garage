@@ -1,5 +1,12 @@
 import { getDb } from '../index'
 
+/** Stored in `users.preferences_json` — personal UI choices, not store invoice settings. */
+export interface UserPreferences {
+  theme?: 'light' | 'dark' | 'system'
+  language?: 'en' | 'ar'
+  jobCardsView?: 'kanban' | 'list'
+}
+
 export interface UserRow {
   id: number
   username: string
@@ -11,10 +18,13 @@ export interface UserRow {
   is_active: number
   created_at: string
   updated_at: string
+  preferences_json?: string | null
 }
 
 export interface UserListRow extends Omit<UserRow, 'password_hash' | 'passcode'> {
   override_count: number
+  /** mechanical | programming | both (multi-skilled) | null (any) */
+  work_department?: string | null
 }
 
 export interface PermissionRow {
@@ -27,6 +37,20 @@ export interface OverrideRow {
   key: string
   granted: boolean
   description: string | null
+}
+
+function parsePreferences(raw: string | null | undefined): UserPreferences {
+  if (raw == null || raw === '') return {}
+  try {
+    const o = JSON.parse(raw) as Record<string, unknown>
+    const out: UserPreferences = {}
+    if (o.theme === 'light' || o.theme === 'dark' || o.theme === 'system') out.theme = o.theme
+    if (o.language === 'en' || o.language === 'ar') out.language = o.language
+    if (o.jobCardsView === 'kanban' || o.jobCardsView === 'list') out.jobCardsView = o.jobCardsView
+    return out
+  } catch {
+    return {}
+  }
 }
 
 export const userRepo = {
@@ -45,17 +69,25 @@ export const userRepo = {
   list(): UserListRow[] {
     return getDb().prepare(`
       SELECT u.id, u.username, u.full_name, u.role, u.auth_type, u.is_active, u.created_at, u.updated_at,
+             u.work_department,
              (SELECT COUNT(*) FROM user_permissions WHERE user_id = u.id) AS override_count
       FROM users u
       ORDER BY u.full_name
     `).all() as UserListRow[]
   },
 
-  create(data: { username: string; password_hash: string; full_name: string; role: string }): number {
+  create(data: {
+    username: string
+    password_hash: string
+    full_name: string
+    role: string
+    work_department?: string | null
+  }): number {
+    const wd = data.work_department ?? null
     const result = getDb().prepare(`
-      INSERT INTO users (username, password_hash, auth_type, passcode, full_name, role)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(data.username, data.password_hash, 'password', null, data.full_name, data.role)
+      INSERT INTO users (username, password_hash, auth_type, passcode, full_name, role, work_department)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(data.username, data.password_hash, 'password', null, data.full_name, data.role, wd)
     return result.lastInsertRowid as number
   },
 
@@ -64,6 +96,8 @@ export const userRepo = {
     role: string; is_active: number
     auth_type: 'password' | 'passcode_4' | 'passcode_6'
     passcode: string | null
+    work_department: string | null
+    preferences_json: string
   }>): void {
     const entries = Object.entries(data).filter(([, v]) => v !== undefined)
     if (entries.length === 0) return
@@ -136,5 +170,21 @@ export const userRepo = {
       .prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'owner' AND is_active = 1")
       .get() as { cnt: number }
     return row.cnt
+  },
+
+  getPreferences(userId: number): UserPreferences {
+    const row = getDb().prepare('SELECT preferences_json FROM users WHERE id = ?').get(userId) as
+      | { preferences_json: string | null }
+      | undefined
+    return parsePreferences(row?.preferences_json)
+  },
+
+  updatePreferences(userId: number, patch: Partial<UserPreferences>): void {
+    const cur = this.getPreferences(userId)
+    const next: UserPreferences = { ...cur, ...patch }
+    const json = JSON.stringify(next)
+    getDb()
+      .prepare(`UPDATE users SET preferences_json = ?, updated_at = datetime('now') WHERE id = ?`)
+      .run(json, userId)
   },
 }

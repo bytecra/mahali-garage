@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import { toast } from '../../store/notificationStore'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
+import JobNumberSettings from './JobNumberSettings'
 
 interface JobType {
   id: number
@@ -113,6 +114,7 @@ export default function JobTypesSettings(): JSX.Element {
 
   return (
     <div className="space-y-4">
+      <JobNumberSettings />
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">
           {t('settings.jobTypes', { defaultValue: 'Job Types' })}

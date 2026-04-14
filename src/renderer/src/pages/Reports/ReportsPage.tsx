@@ -52,6 +52,17 @@ type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lows
 type ReportDept = 'all' | 'mechanical' | 'programming'
 type DepartmentPreset = 'today' | 'week' | 'month' | 'custom'
 
+type DepartmentReportDeptSlice = {
+  revenue: number
+  cost: number
+  gross_profit: number
+  jobs_count: number
+  top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }>
+  /** POS + custom receipts + job collections in range, split by payment method */
+  payments_cash: number
+  payments_non_cash: number
+}
+
 const QUICK_PDF_TABS: ReportTab[] = [
   'inventory',
   'lowstock',
@@ -95,8 +106,9 @@ function ReportsPageInner(): JSX.Element {
   const [reportDept, setReportDept] = useState<ReportDept>('all')
   const [data, setData] = useState<unknown[]>([])
   const [departmentData, setDepartmentData] = useState<{
-    mechanical: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
-    programming: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+    mechanical: DepartmentReportDeptSlice
+    programming: DepartmentReportDeptSlice
+    both: DepartmentReportDeptSlice
   } | null>(null)
   const [departmentPreset, setDepartmentPreset] = useState<DepartmentPreset>('month')
   const [assetsFooter, setAssetsFooter] = useState<{ total_purchase: number; total_current: number } | null>(null)
@@ -960,6 +972,7 @@ function ReportsPageInner(): JSX.Element {
           dateTo,
           mechanical: departmentData.mechanical,
           programming: departmentData.programming,
+          both: departmentData.both,
           currencySymbol: sym,
         })
         const printRes = await window.electronAPI.print.receipt(html)
@@ -1480,8 +1493,9 @@ function ReportsPageInner(): JSX.Element {
         res = await window.electronAPI.reports.departmentSummary(dateFrom, dateTo)
         if (res?.success && res.data) {
           setDepartmentData(res.data as {
-            mechanical: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
-            programming: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+            mechanical: DepartmentReportDeptSlice
+            programming: DepartmentReportDeptSlice
+            both: DepartmentReportDeptSlice
           })
         }
         return
@@ -2353,6 +2367,7 @@ function ReportsPageInner(): JSX.Element {
             <DepartmentReportsPanel
               mechanical={departmentData.mechanical}
               programming={departmentData.programming}
+              both={departmentData.both}
             />
           ) : tab === 'sales' && compareData?.sales ? (
             <div className="space-y-6">
@@ -2649,15 +2664,17 @@ function TopProductsComparisonTable({ rows }: { rows: MergedTopProduct[] }): JSX
 function DepartmentReportsPanel({
   mechanical,
   programming,
+  both,
 }: {
-  mechanical: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
-  programming: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> }
+  mechanical: DepartmentReportDeptSlice
+  programming: DepartmentReportDeptSlice
+  both: DepartmentReportDeptSlice
 }): JSX.Element {
   const { t } = useTranslation()
   const panel = (
     title: string,
     tone: string,
-    data: { revenue: number; cost: number; gross_profit: number; jobs_count: number; top_services: Array<{ service_name: string; total_qty: number; total_revenue: number }> },
+    data: DepartmentReportDeptSlice,
   ) => (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       <div className={`px-4 py-3 border-b border-border ${tone}`}>
@@ -2680,6 +2697,14 @@ function DepartmentReportsPanel({
           <div className="rounded border border-border p-3">
             <p className="text-muted-foreground">{t('reports.jobsCount', { defaultValue: 'Jobs/Receipts' })}</p>
             <p className="font-bold">{data.jobs_count}</p>
+          </div>
+          <div className="rounded border border-border p-3">
+            <p className="text-muted-foreground">{t('reports.paymentsCash', { defaultValue: 'Cash collected' })}</p>
+            <p className="font-bold"><CurrencyText amount={data.payments_cash ?? 0} /></p>
+          </div>
+          <div className="rounded border border-border p-3">
+            <p className="text-muted-foreground">{t('reports.paymentsNonCash', { defaultValue: 'Card / bank / other' })}</p>
+            <p className="font-bold"><CurrencyText amount={data.payments_non_cash ?? 0} /></p>
           </div>
         </div>
         <div>
@@ -2714,9 +2739,10 @@ function DepartmentReportsPanel({
   )
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
       {panel(t('reports.dept.mechanical', { defaultValue: 'Mechanical' }), 'bg-amber-50 dark:bg-amber-950/20', mechanical)}
       {panel(t('reports.dept.programming', { defaultValue: 'Programming' }), 'bg-violet-50 dark:bg-violet-950/20', programming)}
+      {panel(t('reports.dept.both', { defaultValue: 'Both' }), 'bg-teal-50 dark:bg-teal-950/20', both)}
     </div>
   )
 }

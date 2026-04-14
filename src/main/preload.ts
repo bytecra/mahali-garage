@@ -108,18 +108,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addPayment:   (saleId: number, data: unknown) => invoke('sales:addPayment', saleId, data),
   },
 
-  payments: {
-    addPayment: (saleId: number, data: unknown) => invoke('payments:add', saleId, data),
-    getForSale: (saleId: number)                => invoke('payments:getForSale', saleId),
-  },
-
-  invoices: {
-    getForSale:    (saleId: number)  => invoke('invoices:getForSale', saleId),
-    generatePdf:   (invoiceId: number) => invoke('invoices:generatePdf', invoiceId),
-    print:         (invoiceId: number) => invoke('invoices:print', invoiceId),
-    openPdf:       (invoiceId: number) => invoke('invoices:openPdf', invoiceId),
-  },
-
   // ── Repairs ───────────────────────────────────────────────────────────────
   repairs: {
     list:         (filters?: unknown)                     => invoke('repairs:list', filters),
@@ -200,6 +188,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeOverride:     (id: number, key: string)                    => invoke('users:removeOverride', id, key),
     setAuth:            (id: number, data: { auth_type: 'password' | 'passcode_4' | 'passcode_6'; passcode?: string | null }) =>
       invoke('users:setAuth', id, data),
+    getMyPreferences:    () => invoke('users:getMyPreferences'),
+    updateMyPreferences: (patch: unknown) => invoke('users:updateMyPreferences', patch),
   },
 
   // ── Backup ────────────────────────────────────────────────────────────────
@@ -276,7 +266,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Job Cards ───────────────────────────────────────────────────────────
   jobCards: {
     list:           (filters?: unknown)                              => invoke('jobCards:list', filters),
-    getByStatus:    ()                                              => invoke('jobCards:getByStatus'),
+    getByStatus:    (filters?: unknown)                            => invoke('jobCards:getByStatus', filters),
     getById:        (id: number)                                    => invoke('jobCards:getById', id),
     create:         (data: unknown)                                 => invoke('jobCards:create', data),
     update:         (id: number, data: unknown)                     => invoke('jobCards:update', id, data),
@@ -285,6 +275,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addPart:        (jobCardId: number, part: unknown)              => invoke('jobCards:addPart', jobCardId, part),
     removePart:     (partId: number)                                => invoke('jobCards:removePart', partId),
     getForVehicle:  (vehicleId: number)                             => invoke('jobCards:getForVehicle', vehicleId),
+    listProgressComments: (jobCardId: number)                      => invoke('jobCards:listProgressComments', jobCardId),
+    listLogs: (jobCardId: number)                                   => invoke('jobCards:listLogs', jobCardId),
+    listAttachments: (jobCardId: number)                            => invoke('jobCards:listAttachments', jobCardId),
+    addAttachment: (jobCardId: number, payload: unknown)            => invoke('jobCards:addAttachment', jobCardId, payload),
+    updateAttachment: (attachmentId: number, patch: unknown)        => invoke('jobCards:updateAttachment', attachmentId, patch),
+    deleteAttachment: (attachmentId: number)                        => invoke('jobCards:deleteAttachment', attachmentId),
+    openAttachment: (attachmentId: number)                          => invoke('jobCards:openAttachment', attachmentId),
+    addProgressComment:   (jobCardId: number, text: string)        => invoke('jobCards:addProgressComment', jobCardId, text),
+    deleteProgressComment: (commentId: number)                     => invoke('jobCards:deleteProgressComment', commentId),
+    createJobInvoice:     (jobCardId: number, payload?: unknown)   => invoke('jobCards:createJobInvoice', jobCardId, payload),
+    updateJobInvoice:     (invoiceId: number, payload: unknown)    => invoke('jobCards:updateJobInvoice', invoiceId, payload),
+    patchJobInvoiceInspection: (invoiceId: number, include: boolean) =>
+      invoke('jobCards:patchJobInvoiceInspection', invoiceId, include),
+    getJobInvoice:        (invoiceId: number)                     => invoke('jobCards:getJobInvoice', invoiceId),
+    getJobInvoiceForJob:  (jobCardId: number)                     => invoke('jobCards:getJobInvoiceForJob', jobCardId),
+    listJobInvoices:      (filters?: { search?: string })         => invoke('jobCards:listJobInvoices', filters),
+    deleteJobInvoice:     (invoiceId: number)                     => invoke('jobCards:deleteJobInvoice', invoiceId),
+    listWarrantyTemplates: (activeOnly?: boolean)                 => invoke('jobCards:listWarrantyTemplates', activeOnly),
+    createWarrantyTemplate: (data: unknown)                       => invoke('jobCards:createWarrantyTemplate', data),
+    updateWarrantyTemplate: (id: number, data: unknown)           => invoke('jobCards:updateWarrantyTemplate', id, data),
+    deleteWarrantyTemplate: (id: number)                         => invoke('jobCards:deleteWarrantyTemplate', id),
+    listJobInvoiceWarranties: (invoiceId: number)                 => invoke('jobCards:listJobInvoiceWarranties', invoiceId),
+    listWarrantiesForJob: (jobCardId: number)                    => invoke('jobCards:listWarrantiesForJob', jobCardId),
+    replaceJobInvoiceWarranties: (jobCardId: number, invoiceId: number, rows: unknown) =>
+      invoke('jobCards:replaceJobInvoiceWarranties', jobCardId, invoiceId, rows),
+    dismissJobInvoiceAutoWarranty: (jobCardId: number, invoiceId: number, warrantyId: number) =>
+      invoke('jobCards:dismissJobInvoiceAutoWarranty', jobCardId, invoiceId, warrantyId),
   },
 
   carBrands: {
@@ -296,6 +313,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   serviceCatalog: {
     list:       (filters?: unknown)              => invoke('serviceCatalog:list', filters),
+    search:     (query: string)                  => invoke('serviceCatalog:search', query),
     forVehicle: (make: string, model: string)    => invoke('serviceCatalog:forVehicle', make, model),
     create:     (data: unknown)                  => invoke('serviceCatalog:create', data),
     update:     (id: number, data: unknown)      => invoke('serviceCatalog:update', id, data),

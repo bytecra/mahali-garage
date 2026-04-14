@@ -28,6 +28,9 @@ interface ProductFormData {
   category_id: string; brand_id: string; supplier_id: string
   cost_price: string; sell_price: string; stock_quantity: string
   low_stock_threshold: string; unit: string; is_active: boolean
+  warranty_title: string
+  warranty_duration_months: string
+  warranty_notes: string
 }
 
 const EMPTY: ProductFormData = {
@@ -35,6 +38,7 @@ const EMPTY: ProductFormData = {
   category_id: '', brand_id: '', supplier_id: '',
   cost_price: '0', sell_price: '0', stock_quantity: '0',
   low_stock_threshold: '5', unit: 'pcs', is_active: true,
+  warranty_title: '', warranty_duration_months: '', warranty_notes: '',
 }
 
 const UNITS = ['pcs', 'box', 'kg', 'g', 'L', 'mL', 'set', 'pair']
@@ -89,6 +93,12 @@ export default function ProductForm({ open, productId, onClose, onSaved }: Props
           low_stock_threshold: String(p.low_stock_threshold ?? '5'),
           unit: String(p.unit ?? 'pcs'),
           is_active: Boolean(p.is_active),
+          warranty_title: String(p.warranty_title ?? ''),
+          warranty_duration_months:
+            p.warranty_duration_months != null && p.warranty_duration_months !== ''
+              ? String(p.warranty_duration_months)
+              : '',
+          warranty_notes: String(p.warranty_notes ?? ''),
         })
       })
     } else {
@@ -126,6 +136,12 @@ export default function ProductForm({ open, productId, onClose, onSaved }: Props
       low_stock_threshold: Number(form.low_stock_threshold),
       unit: form.unit,
       is_active: form.is_active ? 1 : 0,
+      warranty_title: form.warranty_title.trim() || null,
+      warranty_duration_months:
+        form.warranty_duration_months.trim() !== '' && !isNaN(Number(form.warranty_duration_months))
+          ? Number(form.warranty_duration_months)
+          : null,
+      warranty_notes: form.warranty_notes.trim() || null,
     }
     const res = productId
       ? await window.electronAPI.products.update(productId, payload)
@@ -233,6 +249,30 @@ export default function ProductForm({ open, productId, onClose, onSaved }: Props
             <FieldLabel>{t('common.description')}</FieldLabel>
             <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
               className={`${inputCls} resize-none`} />
+          </div>
+
+          <div className="col-span-2 border-t border-border pt-4 mt-1">
+            <p className="text-sm font-medium mb-1">{t('inventory.warrantySectionTitle')}</p>
+            <p className="text-xs text-muted-foreground mb-3">{t('inventory.warrantyHint')}</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <FieldLabel>{t('inventory.warrantyTitle')}</FieldLabel>
+                <FieldInput value={form.warranty_title} onChange={v => set('warranty_title', v)} />
+              </div>
+              <div>
+                <FieldLabel>{t('inventory.warrantyDurationMonths')}</FieldLabel>
+                <FieldInput value={form.warranty_duration_months} onChange={v => set('warranty_duration_months', v)} type="number" min={0} />
+              </div>
+              <div className="sm:col-span-2">
+                <FieldLabel>{t('inventory.warrantyNotes')}</FieldLabel>
+                <textarea
+                  value={form.warranty_notes}
+                  onChange={e => set('warranty_notes', e.target.value)}
+                  rows={2}
+                  className={`${inputCls} resize-none`}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}

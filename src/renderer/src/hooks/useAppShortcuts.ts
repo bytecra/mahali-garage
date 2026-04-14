@@ -1,9 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useCartStore } from '../store/cartStore'
 
 const DEFAULT_SHORTCUTS: Record<string, string> = {
-  smart_recipe: 'ctrl+shift+s',
   custom_recipe: 'ctrl+shift+c',
   tv_on: 'ctrl+shift+t',
   tv_off: 'ctrl+shift+w',
@@ -68,13 +66,8 @@ export function useAppShortcuts(): void {
         e.preventDefault()
 
         switch (action) {
-          case 'smart_recipe':
-            useCartStore.getState().clear()
-            navigateRef.current('/custom-receipts?mode=smart')
-            return
           case 'custom_recipe':
-            useCartStore.getState().clear()
-            navigateRef.current('/custom-receipts?mode=custom')
+            navigateRef.current('/invoices')
             return
           case 'tv_on':
             void window.electronAPI.tv.open()

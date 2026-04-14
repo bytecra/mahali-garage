@@ -45,6 +45,19 @@ import { migration042 } from './042_notifications_expand_types'
 import { migration043 } from './043_inspection_diagram'
 import { migration044 } from './044_ensure_appointments'
 import { migration045 } from './045_custom_receipt_change_amount'
+import { migration046 } from './046_job_progress_and_invoices'
+import { migration047 } from './047_unified_service_catalog'
+import { migration048 } from './048_job_invoice_totals'
+import { migration049 } from './049_job_profile_complete'
+import { migration050 } from './050_job_single_department'
+import { migration051 } from './051_job_inspection_billing'
+import { migration052 } from './052_job_archive_and_numbers'
+import { migration053 } from './053_job_attachments'
+import { migration054 } from './054_job_part_line_department'
+import { migration055 } from './055_job_invoice_inspection_display'
+import { migration056 } from './056_user_preferences'
+import { migration057 } from './057_warranty_system'
+import { migration058 } from './058_product_invoice_auto_warranty'
 
 interface Migration {
   version: number
@@ -100,6 +113,19 @@ const migrations: Migration[] = [
   { version: 43, name: '043_inspection_diagram', up: migration043 },
   { version: 44, name: '044_ensure_appointments', up: migration044 },
   { version: 45, name: '045_custom_receipt_change_amount', up: migration045 },
+  { version: 46, name: '046_job_progress_and_invoices', up: migration046 },
+  { version: 47, name: '047_unified_service_catalog', up: migration047 },
+  { version: 48, name: '048_job_invoice_totals', up: migration048 },
+  { version: 49, name: '049_job_profile_complete', up: migration049 },
+  { version: 50, name: '050_job_single_department', up: migration050 },
+  { version: 51, name: '051_job_inspection_billing', up: migration051 },
+  { version: 52, name: '052_job_archive_and_numbers', up: migration052 },
+  { version: 53, name: '053_job_attachments', up: migration053 },
+  { version: 54, name: '054_job_part_line_department', up: migration054 },
+  { version: 55, name: '055_job_invoice_inspection_display', up: migration055 },
+  { version: 56, name: '056_user_preferences', up: migration056 },
+  { version: 57, name: '057_warranty_system', up: migration057 },
+  { version: 58, name: '058_product_invoice_auto_warranty', up: migration058 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

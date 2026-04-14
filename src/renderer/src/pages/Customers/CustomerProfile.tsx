@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Phone, Pencil, ChevronRight, Car, Plus, Eye, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Phone, Pencil, ChevronRight, Car, Plus, Eye, AlertCircle, Wrench } from 'lucide-react'
 import { formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { usePermission } from '../../hooks/usePermission'
@@ -37,6 +37,7 @@ interface JobHistoryRow {
   created_at: string
   date_in: string | null
   status: string
+  archived?: number
   total: number
   balance_due: number
   job_type: string
@@ -44,6 +45,14 @@ interface JobHistoryRow {
   complaint: string | null
   diagnosis: string | null
   parts_summary: string | null
+}
+
+/** In-progress / workshop pipeline: excludes delivered, cancelled, archived. */
+const JOB_TERMINAL_STATUSES = new Set(['completed_delivered', 'delivered', 'cancelled'])
+
+function isActiveJobCardRow(j: JobHistoryRow): boolean {
+  if ((j.archived ?? 0) === 1) return false
+  return !JOB_TERMINAL_STATUSES.has(j.status)
 }
 
 const emptyVehicleForm = { make: '', model: '', year: '', license_plate: '', color: '' }
@@ -63,6 +72,7 @@ export default function CustomerProfile(): JSX.Element {
   const { t } = useTranslation()
   const canEdit   = usePermission('customers.edit')
   const canDelete = usePermission('customers.delete')
+  const canEditJobCards = usePermission('repairs.edit')
   const user = useAuthStore(s => s.user)
   const role = user?.role
 
@@ -692,13 +702,26 @@ export default function CustomerProfile(): JSX.Element {
                         <CurrencyText amount={j.total} />
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/owners/${customer.id}/vehicles/${selectedVehicleId}`)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-border rounded-md hover:bg-muted transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5" />View
-                        </button>
+                        <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
+                          {canEditJobCards && isActiveJobCardRow(j) && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/job-cards?openJob=${j.id}`)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-primary/40 bg-primary/5 text-primary rounded-md hover:bg-primary/10 transition-colors"
+                              title={t('customers.openInJobCardsTitle', { defaultValue: 'Open in Job Cards' })}
+                            >
+                              <Wrench className="w-3.5 h-3.5 shrink-0" />
+                              {t('customers.openInJobCards', { defaultValue: 'Open job' })}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/owners/${customer.id}/vehicles/${selectedVehicleId}`)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-border rounded-md hover:bg-muted transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />View
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

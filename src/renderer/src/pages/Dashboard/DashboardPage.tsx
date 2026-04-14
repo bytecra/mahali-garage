@@ -45,6 +45,7 @@ interface DashboardData {
   }>
   totalAssetsPurchase: number
   unpaidSalariesTotal: number
+  totalCustomerDebt: number
 }
 
 function DeptBreakdown({ mechanical, programming }: { mechanical: number; programming: number }): JSX.Element {
@@ -980,6 +981,10 @@ export default function DashboardPage(): JSX.Element {
           valueContent={<CurrencyText amount={data?.monthRevenue ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
           sub={getCurrencyCode()}
           color="bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400" />}
+        {widgets.total_customer_debt && <StatCard icon={AlertCircle} label={t('dashboard.totalCustomerDebt')}
+          valueContent={<CurrencyText amount={data?.totalCustomerDebt ?? 0} className="text-2xl font-bold text-foreground mt-0.5" />}
+          sub={t('dashboard.totalCustomerDebtSub') + getCurrencyCode()}
+          color="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" />}
         {widgets.low_stock_items && <StatCard icon={Package} label={t('dashboard.lowStock')}
           value={data?.lowStock ?? 0}
           color="bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" />}

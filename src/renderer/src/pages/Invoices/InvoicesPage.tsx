@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { Search, Eye, ChevronLeft, ChevronRight, FileText, CalendarDays, X, Trash2, Printer, Download } from 'lucide-react'
 import { cn, formatCurrency, formatDateTime } from '../../lib/utils'
 import { printCustomReceiptA4 } from '../../lib/printCustomReceiptA4'
+import { printJobInvoiceDraft } from '../../lib/printJobInvoiceDraft'
+import { openSaleInvoicePdfForPrint } from '../../lib/posSaleInvoicePdf'
 import { FeatureGate } from '../../components/FeatureGate'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { toast } from '../../store/notificationStore'
 import ExcelJS from 'exceljs'
 
-type SourceType = 'invoice' | 'custom' | 'smart'
+type SourceType = 'invoice' | 'custom' | 'job'
 
 interface InvoiceRow {
   id: number
@@ -38,8 +41,22 @@ export default function InvoicesPage(): JSX.Element {
   )
 }
 
+function rowInDateRange(createdAt: string, dateFrom: string, dateTo: string): boolean {
+  const t = new Date(createdAt).getTime()
+  if (dateFrom) {
+    const a = new Date(`${dateFrom}T00:00:00`).getTime()
+    if (t < a) return false
+  }
+  if (dateTo) {
+    const b = new Date(`${dateTo}T23:59:59.999`).getTime()
+    if (t > b) return false
+  }
+  return true
+}
+
 function InvoicesPageInner(): JSX.Element {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [rows, setRows] = useState<InvoiceRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -60,6 +77,14 @@ function InvoicesPageInner(): JSX.Element {
       return false
     }
   })
+  const [highlightNumber, setHighlightNumber] = useState<string | null>(null)
+  const [jobViewLines, setJobViewLines] = useState<Array<{
+    description: string
+    quantity: number
+    unit_price: number
+    total_price: number
+  }> | null>(null)
+  const [storeName, setStoreName] = useState('Mahali Garage')
 
   useEffect(() => {
     try {
@@ -81,10 +106,58 @@ function InvoicesPageInner(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [viewOpen])
 
+  useEffect(() => {
+    void window.electronAPI.settings.get('store.name').then(res => {
+      if (res.success && res.data && String(res.data).trim()) setStoreName(String(res.data).trim())
+    })
+  }, [])
+
+  useEffect(() => {
+    const h = searchParams.get('highlight')
+    setHighlightNumber(h)
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!highlightNumber) return
+    const timer = window.setTimeout(() => {
+      setHighlightNumber(null)
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('highlight')
+        return next
+      }, { replace: true })
+    }, 3500)
+    return () => window.clearTimeout(timer)
+  }, [highlightNumber, setSearchParams])
+
+  useEffect(() => {
+    if (!highlightNumber || rows.length === 0) return
+    const idx = rows.findIndex(r => r.invoice_number === highlightNumber)
+    if (idx < 0) return
+    const row = rows[idx]
+    const el = document.getElementById(`inv-row-${row.source_type}-${row.id}`)
+    window.requestAnimationFrame(() => {
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }, [highlightNumber, rows, page])
+
+  useEffect(() => {
+    if (!viewOpen || !viewRow || viewRow.source_type !== 'job') {
+      setJobViewLines(null)
+      return
+    }
+    void window.electronAPI.jobCards.getJobInvoice(viewRow.id).then(res => {
+      if (res.success && res.data) {
+        const d = res.data as { items?: Array<{ description: string; quantity: number; unit_price: number; total_price: number }> }
+        setJobViewLines(d.items ?? [])
+      } else setJobViewLines([])
+    })
+  }, [viewOpen, viewRow])
+
   const loadData = useCallback(async (p = 1) => {
     setLoading(true)
     try {
-      const [salesRes, customRes] = await Promise.all([
+      const [salesRes, customRes, jobInvRes] = await Promise.all([
         window.electronAPI.sales.list({
           search: search || undefined,
           dateFrom: dateFrom || undefined,
@@ -99,10 +172,23 @@ function InvoicesPageInner(): JSX.Element {
           page: 1,
           pageSize: 5000,
         }),
+        window.electronAPI.jobCards.listJobInvoices({
+          search: search || undefined,
+        }),
       ])
 
       const salesRows = salesRes.success && salesRes.data ? (salesRes.data as { rows: Array<Record<string, unknown>> }).rows : []
       const customRows = customRes.success && customRes.data ? (customRes.data as { rows: Array<Record<string, unknown>> }).rows : []
+      const jobRows = jobInvRes.success && jobInvRes.data ? (jobInvRes.data as Array<{
+        id: number
+        invoice_number: string
+        created_at: string
+        customer_name: string | null
+        car: string | null
+        department: string | null
+        total_amount: number
+        status: string
+      }>) : []
 
       const mappedSales: InvoiceRow[] = salesRows.map(s => {
         const totalAmount = Number(s.total_amount || 0)
@@ -145,11 +231,30 @@ function InvoicesPageInner(): JSX.Element {
         change_amount: changeAmount,
         due_amount: 0,
         status: 'completed',
-        source_type: Number(r.smart_recipe || 0) === 1 ? 'smart' : 'custom',
+        source_type: 'custom',
         }
       })
 
-      let merged = [...mappedSales, ...mappedCustom]
+      const mappedJob: InvoiceRow[] = jobRows
+        .filter(j => rowInDateRange(j.created_at, dateFrom, dateTo))
+        .map(j => ({
+          id: j.id,
+          invoice_number: j.invoice_number,
+          created_at: j.created_at,
+          customer_name: j.customer_name,
+          car: j.car,
+          department: j.department,
+          amount: Number(j.total_amount) || 0,
+          payment_method: null,
+          paid_amount: 0,
+          change_amount: 0,
+          due_amount: Math.max(0, Number(j.total_amount) || 0),
+          status: j.status,
+          source_type: 'job' as const,
+          invoice_id: j.id,
+        }))
+
+      let merged = [...mappedSales, ...mappedCustom, ...mappedJob]
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       if (withChangeOnly) merged = merged.filter((r) => r.change_amount > 0)
       if (changeSort === 'asc') merged = merged.slice().sort((a, b) => a.change_amount - b.change_amount)
@@ -238,7 +343,13 @@ function InvoicesPageInner(): JSX.Element {
   const rangeEnd = Math.min(total, page * pageSize)
 
   async function handleDelete(row: InvoiceRow): Promise<void> {
-    if (row.source_type === 'invoice') {
+    if (row.source_type === 'job') {
+      const res = await window.electronAPI.jobCards.deleteJobInvoice(row.id)
+      if (!res.success) {
+        toast.error(res.error ?? t('common.error'))
+        return
+      }
+    } else if (row.source_type === 'invoice') {
       await window.electronAPI.sales.void(row.id, 'Deleted from Invoices page')
     } else {
       await window.electronAPI.customReceipts.delete(row.id)
@@ -248,8 +359,59 @@ function InvoicesPageInner(): JSX.Element {
   }
 
   async function handlePrint(row: InvoiceRow): Promise<void> {
+    if (row.source_type === 'job') {
+      const res = await window.electronAPI.jobCards.getJobInvoice(row.id)
+      if (!res.success || !res.data) return
+      const inv = res.data as {
+        invoice_number: string
+        created_at: string
+        status: string
+        total_amount: number
+        items: Array<{ description: string; quantity: number; unit_price: number; total_price: number }>
+        subtotal?: number | null
+        tax_rate?: number | null
+        tax_amount?: number | null
+        discount_type?: string | null
+        discount_value?: number | null
+        notes?: string | null
+        payment_terms?: string | null
+        job_number?: string | null
+        inspection_data?: string | null
+        include_inspection_on_invoice?: number | null
+      }
+      try {
+        await printJobInvoiceDraft({
+          storeName,
+          invoice_number: inv.invoice_number,
+          created_at: inv.created_at,
+          status: inv.status,
+          customer_name: row.customer_name ?? '—',
+          vehicle_label: row.car ?? '—',
+          job_number: inv.job_number,
+          items: inv.items ?? [],
+          total_amount: inv.total_amount,
+          subtotal: inv.subtotal,
+          tax_rate: inv.tax_rate,
+          tax_amount: inv.tax_amount,
+          discount_type: inv.discount_type,
+          discount_value: inv.discount_value,
+          notes: inv.notes,
+          payment_terms: inv.payment_terms,
+          inspection_data: inv.inspection_data,
+          include_inspection_on_invoice: inv.include_inspection_on_invoice,
+        })
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Print failed')
+      }
+      return
+    }
     if (row.source_type === 'invoice') {
-      if (row.invoice_id) await window.electronAPI.invoices.print(row.invoice_id)
+      try {
+        const ok = await openSaleInvoicePdfForPrint(row.id)
+        if (!ok) toast.error(t('common.error'))
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : t('common.error'))
+      }
       return
     }
     const res = await window.electronAPI.customReceipts.getById(row.id)
@@ -351,8 +513,18 @@ function InvoicesPageInner(): JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => (
-                <tr key={`${row.source_type}-${row.id}`} className={cn('border-b border-border last:border-0 hover:bg-muted/30', idx % 2 === 1 && 'bg-muted/10')}>
+              {rows.map((row, idx) => {
+                const isHi = highlightNumber && row.invoice_number === highlightNumber
+                return (
+                <tr
+                  key={`${row.source_type}-${row.id}`}
+                  id={`inv-row-${row.source_type}-${row.id}`}
+                  className={cn(
+                    'border-b border-border last:border-0 hover:bg-muted/30 transition-colors duration-500',
+                    idx % 2 === 1 && 'bg-muted/10',
+                    isHi && 'bg-emerald-100/90 dark:bg-emerald-950/50 animate-pulse ring-2 ring-emerald-400/50',
+                  )}
+                >
                   <td className="px-4 py-3 font-mono">{row.invoice_number}</td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDateTime(row.created_at)}</td>
                   <td className="px-4 py-3">{row.customer_name || t('pos.walkIn')}</td>
@@ -372,10 +544,14 @@ function InvoicesPageInner(): JSX.Element {
                     <span className={cn(
                       'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
                       row.source_type === 'invoice' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                        : row.source_type === 'smart' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
+                        : row.source_type === 'job' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
                           : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                     )}>
-                      {row.source_type === 'invoice' ? 'Invoice' : row.source_type === 'smart' ? 'Smart Recipe' : 'Custom Recipe'}
+                      {row.source_type === 'invoice'
+                        ? 'POS / Sale'
+                        : row.source_type === 'job'
+                          ? 'Job card'
+                          : 'Custom Recipe'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -386,7 +562,8 @@ function InvoicesPageInner(): JSX.Element {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}
@@ -424,16 +601,47 @@ function InvoicesPageInner(): JSX.Element {
 
       {viewOpen && viewRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-card rounded-xl shadow-2xl border border-border w-full max-w-lg p-5 space-y-3">
+          <div className="bg-card rounded-xl shadow-2xl border border-border w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">{viewRow.invoice_number}</h2>
-              <button onClick={() => setViewOpen(false)} className="p-1 rounded hover:bg-muted"><X className="w-4 h-4" /></button>
+              <button
+                type="button"
+                onClick={() => { setViewOpen(false); setJobViewLines(null) }}
+                className="p-1 rounded hover:bg-muted"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              {viewRow.source_type === 'job' ? 'Job card draft invoice' : 'Transaction'}
+            </p>
             <p className="text-sm">{formatDateTime(viewRow.created_at)}</p>
             <p className="text-sm">{viewRow.customer_name || t('pos.walkIn')}</p>
             <p className="text-sm">{viewRow.car || '—'}</p>
             <p className="text-sm">{viewRow.department || '—'}</p>
             <p className="text-sm font-semibold"><CurrencyText amount={viewRow.amount} /></p>
+            {viewRow.source_type === 'job' && jobViewLines && jobViewLines.length > 0 && (
+              <div className="border border-border rounded-md overflow-hidden text-xs">
+                <table className="w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-start px-2 py-1.5 font-medium">Description</th>
+                      <th className="text-center px-2 py-1.5 w-12">Qty</th>
+                      <th className="text-end px-2 py-1.5 w-20">Line</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {jobViewLines.map((line, i) => (
+                      <tr key={i}>
+                        <td className="px-2 py-1.5">{line.description}</td>
+                        <td className="text-center px-2 py-1.5">{line.quantity}</td>
+                        <td className="text-end px-2 py-1.5 tabular-nums">{formatCurrency(line.total_price)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

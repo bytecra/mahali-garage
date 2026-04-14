@@ -16,6 +16,10 @@ export interface ProductRow {
   unit: string
   is_active: number
   image_path: string | null
+  /** When set, draft job invoices auto-add a line-scoped warranty for job lines linked to this product. */
+  warranty_title: string | null
+  warranty_duration_months: number | null
+  warranty_notes: string | null
   created_at: string
   updated_at: string
   // Joined fields
@@ -125,13 +129,17 @@ export const productRepo = {
   create(data: Omit<ProductRow, 'id' | 'created_at' | 'updated_at' | 'category_name' | 'brand_name' | 'supplier_name'>): number {
     const result = getDb().prepare(`
       INSERT INTO products (name, sku, barcode, description, category_id, brand_id, supplier_id,
-        cost_price, sell_price, stock_quantity, low_stock_threshold, unit, is_active, image_path)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        cost_price, sell_price, stock_quantity, low_stock_threshold, unit, is_active, image_path,
+        warranty_title, warranty_duration_months, warranty_notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       data.name, data.sku ?? null, data.barcode ?? null, data.description ?? null,
       data.category_id ?? null, data.brand_id ?? null, data.supplier_id ?? null,
       data.cost_price, data.sell_price, data.stock_quantity,
-      data.low_stock_threshold, data.unit, data.is_active, data.image_path ?? null
+      data.low_stock_threshold, data.unit, data.is_active, data.image_path ?? null,
+      data.warranty_title ?? null,
+      data.warranty_duration_months ?? null,
+      data.warranty_notes ?? null,
     )
     return result.lastInsertRowid as number
   },

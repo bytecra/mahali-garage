@@ -5,8 +5,6 @@ import {
   ChevronDown, ChevronUp, FileDown, Printer, Package, Truck
 } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
-import { usePermission as _usePermission } from '../../hooks/usePermission'
-import { pdf } from '@react-pdf/renderer'
 import { useCartStore } from '../../store/cartStore'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useBarcode } from '../../hooks/useBarcode'
@@ -17,7 +15,7 @@ import DiscountModal from './DiscountModal'
 import PaymentModal from './PaymentModal'
 import DraftInvoices from './DraftInvoices'
 import { usePermission } from '../../hooks/usePermission'
-import { InvoicePDF, type InvoiceData } from '../../components/pdf/InvoicePDF'
+import { downloadSaleInvoicePdf } from '../../lib/posSaleInvoicePdf'
 
 interface Product {
   id: number; name: string; sku: string | null; barcode: string | null
@@ -49,54 +47,18 @@ export default function POSPage(): JSX.Element {
   const [deliveryDate, setDeliveryDate] = useState('')
   const [deliveryNotes, setDeliveryNotes] = useState('')
   const [deliverySaving, setDeliverySaving] = useState(false)
-  const canCreateTask = _usePermission('tasks.create')
+  const canCreateTask = usePermission('tasks.create')
 
   const searchRef = useRef<HTMLInputElement>(null)
   const debouncedQuery = useDebounce(query, 250)
 
-  const downloadPDF = async (saleId: number, invoiceNumber: string) => {
+  const downloadPDF = async (saleId: number): Promise<void> => {
     try {
-      const [saleRes, settingsRes] = await Promise.all([
-        window.electronAPI.sales.getById(saleId),
-        window.electronAPI.settings.getAll(),
-      ])
-      if (!saleRes.success || !saleRes.data) { toast.error(t('common.error')); return }
-
-      const s = saleRes.data as Record<string, unknown>
-      const settings = (settingsRes.success && settingsRes.data) ? settingsRes.data as Record<string, string> : {}
-
-      const inv: InvoiceData = {
-        invoice_number:  invoiceNumber,
-        sale_number:     s.sale_number as string,
-        created_at:      s.created_at as string,
-        customer_name:   s.customer_name as string | null,
-        cashier_name:    s.cashier_name as string | null,
-        items:           s.items as InvoiceData['items'],
-        subtotal:        s.subtotal as number,
-        discount_amount: s.discount_amount as number,
-        tax_enabled:     !!(s.tax_enabled),
-        tax_rate:        s.tax_rate as number,
-        tax_amount:      s.tax_amount as number,
-        total_amount:    s.total_amount as number,
-        amount_paid:     s.amount_paid as number,
-        balance_due:     s.balance_due as number,
-        notes:           s.notes as string | null,
-        store_name:      settings['store.name'],
-        store_address:   settings['store.address'],
-        store_phone:     settings['store.phone'],
-        invoice_footer:  settings['invoice.footer_text'],
-        currency_symbol: settings['store.currency_symbol'] ?? 'د.إ',
-        currency_code:   settings['store.currency'] ?? 'AED',
-        store_logo:      settings['store_logo'] || undefined,
+      const ok = await downloadSaleInvoicePdf(saleId)
+      if (!ok) {
+        toast.error(t('common.error'))
+        return
       }
-
-      const blob = await pdf(<InvoicePDF inv={inv} />).toBlob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${invoiceNumber}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
       toast.success(t('pos.invoiceGenerated'))
     } catch (e) {
       console.error('PDF generation failed', e)
@@ -190,7 +152,7 @@ export default function POSPage(): JSX.Element {
     toast.success(`${t('pos.saleComplete')} — ${result.invoice_number}`)
     cart.clear()
     setPaymentOpen(false)
-    downloadPDF(result.sale_id, result.invoice_number)
+    void downloadPDF(result.sale_id)
   }
 
   const handleSaveDraft = async () => {
@@ -333,7 +295,7 @@ export default function POSPage(): JSX.Element {
                   {t('pos.lastInvoice')}: <strong>{lastInvoice.invoice_number}</strong>
                 </p>
                 <button
-                  onClick={() => downloadPDF(lastInvoice.sale_id, lastInvoice.invoice_number)}
+                  onClick={() => void downloadPDF(lastInvoice.sale_id)}
                   className="flex items-center gap-1.5 text-xs text-green-700 dark:text-green-400 hover:underline"
                 >
                   <Printer className="w-3.5 h-3.5" />{t('pos.reprint')}

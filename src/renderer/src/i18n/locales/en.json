@@ -56,10 +56,10 @@
   "nav": {
     "dashboard": "Dashboard",
     "quickInvoice": "Quick Invoice",
-    "smartRecipe": "Smart Recipe",
-    "customRecipe": "Custom Recipe",
+    "createNewJob": "Create new job",
     "pos": "Quick Invoice",
     "jobCards": "Job Cards",
+    "archivedJobs": "Archived Jobs",
     "vehicles": "Vehicles",
     "serviceCatalog": "Service Catalog",
     "services": "Services",
@@ -76,7 +76,6 @@
     "tasks": "Tasks",
     "calendar": "Calendar",
     "invoices": "Invoices",
-    "customReceipts": "Custom Receipts",
     "employees": "Employees",
     "aiAssistant": "AI Assistant"
   },
@@ -92,6 +91,8 @@
     "title": "Dashboard",
     "todaySales": "Today's Sales",
     "monthRevenue": "Revenue (Month)",
+    "totalCustomerDebt": "Total customer debt",
+    "totalCustomerDebtSub": "Assigned customers only (walk-in credits excluded) · ",
     "activeRepairs": "Active Repairs",
     "lowStock": "Low Stock Items",
     "grossProfit": "Gross Profit (Month)",
@@ -194,6 +195,12 @@
     "stock": "Stock",
     "lowStockAlert": "Low Stock Alert",
     "unit": "Unit",
+    "warrantyFromProductBadge": "From inventory",
+    "warrantySectionTitle": "Job invoice warranty (optional)",
+    "warrantyTitle": "Default warranty title",
+    "warrantyDurationMonths": "Warranty duration (months)",
+    "warrantyNotes": "Warranty notes",
+    "warrantyHint": "When this part is on a job invoice line linked to this product, a line warranty is added automatically. You can remove it on the draft invoice.",
     "adjustStock": "Adjust Stock",
     "stockIn": "Stock In",
     "stockOut": "Stock Out",
@@ -251,7 +258,9 @@
     "salesHistory": "Sales History",
     "repairHistory": "Repair History",
     "paymentHistory": "Payment History",
-    "searchPlaceholder": "Search customers..."
+    "searchPlaceholder": "Search customers...",
+    "openInJobCards": "Open job",
+    "openInJobCardsTitle": "Edit this job (Job Cards)"
   },
   "repairs": {
     "title": "Job Cards",
@@ -290,7 +299,7 @@
     "partNamePlaceholder": "e.g. Oil Filter",
     "unitCost": "Unit Cost",
     "partsTotal": "Parts Total",
-    "listSearchPlaceholder": "Search jobs, vehicles, customers..."
+    "listSearchPlaceholder": "Search job #, customer, phone, plate, invoice #..."
   },
   "jobCards": {
     "title": "Job Cards",
@@ -329,7 +338,9 @@
     "workDescription": "Work Description",
     "partsUsed": "Parts Used",
     "laborPricing": "Labor & Pricing",
-    "additionalInfo": "Additional Info"
+    "additionalInfo": "Additional Info",
+    "toastJobArchived": "Archived {{jobNumber}} — {{hint}}",
+    "toastJobRestored": "Restored {{jobNumber}} — {{hint}}. It is back under Job Cards (not in Archive)."
   },
   "reports": {
     "title": "Reports",
@@ -368,7 +379,11 @@
     "comparisonDateHint": "The main From/To filters above are ignored while comparison is active.",
     "invalidComparisonRange": "Invalid comparison date range",
     "exportPdfTitle": "Export PDF Report",
-    "timePeriod": "Time Period"
+    "timePeriod": "Time Period",
+    "departmentReports": "Department Reports",
+    "jobsCount": "Jobs / receipts",
+    "paymentsCash": "Cash collected",
+    "paymentsNonCash": "Card / bank / other"
   },
   "assets": {
     "title": "Assets",
@@ -535,6 +550,7 @@
     "dark": "Dark",
     "system": "System",
     "language": "Language",
+    "userPreferencesHint": "Theme and language are saved for your user account (each user can choose their own).",
     "printer": "Printer Settings",
     "backup": "Backup & Restore",
     "backupNow": "Backup Now",
@@ -626,7 +642,16 @@
     "month": "Month",
     "week": "Week",
     "day": "Day",
-    "noEvents": "No events"
+    "noEvents": "No events",
+    "deleteAppointmentTitle": "Delete this appointment?",
+    "deleteAppointmentMessage": "This booking will be removed from the calendar. You cannot undo this action."
+  },
+  "invoice": {
+    "warrantiesSection": "Warranties",
+    "warrantyEditorHelp": "Cover the whole invoice, a single line, or a catalog service. Saved with the invoice.",
+    "addWarranty": "Add warranty",
+    "noWarranties": "No warranties added.",
+    "applyTemplate": "Apply template…"
   },
   "notifications": {
     "title": "Notifications",

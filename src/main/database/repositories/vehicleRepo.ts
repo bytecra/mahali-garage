@@ -29,6 +29,30 @@ export interface VehicleFilters {
   pageSize?: number
 }
 
+/** Empty optional strings → null (avoids UNIQUE(vin) collisions on repeated ''). */
+function normalizeVehicleStrings(data: Partial<VehicleRow>): Partial<VehicleRow> {
+  const keys: (keyof VehicleRow)[] = [
+    'vin',
+    'license_plate',
+    'color',
+    'engine_type',
+    'transmission',
+    'insurance_company',
+    'insurance_policy',
+    'insurance_expiry',
+    'notes',
+    'photo_url',
+  ]
+  const out: Partial<VehicleRow> = { ...data }
+  for (const k of keys) {
+    const v = out[k]
+    if (typeof v === 'string' && v.trim() === '') {
+      ;(out as Record<string, unknown>)[k] = null
+    }
+  }
+  return out
+}
+
 export const vehicleRepo = {
   list(filters: VehicleFilters = {}): { items: VehicleRow[]; total: number } {
     const db = getDb()
@@ -75,23 +99,24 @@ export const vehicleRepo = {
 
   create(data: Partial<VehicleRow>): number {
     const db = getDb()
+    const d = normalizeVehicleStrings(data)
     const result = db.prepare(`
       INSERT INTO vehicles (owner_id, make, model, year, vin, license_plate, color, mileage,
         engine_type, transmission, insurance_company, insurance_policy, insurance_expiry, notes, photo_url)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      data.owner_id ?? null, data.make ?? '', data.model ?? '', data.year ?? null,
-      data.vin ?? null, data.license_plate ?? null, data.color ?? null, data.mileage ?? 0,
-      data.engine_type ?? null, data.transmission ?? null,
-      data.insurance_company ?? null, data.insurance_policy ?? null, data.insurance_expiry ?? null,
-      data.notes ?? null, data.photo_url ?? null,
+      d.owner_id ?? null, d.make ?? '', d.model ?? '', d.year ?? null,
+      d.vin ?? null, d.license_plate ?? null, d.color ?? null, d.mileage ?? 0,
+      d.engine_type ?? null, d.transmission ?? null,
+      d.insurance_company ?? null, d.insurance_policy ?? null, d.insurance_expiry ?? null,
+      d.notes ?? null, d.photo_url ?? null,
     )
     return result.lastInsertRowid as number
   },
 
   update(id: number, data: Partial<VehicleRow>): boolean {
     const db = getDb()
-    const fields = Object.entries(data)
+    const fields = Object.entries(normalizeVehicleStrings(data))
       .filter(([k]) => !['id', 'created_at', 'updated_at', 'owner_name'].includes(k))
       .filter(([, v]) => v !== undefined)
     if (!fields.length) return false

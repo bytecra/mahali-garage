@@ -21,7 +21,6 @@ function fileBufferToBase64(fileBuffer: number[]): string {
 }
 
 const APP_SHORTCUT_DEFAULTS: Record<string, string> = {
-  smart_recipe: 'ctrl+shift+s',
   custom_recipe: 'ctrl+shift+c',
   tv_on: 'ctrl+shift+t',
   tv_off: 'ctrl+shift+w',
@@ -30,6 +29,7 @@ const APP_SHORTCUT_DEFAULTS: Record<string, string> = {
 }
 
 const JobTypesSettings  = lazy(() => import('./JobTypesSettings'))
+const WarrantyTemplatesSettings = lazy(() => import('./WarrantyTemplatesSettings'))
 const CarBrandsSettings = lazy(() => import('./CarBrandsSettings'))
 const BackupSettingsTab = lazy(() => import('./BackupSettings'))
 
@@ -60,7 +60,7 @@ const DEFAULT_EMP_ID_FORMAT = {
   startFrom: 1,
 }
 
-type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'employees' | 'attendance' | 'store-documents' | 'about'
+type Tab = 'store' | 'invoice' | 'tax' | 'appearance' | 'payment' | 'backup' | 'license' | 'activity' | 'job-types' | 'warranty' | 'car-brands' | 'dashboard' | 'payroll' | 'tv-display' | 'shortcuts' | 'loyalty' | 'employees' | 'attendance' | 'store-documents' | 'about'
 
 interface CarBrand { id: number; name: string; logo: string | null }
 
@@ -154,13 +154,11 @@ export default function SettingsPage(): JSX.Element {
     progress: number
     filePath: string | null
     error: string | null
-    done: boolean
   }>({
     downloading: false,
     progress: 0,
     filePath: null,
     error: null,
-    done: false,
   })
 
   const [attendanceStatuses, setAttendanceStatuses] = useState<
@@ -491,6 +489,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'loyalty', label: 'Loyalty' },
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
+    { key: 'warranty',  label: 'Warranties', guard: canSettings },
     { key: 'car-brands', label: t('settings.carBrands', { defaultValue: 'Car Brands' }), guard: canSettings },
     { key: 'dashboard',  label: 'Dashboard', guard: canSettings },
     { key: 'tv-display', label: t('settings.tvDisplay', { defaultValue: 'TV Display' }), guard: canSettings },
@@ -601,7 +600,6 @@ export default function SettingsPage(): JSX.Element {
       progress: 0,
       filePath: null,
       error: null,
-      done: false,
     })
     setUpdateStatus(prev => ({
       ...prev,
@@ -611,7 +609,7 @@ export default function SettingsPage(): JSX.Element {
     }))
     try {
       const res = await window.electronAPI.app.checkForUpdates()
-      if (res?.data) {
+      if (res?.success && res.data) {
         setUpdateStatus({
           checking: false,
           checked: true,
@@ -625,6 +623,13 @@ export default function SettingsPage(): JSX.Element {
           downloadUrl: res.data.downloadUrl,
           downloadSize: res.data.downloadSize,
         })
+      } else {
+        setUpdateStatus({
+          checking: false,
+          checked: true,
+          hasUpdate: false,
+          error: 'Update check failed',
+        })
       }
     } catch {
       setUpdateStatus({
@@ -636,15 +641,18 @@ export default function SettingsPage(): JSX.Element {
     }
   }
 
-  async function handleDownloadUpdate(): Promise<void> {
-    if (!updateStatus.downloadUrl) return
+  /** Download the release asset, then run the installer and quit (in-app update, no browser). */
+  async function handleDownloadAndRestart(): Promise<void> {
+    if (!updateStatus.downloadUrl) {
+      toast.error('No installer listed for this release. Use View on GitHub to download manually.')
+      return
+    }
 
     setDownloadState({
       downloading: true,
       progress: 0,
       filePath: null,
       error: null,
-      done: false,
     })
 
     const cleanup = window.electronAPI.app.onDownloadProgress(({ progress }) => {
@@ -656,38 +664,53 @@ export default function SettingsPage(): JSX.Element {
 
     try {
       const res = await window.electronAPI.app.downloadUpdate(updateStatus.downloadUrl)
-
-      cleanup()
-
-      if (res?.success && res.data) {
-        setDownloadState({
-          downloading: false,
-          progress: 100,
-          filePath: res.data.filePath,
-          error: null,
-          done: true,
-        })
-        toast.success('Download complete! Click Install to update.')
-      } else {
+      if (!res?.success || !res.data?.filePath) {
+        const msg = res?.error ?? 'Download failed'
         setDownloadState(prev => ({
           ...prev,
           downloading: false,
-          error: res?.error ?? 'Download failed',
+          error: msg,
         }))
+        toast.error(msg)
+        return
       }
+
+      const { filePath } = res.data
+      setDownloadState(prev => ({ ...prev, progress: 100 }))
+
+      const installRes = await window.electronAPI.app.installUpdate(filePath)
+      if (!installRes.success) {
+        setDownloadState({
+          downloading: false,
+          progress: 100,
+          filePath,
+          error: installRes.error ?? 'Could not start installer',
+        })
+        toast.error(installRes.error ?? 'Could not start installer')
+        return
+      }
+
+      toast.success('Starting installer — the app will close in a moment.')
     } catch {
-      cleanup()
       setDownloadState(prev => ({
         ...prev,
         downloading: false,
         error: 'Download failed',
       }))
+      toast.error('Download failed')
+    } finally {
+      cleanup()
     }
   }
 
-  async function handleInstallUpdate(): Promise<void> {
+  async function handleRetryOpenInstaller(): Promise<void> {
     if (!downloadState.filePath) return
-    await window.electronAPI.app.installUpdate(downloadState.filePath)
+    const installRes = await window.electronAPI.app.installUpdate(downloadState.filePath)
+    if (!installRes.success) {
+      toast.error(installRes.error ?? 'Could not start installer')
+    } else {
+      toast.success('Starting installer — the app will close in a moment.')
+    }
   }
 
   async function saveStatus(): Promise<void> {
@@ -1305,6 +1328,7 @@ export default function SettingsPage(): JSX.Element {
 
         {tab === 'appearance' && (
           <div className="space-y-5">
+            <p className="text-sm text-muted-foreground">{t('settings.userPreferencesHint')}</p>
             <div>
               <label className={labelCls}>{t('settings.theme')}</label>
               <div className="flex gap-3 mt-1">
@@ -1403,8 +1427,7 @@ export default function SettingsPage(): JSX.Element {
             </div>
             <div className="space-y-3">
               {([
-                ['smart_recipe', 'Create Smart Recipe'],
-                ['custom_recipe', 'Create Custom Recipe'],
+                ['custom_recipe', 'Open Invoices'],
                 ['tv_on', 'TV Display ON'],
                 ['tv_off', 'TV Display OFF'],
                 ['add_customer', 'Add New Customer'],
@@ -1833,6 +1856,12 @@ export default function SettingsPage(): JSX.Element {
         {tab === 'job-types' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
             <JobTypesSettings />
+          </Suspense>
+        )}
+
+        {tab === 'warranty' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
+            <WarrantyTemplatesSettings />
           </Suspense>
         )}
 
@@ -2618,32 +2647,41 @@ export default function SettingsPage(): JSX.Element {
                           </p>
                         )}
 
-                        {!downloadState.downloading &&
-                          !downloadState.done &&
-                          !downloadState.error && (
-                          <div className="flex gap-2">
-                            {updateStatus.downloadUrl ? (
+                        {updateStatus.hasUpdate && !updateStatus.downloadUrl && (
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            No installer file was detected for your system on this release. Use &quot;View on GitHub&quot; to download the Windows/macOS build manually.
+                          </p>
+                        )}
+
+                        {!downloadState.downloading && !downloadState.error && (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2">
+                              {updateStatus.downloadUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDownloadAndRestart()}
+                                  className="flex-1 py-2.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium"
+                                >
+                                  ⬇️ Download &amp; restart
+                                </button>
+                              ) : null}
                               <button
                                 type="button"
-                                onClick={() => void handleDownloadUpdate()}
-                                className="flex-1 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium"
+                                onClick={() => {
+                                  if (updateStatus.releaseUrl) {
+                                    void window.electronAPI.shell.openExternal(updateStatus.releaseUrl)
+                                  }
+                                }}
+                                className={`py-2 text-sm border border-border rounded-md hover:bg-muted/50 ${
+                                  updateStatus.downloadUrl ? 'px-3 shrink-0' : 'flex-1'
+                                }`}
                               >
-                                ⬇️ Download v{updateStatus.latestVersion}
+                                View on GitHub
                               </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (updateStatus.releaseUrl) {
-                                  void window.electronAPI.shell.openExternal(updateStatus.releaseUrl)
-                                }
-                              }}
-                              className={`py-2 text-sm border border-border rounded-md hover:bg-muted/50 ${
-                                updateStatus.downloadUrl ? 'px-3' : 'flex-1'
-                              }`}
-                            >
-                              Open in Browser
-                            </button>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground text-center">
+                              Downloads in the background, runs the installer, then restarts the app.
+                            </p>
                           </div>
                         )}
 
@@ -2679,14 +2717,23 @@ export default function SettingsPage(): JSX.Element {
                         {downloadState.error && (
                           <div className="space-y-2">
                             <p className="text-xs text-destructive">❌ {downloadState.error}</p>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
-                                onClick={() => void handleDownloadUpdate()}
-                                className="flex-1 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                                onClick={() => void handleDownloadAndRestart()}
+                                className="flex-1 min-w-[8rem] py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
                               >
-                                Retry Download
+                                Retry download
                               </button>
+                              {downloadState.filePath && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRetryOpenInstaller()}
+                                  className="flex-1 min-w-[8rem] py-2 text-sm border border-border rounded-md hover:bg-muted/50 font-medium"
+                                >
+                                  Run installer
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2696,27 +2743,9 @@ export default function SettingsPage(): JSX.Element {
                                 }}
                                 className="px-3 py-2 text-sm border border-border rounded-md hover:bg-muted/50"
                               >
-                                Browser
+                                GitHub
                               </button>
                             </div>
-                          </div>
-                        )}
-
-                        {downloadState.done && (
-                          <div className="space-y-2">
-                            <p className="text-xs text-green-600 dark:text-green-400 font-medium">
-                              ✅ Downloaded successfully
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => void handleInstallUpdate()}
-                              className="w-full py-2.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
-                            >
-                              🚀 Install & Restart
-                            </button>
-                            <p className="text-xs text-muted-foreground text-center">
-                              App will close and installer will run
-                            </p>
                           </div>
                         )}
                       </div>

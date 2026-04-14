@@ -72,4 +72,16 @@ export const activityLogRepo = {
 
     return { rows, total }
   },
+
+  listByEntity(entity: string, entityId: number, limit = 200): ActivityLogRow[] {
+    const db = getDb()
+    return db.prepare(`
+      SELECT al.id, al.user_id, u.full_name, al.action, al.entity, al.entity_id, al.details, al.created_at
+      FROM activity_log al
+      LEFT JOIN users u ON u.id = al.user_id
+      WHERE al.entity = ? AND al.entity_id = ?
+      ORDER BY al.created_at DESC
+      LIMIT ?
+    `).all(entity, entityId, Math.max(1, Math.min(1000, limit))) as ActivityLogRow[]
+  },
 }

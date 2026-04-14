@@ -8,6 +8,8 @@ export interface CustomerRow {
   address: string | null
   notes: string | null
   balance: number
+  /** Sum of unpaid sale balance_due + unpaid job balance_due (for list/debt UI). */
+  amount_owed?: number
   created_at: string
   updated_at: string
   sale_count?: number
@@ -29,7 +31,7 @@ export interface CustomerSummaryStats {
   total_paid: number
   /** Count of non-void sales (excl. draft) + non-cancelled job cards for this owner. */
   total_visits: number
-  /** Amount customer owes (positive number); mirrors UI when balance is negative. */
+  /** Sum of unpaid POS sale balance_due + unpaid job_cards balance_due for this customer. */
   outstanding_balance: number
   /** ISO date string of the most recent sale or job card (excluding voided/cancelled). */
   last_visit: string | null
@@ -44,12 +46,34 @@ export const customerRepo = {
     const params: (string | number)[] = []
 
     if (search) {
-      conditions.push('(c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)')
       const like = `%${search}%`
-      params.push(like, like, like)
+      const digitsOnly = search.replace(/\D/g, '')
+      /** Match stored phones regardless of spaces/dashes/+ when user types numbers (quick job, POS lookup). */
+      const phoneNormSql = `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(c.phone,''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', '')`
+      if (digitsOnly.length >= 2) {
+        const digitLike = `%${digitsOnly}%`
+        conditions.push(`(
+          c.name LIKE ? OR c.email LIKE ? OR c.phone LIKE ?
+          OR (${phoneNormSql} LIKE ?)
+        )`)
+        params.push(like, like, like, digitLike)
+      } else {
+        conditions.push('(c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)')
+        params.push(like, like, like)
+      }
     }
     if (with_debt) {
-      conditions.push('c.balance < 0')
+      conditions.push(`(
+        c.balance < 0
+        OR EXISTS (
+          SELECT 1 FROM sales s
+          WHERE s.customer_id = c.id AND s.status NOT IN ('draft','voided') AND COALESCE(s.balance_due, 0) > 0.0001
+        )
+        OR EXISTS (
+          SELECT 1 FROM job_cards j
+          WHERE j.owner_id = c.id AND j.status != 'cancelled' AND COALESCE(j.balance_due, 0) > 0.0001
+        )
+      )`)
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -59,7 +83,13 @@ export const customerRepo = {
     const items = getDb().prepare(`
       SELECT c.*,
         COUNT(DISTINCT s.id) as sale_count,
-        COUNT(DISTINCT r.id) as repair_count
+        COUNT(DISTINCT r.id) as repair_count,
+        (
+          (SELECT COALESCE(SUM(s2.balance_due), 0) FROM sales s2
+            WHERE s2.customer_id = c.id AND s2.status NOT IN ('draft', 'voided'))
+          + (SELECT COALESCE(SUM(j2.balance_due), 0) FROM job_cards j2
+            WHERE j2.owner_id = c.id AND j2.status != 'cancelled')
+        ) AS amount_owed
       FROM customers c
       LEFT JOIN sales s ON s.customer_id = c.id AND s.status != 'draft'
       LEFT JOIN repairs r ON r.customer_id = c.id
@@ -74,6 +104,16 @@ export const customerRepo = {
 
   search(query: string): Pick<CustomerRow, 'id' | 'name' | 'phone' | 'balance'>[] {
     const like = `%${query}%`
+    const digitsOnly = query.replace(/\D/g, '')
+    const phoneNorm = `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(phone,''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', '')`
+    if (digitsOnly.length >= 2) {
+      const digitLike = `%${digitsOnly}%`
+      return getDb().prepare(`
+        SELECT id, name, phone, balance FROM customers
+        WHERE name LIKE ? OR phone LIKE ? OR (${phoneNorm} LIKE ?)
+        ORDER BY name LIMIT 10
+      `).all(like, like, digitLike) as Pick<CustomerRow, 'id' | 'name' | 'phone' | 'balance'>[]
+    }
     return getDb().prepare(`
       SELECT id, name, phone, balance FROM customers
       WHERE name LIKE ? OR phone LIKE ?
@@ -120,9 +160,18 @@ export const customerRepo = {
 
   getSummaryStats(customerId: number): CustomerSummaryStats {
     const db = getDb()
-    const row = db.prepare('SELECT balance FROM customers WHERE id = ?').get(customerId) as { balance: number } | undefined
-    const balance = row?.balance ?? 0
-    const outstanding_balance = balance < 0 ? Math.abs(balance) : 0
+    /** True AR: unpaid POS + unpaid job cards (job debt is not mirrored on customers.balance). */
+    const salesOwed = (db.prepare(`
+      SELECT COALESCE(SUM(balance_due), 0) AS v
+      FROM sales
+      WHERE customer_id = ? AND status NOT IN ('draft', 'voided')
+    `).get(customerId) as { v: number }).v
+    const jobsOwed = (db.prepare(`
+      SELECT COALESCE(SUM(balance_due), 0) AS v
+      FROM job_cards
+      WHERE owner_id = ? AND status != 'cancelled'
+    `).get(customerId) as { v: number }).v
+    const outstanding_balance = salesOwed + jobsOwed
 
     const sales = db.prepare(`
       SELECT

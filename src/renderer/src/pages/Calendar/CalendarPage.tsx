@@ -11,6 +11,7 @@ import { usePermission } from '../../hooks/usePermission'
 import { useLangStore } from '../../store/langStore'
 import { toast } from '../../store/notificationStore'
 import Modal from '../../components/shared/Modal'
+import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import { FeatureGate } from '../../components/FeatureGate'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -598,6 +599,7 @@ function AppointmentDetailModal({
 }): JSX.Element {
   const { t } = useTranslation()
   const canSales = usePermission('sales.create')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
@@ -618,20 +620,31 @@ function AppointmentDetailModal({
     } else toast.error(res.error ?? t('common.error'))
   }
 
-  const handleDelete = async () => {
-    if (!window.confirm(t('calendar.confirmDeleteAppointment', { defaultValue: 'Delete this appointment?' }))) return
+  const handleDeleteConfirmed = async () => {
+    setDeleteConfirmOpen(false)
     const res = await window.electronAPI.appointments.delete(appointment.id)
     if (res.success) {
       toast.success(t('common.success'))
       onUpdate()
-    } else toast.error(res.error ?? t('common.error'))
+      onClose()
+    } else {
+      toast.error(res.error ?? t('common.error'))
+    }
   }
 
   const timeNorm = appointment.appointment_time.length === 5 ? `${appointment.appointment_time}:00` : appointment.appointment_time
   const startLabel = format(new Date(`${appointment.appointment_date}T${timeNorm}`), 'PPp')
 
   return (
-    <Modal open title={appointment.customer_name} onClose={onClose} size="sm">
+    <>
+    <Modal
+      open
+      title={appointment.customer_name}
+      onClose={() => {
+        if (!deleteConfirmOpen) onClose()
+      }}
+      size="sm"
+    >
       <div className="space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${statusBadge(appointment.status)}`}>{appointment.status.replace(/_/g, ' ')}</span>
@@ -708,13 +721,30 @@ function AppointmentDetailModal({
             {t('calendar.convertJobCard', { defaultValue: 'Convert to job card' })}
           </button>
           {canSales && (
-            <button type="button" onClick={() => void handleDelete()} className="px-2.5 py-1 text-xs rounded-full border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300">
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              className="px-2.5 py-1 text-xs rounded-full border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300"
+            >
               {t('common.delete')}
             </button>
           )}
         </div>
       </div>
     </Modal>
+    <ConfirmDialog
+      open={deleteConfirmOpen}
+      title={t('calendar.deleteAppointmentTitle', { defaultValue: 'Delete this appointment?' })}
+      message={t('calendar.deleteAppointmentMessage', {
+        defaultValue: 'This booking will be removed from the calendar. You cannot undo this action.',
+      })}
+      confirmLabel={t('common.delete')}
+      cancelLabel={t('common.cancel')}
+      variant="danger"
+      onConfirm={() => void handleDeleteConfirmed()}
+      onCancel={() => setDeleteConfirmOpen(false)}
+    />
+    </>
   )
 }
 

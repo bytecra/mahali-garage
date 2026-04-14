@@ -11,6 +11,8 @@ interface UserRow {
   id: number; username: string; full_name: string; role: string
   is_active: number; created_at: string; override_count: number
   auth_type?: 'password' | 'passcode_4' | 'passcode_6'
+  /** mechanical | programming | both (any job) | empty */
+  work_department?: string | null
 }
 
 interface Override { key: string; granted: boolean; description: string | null }
@@ -170,6 +172,7 @@ export default function UsersPage(): JSX.Element {
                 <th className="text-start px-4 py-3 font-medium">{t('common.name')}</th>
                 <th className="text-start px-4 py-3 font-medium">{t('auth.username')}</th>
                 <th className="text-start px-4 py-3 font-medium">{t('users.role')}</th>
+                <th className="text-start px-4 py-3 font-medium text-xs">Shop dept</th>
                 <th className="text-center px-4 py-3 font-medium">{t('common.status')}</th>
                 {canManage && <th className="text-end px-4 py-3 font-medium">{t('common.actions')}</th>}
               </tr>
@@ -191,6 +194,15 @@ export default function UsersPage(): JSX.Element {
                         </span>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {!u.work_department
+                      ? '—'
+                      : u.work_department === 'both'
+                        ? 'Both'
+                        : u.work_department === 'programming'
+                          ? 'Programming'
+                          : 'Mechanical'}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs ${u.is_active ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
@@ -445,23 +457,28 @@ function UserFormModal({ open, user, onClose, onSaved }: {
     auth_type: 'password' as 'password' | 'passcode_4' | 'passcode_6',
     passcode: '',
     passcode_confirm: '',
+    work_department: '' as '' | 'mechanical' | 'programming' | 'both',
   })
   const set = (k: keyof typeof form, v: string | boolean) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
     if (!open) return
-    if (user) setForm({
-      username: user.username,
-      password: '',
-      new_password: '',
-      full_name: user.full_name,
-      role: user.role,
-      is_active: Boolean(user.is_active),
-      auth_type: user.auth_type ?? 'password',
-      passcode: '',
-      passcode_confirm: '',
-    })
-    else setForm({
+    if (user) {
+      const wd = user.work_department
+      setForm({
+        username: user.username,
+        password: '',
+        new_password: '',
+        full_name: user.full_name,
+        role: user.role,
+        is_active: Boolean(user.is_active),
+        auth_type: user.auth_type ?? 'password',
+        passcode: '',
+        passcode_confirm: '',
+        work_department:
+          wd === 'mechanical' || wd === 'programming' || wd === 'both' ? wd : '',
+      })
+    } else setForm({
       username: '',
       password: '',
       new_password: '',
@@ -471,6 +488,7 @@ function UserFormModal({ open, user, onClose, onSaved }: {
       auth_type: 'password',
       passcode: '',
       passcode_confirm: '',
+      work_department: '',
     })
   }, [open, user])
 
@@ -495,6 +513,7 @@ function UserFormModal({ open, user, onClose, onSaved }: {
         role: form.role,
         is_active: form.is_active,
         new_password: form.auth_type === 'password' && form.new_password ? form.new_password : undefined,
+        work_department: form.work_department === '' ? null : form.work_department,
       })
       setSaving(false)
       if (!res.success) { toast.error(res.error ?? t('common.error')); return }
@@ -510,6 +529,7 @@ function UserFormModal({ open, user, onClose, onSaved }: {
         password: initialPassword,
         full_name: form.full_name,
         role: form.role,
+        work_department: form.work_department === '' ? null : form.work_department,
       })
       setSaving(false)
       if (!res.success) { toast.error(res.error ?? t('common.error')); return }
@@ -594,6 +614,18 @@ function UserFormModal({ open, user, onClose, onSaved }: {
           <label className="block text-sm font-medium mb-1">{t('users.role')}</label>
           <select value={form.role} onChange={e => set('role', e.target.value)} className={inputCls}>
             {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Work department</label>
+          <p className="text-xs text-muted-foreground mb-1">
+            Used to filter technician assignment on job cards. “Both” can be assigned to any job.
+          </p>
+          <select value={form.work_department} onChange={e => set('work_department', e.target.value)} className={inputCls}>
+            <option value="">Not set (any)</option>
+            <option value="mechanical">Mechanical</option>
+            <option value="programming">Programming</option>
+            <option value="both">Both</option>
           </select>
         </div>
         {user && (

@@ -27,15 +27,19 @@ export function registerCustomerHandlers(): void {
   })
 
   ipcMain.handle('customers:create', (event, data) => {
-    if (!authService.hasPermission(event.sender.id, 'customers.edit'))
-      return err('Permission denied', 'ERR_FORBIDDEN')
+    const sid = event.sender.id
+    const can =
+      authService.hasPermission(sid, 'customers.edit') || authService.hasPermission(sid, 'repairs.edit')
+    if (!can) return err('Permission denied', 'ERR_FORBIDDEN')
     try { return ok({ id: customerRepo.create(data) }) }
     catch (e) { log.error('customers:create', e); return err('Failed to create customer') }
   })
 
   ipcMain.handle('customers:update', (event, id, data) => {
-    if (!authService.hasPermission(event.sender.id, 'customers.edit'))
-      return err('Permission denied', 'ERR_FORBIDDEN')
+    const sid = event.sender.id
+    const can =
+      authService.hasPermission(sid, 'customers.edit') || authService.hasPermission(sid, 'repairs.edit')
+    if (!can) return err('Permission denied', 'ERR_FORBIDDEN')
     try { customerRepo.update(id, data); return ok(null) }
     catch (e) { log.error('customers:update', e); return err('Failed to update customer') }
   })

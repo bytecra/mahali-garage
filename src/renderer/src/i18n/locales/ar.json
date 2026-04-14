@@ -56,10 +56,10 @@
   "nav": {
     "dashboard": "لوحة التحكم",
     "quickInvoice": "فاتورة سريعة",
-    "smartRecipe": "وصفة ذكية",
-    "customRecipe": "وصفة مخصصة",
+    "createNewJob": "إنشاء مهمة جديدة",
     "pos": "فاتورة سريعة",
     "jobCards": "بطاقات العمل",
+    "archivedJobs": "بطاقات مؤرشفة",
     "vehicles": "المركبات",
     "serviceCatalog": "كتالوج الخدمات",
     "services": "الخدمات",
@@ -76,7 +76,6 @@
     "tasks": "المهام",
     "calendar": "التقويم",
     "invoices": "الفواتير",
-    "customReceipts": "إيصالات مخصصة",
     "employees": "الموظفون",
     "aiAssistant": "مساعد الذكاء الاصطناعي"
   },
@@ -92,6 +91,8 @@
     "title": "لوحة التحكم",
     "todaySales": "مبيعات اليوم",
     "monthRevenue": "الإيرادات (الشهر)",
+    "totalCustomerDebt": "إجمالي ديون العملاء",
+    "totalCustomerDebtSub": "للعملاء المسجلين فقط (لا يشمل أرصدة العابرين) · ",
     "activeRepairs": "الإصلاحات النشطة",
     "lowStock": "منتجات تحت الحد الأدنى",
     "grossProfit": "إجمالي الربح (الشهر)",
@@ -194,6 +195,12 @@
     "stock": "المخزون",
     "lowStockAlert": "تنبيه المخزون المنخفض",
     "unit": "الوحدة",
+    "warrantyFromProductBadge": "من المخزون",
+    "warrantySectionTitle": "ضمان فاتورة العمل (اختياري)",
+    "warrantyTitle": "عنوان الضمان الافتراضي",
+    "warrantyDurationMonths": "مدة الضمان (بالأشهر)",
+    "warrantyNotes": "ملاحظات الضمان",
+    "warrantyHint": "عند إضافة هذا القطعة في فاتورة عمل مرتبطة بهذا المنتج، يُضاف ضمان السطر تلقائياً. يمكنك إزالته من مسودة الفاتورة.",
     "adjustStock": "تعديل المخزون",
     "stockIn": "إضافة مخزون",
     "stockOut": "خصم مخزون",
@@ -251,7 +258,9 @@
     "salesHistory": "سجل المبيعات",
     "repairHistory": "سجل الإصلاحات",
     "paymentHistory": "سجل المدفوعات",
-    "searchPlaceholder": "ابحث عن عملاء..."
+    "searchPlaceholder": "ابحث عن عملاء...",
+    "openInJobCards": "فتح المهمة",
+    "openInJobCardsTitle": "تعديل هذه المهمة (بطاقات العمل)"
   },
   "repairs": {
     "title": "بطاقات العمل",
@@ -290,7 +299,7 @@
     "partNamePlaceholder": "مثال: فلتر زيت",
     "unitCost": "سعر الوحدة",
     "partsTotal": "إجمالي القطع",
-    "listSearchPlaceholder": "ابحث عن بطاقات عمل، مركبات، عملاء..."
+    "listSearchPlaceholder": "رقم البطاقة، العميل، الجوال، اللوحة، رقم الفاتورة..."
   },
   "jobCards": {
     "title": "بطاقات العمل",
@@ -329,7 +338,9 @@
     "workDescription": "وصف العمل",
     "partsUsed": "القطع المستخدمة",
     "laborPricing": "العمالة والتسعير",
-    "additionalInfo": "معلومات إضافية"
+    "additionalInfo": "معلومات إضافية",
+    "toastJobArchived": "أُرشفت {{jobNumber}} — {{hint}}",
+    "toastJobRestored": "أُعيدت {{jobNumber}} — {{hint}}. ستجدها مجدداً تحت بطاقات العمل وليس في الأرشيف."
   },
   "reports": {
     "title": "التقارير",
@@ -368,7 +379,11 @@
     "comparisonDateHint": "حقلا «من / إلى» أعلاه يُتجاهلان أثناء تفعيل المقارنة.",
     "invalidComparisonRange": "نطاق تواريخ المقارنة غير صالح",
     "exportPdfTitle": "تصدير تقرير PDF",
-    "timePeriod": "الفترة الزمنية"
+    "timePeriod": "الفترة الزمنية",
+    "departmentReports": "تقارير الأقسام",
+    "jobsCount": "الوظائف / الإيصالات",
+    "paymentsCash": "نقد محصّل",
+    "paymentsNonCash": "بطاقة / تحويل بنكي / أخرى"
   },
   "assets": {
     "title": "الأصول",
@@ -535,6 +550,7 @@
     "dark": "داكن",
     "system": "تلقائي",
     "language": "اللغة",
+    "userPreferencesHint": "السمة واللغة تُحفظان لحسابك (لكل مستخدم إعداداته).",
     "printer": "إعدادات الطابعة",
     "backup": "النسخ الاحتياطي",
     "backupNow": "نسخ احتياطي الآن",
@@ -626,7 +642,16 @@
     "month": "شهر",
     "week": "أسبوع",
     "day": "يوم",
-    "noEvents": "لا توجد أحداث"
+    "noEvents": "لا توجد أحداث",
+    "deleteAppointmentTitle": "حذف الموعد؟",
+    "deleteAppointmentMessage": "سيُزال هذا الحجز من التقويم. لا يمكن التراجع عن هذا الإجراء."
+  },
+  "invoice": {
+    "warrantiesSection": "الضمانات",
+    "warrantyEditorHelp": "غطاء الفاتورة كاملة، أو سطر واحد، أو خدمة من الكتالوج. يُحفظ مع الفاتورة.",
+    "addWarranty": "إضافة ضمان",
+    "noWarranties": "لم تُضف ضمانات.",
+    "applyTemplate": "تطبيق قالب…"
   },
   "notifications": {
     "title": "الإشعارات",
