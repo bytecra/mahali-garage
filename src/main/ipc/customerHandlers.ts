@@ -31,7 +31,12 @@ export function registerCustomerHandlers(): void {
     const can =
       authService.hasPermission(sid, 'customers.edit') || authService.hasPermission(sid, 'repairs.edit')
     if (!can) return err('Permission denied', 'ERR_FORBIDDEN')
-    try { return ok({ id: customerRepo.create(data) }) }
+    try {
+      const phone = typeof data?.phone === 'string' ? data.phone : ''
+      const existing = phone ? customerRepo.findByPhone(phone) : undefined
+      if (existing) return err('Customer already exists', 'ERR_CUSTOMER_EXISTS')
+      return ok({ id: customerRepo.create(data) })
+    }
     catch (e) { log.error('customers:create', e); return err('Failed to create customer') }
   })
 

@@ -1,4 +1,5 @@
 import { buildInspectionSection } from './printCustomReceiptA4'
+import { type DateFormatOption, formatDateByPattern } from '../store/dateFormatStore'
 
 function escapeHtml(v: string): string {
   return v
@@ -16,10 +17,23 @@ function currency(n: number, symbol: string): string {
   return `${sign}${formatted}${symbol}`
 }
 
-function dateLabel(input: string): string {
-  const d = new Date(input)
-  if (Number.isNaN(d.getTime())) return input
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+function toDateFormat(value: string | undefined): DateFormatOption {
+  const v = (value ?? '').trim().toLowerCase()
+  if (
+    v === 'dd/mm/yyyy' ||
+    v === 'mm/dd/yyyy' ||
+    v === 'mm/dd/yy' ||
+    v === 'dd/mm/yy' ||
+    v === 'yyyy/mm/dd' ||
+    v === 'yyyy/dd/mm'
+  ) {
+    return v
+  }
+  return 'dd/mm/yyyy'
+}
+
+function dateLabel(input: string, format: DateFormatOption): string {
+  return formatDateByPattern(input, format)
 }
 
 export interface JobInvoicePrintSnapshot {
@@ -71,11 +85,18 @@ export async function printJobInvoiceDraft(snapshot: JobInvoicePrintSnapshot): P
   const settings = (settingsRes.success && settingsRes.data ? settingsRes.data : {}) as Record<string, string>
 
   const storeName = settings['store.name']?.trim() || snapshot.storeName?.trim() || 'Mahali Garage'
+  const storeNameArabic =
+    settings['store.name_ar'] ||
+    settings['store.name_arabic'] ||
+    settings['store.arabic_name'] ||
+    ''
   const storeAddress = settings['store.address'] || ''
   const storePhone = settings['store.phone'] || ''
+  const storePhone2 = settings['store.phone2'] || settings['store.phone_2'] || ''
   const storeEmail = settings['store.email'] || ''
   const storeLogo = settings['store_logo'] || ''
   const currencySymbol = settings['store.currency_symbol'] || 'د.إ'
+  const dateFormat = toDateFormat(settings['date.format'])
 
   const showLogoInvoice = (settings['invoice.show_logo'] ?? settings['receipt.show_logo'] ?? 'true') === 'true'
   const showTaxOnInvoice = (settings['invoice.show_tax'] ?? 'true') === 'true'
@@ -84,6 +105,13 @@ export async function printJobInvoiceDraft(snapshot: JobInvoicePrintSnapshot): P
   const showTerms = (settings['receipt.show_terms'] ?? 'true') === 'true'
   const showCustomerInfo = (settings['receipt.show_customer_info'] ?? 'true') === 'true'
   const showCarInfo = (settings['receipt.show_car_info'] ?? 'true') === 'true'
+  const receiptHeaderNameEn = (settings['receipt.header_name_en'] || '').trim() || storeName
+  const receiptHeaderNameAr =
+    (settings['receipt.header_name_ar'] || '').trim() || storeNameArabic || storeName
+  const headerTel = (settings['receipt.header_tel'] || '').trim() || storePhone
+  const headerMobile = (settings['receipt.header_mobile'] || '').trim() || storePhone2
+  const showHeaderTel = (settings['receipt.header_show_tel'] ?? 'true') === 'true'
+  const showHeaderMobile = (settings['receipt.header_show_mobile'] ?? 'true') === 'true'
 
   const supportedBrandsRaw =
     settings['receipt.supported_brands'] || settings['invoice.supported_brands'] || ''
@@ -166,13 +194,17 @@ export async function printJobInvoiceDraft(snapshot: JobInvoicePrintSnapshot): P
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111827; }
     .invoice { width: 100%; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-    .leftHead { display: flex; align-items: flex-start; gap: 12px; }
-    .logo { width: 72px; height: 72px; object-fit: contain; border-radius: 8px; background: #f9fafb; border: 1px solid #e5e7eb; }
-    .name { font-size: 22px; font-weight: 700; margin: 0; }
+    .header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; }
+    .logo { width: 120px; height: 70px; object-fit: contain; border-radius: 8px; background: #f9fafb; border: 1px solid #e5e7eb; }
+    .logoSlot { width: 120px; height: 70px; }
+    .headCol { font-size: 12px; color: #374151; line-height: 1.5; }
+    .headCol.left { text-align: left; }
+    .headCol.right { text-align: right; }
+    .name { font-size: 22px; font-weight: 700; margin: 0; line-height: 1.1; }
+    .nameArabic { direction: rtl; unicode-bidi: plaintext; }
+    .headPhone { font-size: 12px; margin-top: 3px; }
     .muted { color: #4b5563; font-size: 12px; margin-top: 3px; }
     .docType { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
-    .rightHead { text-align: right; font-size: 12px; color: #374151; line-height: 1.5; }
     .divider { height: 1px; background: #e5e7eb; margin: 14px 0 16px; }
     .bill { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 14px; }
     .label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
@@ -197,21 +229,23 @@ export async function printJobInvoiceDraft(snapshot: JobInvoicePrintSnapshot): P
 <body>
   <main class="invoice">
     <header class="header">
-      <div class="leftHead">
-        ${showLogoInvoice && storeLogo ? `<img class="logo" src="${storeLogo}" alt="" />` : ''}
-        <div>
-          <h1 class="name">${escapeHtml(storeName)}</h1>
-          ${storeAddress ? `<div class="muted">${escapeHtml(storeAddress)}</div>` : ''}
-          <p class="docType">Invoice</p>
-        </div>
+      <div class="headCol left">
+        <h1 class="name">${escapeHtml(receiptHeaderNameEn)}</h1>
+        ${showHeaderTel && headerTel ? `<div class="headPhone">Tel: ${escapeHtml(headerTel)}</div>` : ''}
+        ${showHeaderMobile && headerMobile ? `<div class="headPhone">Mobile: ${escapeHtml(headerMobile)}</div>` : ''}
       </div>
-      <div class="rightHead">
-        ${storePhone ? `<div>${escapeHtml(storePhone)}</div>` : ''}
-        ${storeEmail ? `<div>${escapeHtml(storeEmail)}</div>` : ''}
+      <div>
+        ${showLogoInvoice && storeLogo ? `<img class="logo" src="${storeLogo}" alt="logo" />` : '<div class="logoSlot"></div>'}
+      </div>
+      <div class="headCol right">
+        <h1 class="name nameArabic">${escapeHtml(receiptHeaderNameAr)}</h1>
+        ${showHeaderTel && headerTel ? `<div class="headPhone">Tel: ${escapeHtml(headerTel)}</div>` : ''}
+        ${showHeaderMobile && headerMobile ? `<div class="headPhone">Mobile: ${escapeHtml(headerMobile)}</div>` : ''}
       </div>
     </header>
 
     <div class="divider"></div>
+    <div class="docType">Invoice</div>
 
     <section class="bill">
       <div>
@@ -221,7 +255,7 @@ export async function printJobInvoiceDraft(snapshot: JobInvoicePrintSnapshot): P
         ` : ''}
       </div>
       <div>
-        <div class="value"><strong>Date:</strong> ${escapeHtml(dateLabel(snapshot.created_at))}</div>
+        <div class="value"><strong>Date:</strong> ${escapeHtml(dateLabel(snapshot.created_at, dateFormat))}</div>
         <div class="value"><strong>Invoice #:</strong> ${escapeHtml(snapshot.invoice_number)}</div>
         <div class="value"><strong>Status:</strong> ${escapeHtml(snapshot.status)}</div>
         ${showCarInfo ? `

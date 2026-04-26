@@ -5,6 +5,7 @@ import { useThemeStore, applyTheme } from './store/themeStore'
 import { useLangStore } from './store/langStore'
 import { useBrandingStore } from './store/brandingStore'
 import { useCurrencyStore } from './store/currencyStore'
+import { useDateFormatStore } from './store/dateFormatStore'
 import { applyLanguage } from './i18n/index'
 import AppShell from './components/layout/AppShell'
 import ProtectedRoute from './components/layout/ProtectedRoute'
@@ -86,6 +87,7 @@ export default function App(): JSX.Element {
   const { setLang } = useLangStore()
   const { load: loadBranding } = useBrandingStore()
   const { syncFromSettings: syncCurrency } = useCurrencyStore()
+  const { syncFromSettings: syncDateFormat } = useDateFormatStore()
 
   useEffect(() => {
     if (isLoading) return
@@ -103,6 +105,7 @@ export default function App(): JSX.Element {
         if (settingsRes.success && settingsRes.data) {
           const s = settingsRes.data
           syncCurrency(s as Record<string, string>)
+          syncDateFormat(s as Record<string, string>)
 
           const theme = (s['appearance.theme'] as 'light' | 'dark' | 'system') || 'system'
           setTheme(theme)

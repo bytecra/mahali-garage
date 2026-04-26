@@ -7,6 +7,7 @@ import { useThemeStore } from '../../store/themeStore'
 import { useLangStore } from '../../store/langStore'
 import { useBrandingStore } from '../../store/brandingStore'
 import { useCurrencyStore } from '../../store/currencyStore'
+import { DATE_FORMAT_OPTIONS, useDateFormatStore } from '../../store/dateFormatStore'
 import { usePermission } from '../../hooks/usePermission'
 import { DASHBOARD_WIDGETS, parseDashboardWidgets } from '../../lib/dashboardWidgets'
 import { TV_DISPLAY_WIDGETS, parseTvDisplayWidgets } from '../../lib/tvDisplayWidgets'
@@ -108,6 +109,7 @@ export default function SettingsPage(): JSX.Element {
   const { lang, setLang } = useLangStore()
   const { setBranding } = useBrandingStore()
   const { syncFromSettings: syncCurrency } = useCurrencyStore()
+  const { syncFromSettings: syncDateFormat } = useDateFormatStore()
   const canBackup      = usePermission('backup.manage')
   const canSettings    = usePermission('settings.manage')
   const canActivityLog = usePermission('activity_log.view')
@@ -250,6 +252,7 @@ export default function SettingsPage(): JSX.Element {
       setSettings(data)
       setStoreStartDateDraft(data['store.start_date'] ?? '')
       syncCurrency(data)
+      syncDateFormat(data)
     }
     const ssRes = await window.electronAPI.settings.getStoreStartDateMeta()
     if (ssRes?.success && ssRes.data) {
@@ -387,6 +390,7 @@ export default function SettingsPage(): JSX.Element {
     if (res.success) {
       toast.success(t('common.success'))
       syncCurrency(settings)
+      syncDateFormat(settings)
     } else toast.error(res.error ?? t('common.error'))
   }
 
@@ -417,6 +421,13 @@ export default function SettingsPage(): JSX.Element {
       'receipt.brand_logos':        settings['receipt.brand_logos']        ?? '',
       'receipt.brands_title':       settings['receipt.brands_title']       ?? '',
       'receipt.terms':              settings['receipt.terms']              ?? '',
+      'receipt.header_name_en':     settings['receipt.header_name_en']     ?? '',
+      'receipt.header_name_ar':     settings['receipt.header_name_ar']     ?? '',
+      'receipt.header_tel':         settings['receipt.header_tel']         ?? '',
+      'receipt.header_mobile':      settings['receipt.header_mobile']      ?? '',
+      'receipt.header_show_tel':    settings['receipt.header_show_tel']    ?? 'true',
+      'receipt.header_show_mobile': settings['receipt.header_show_mobile'] ?? 'true',
+      'receipt.header_text_color':  settings['receipt.header_text_color']  ?? '#111827',
       'receipt.programming_print_mode': settings['receipt.programming_print_mode'] ?? 'a4_only',
       'printer.name': settings['printer.name'] ?? '',
       'printer.thermal_show_logo': settings['printer.thermal_show_logo'] ?? 'true',
@@ -967,15 +978,46 @@ export default function SettingsPage(): JSX.Element {
               </div>
             </div>
             <div><label className={labelCls}>{t('settings.storeName')}</label><input value={settings['store.name'] ?? ''} onChange={e => set('store.name', e.target.value)} className={inputCls} /></div>
+            <div>
+              <label className={labelCls}>Garage Name (Arabic)</label>
+              <input
+                value={settings['store.name_ar'] ?? settings['store.name_arabic'] ?? settings['store.arabic_name'] ?? ''}
+                onChange={e => set('store.name_ar', e.target.value)}
+                className={inputCls}
+                dir="rtl"
+              />
+            </div>
             <div><label className={labelCls}>{t('settings.storeAddress')}</label><input value={settings['store.address'] ?? ''} onChange={e => set('store.address', e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>{t('settings.storePhone')}</label><input value={settings['store.phone'] ?? ''} onChange={e => set('store.phone', e.target.value)} className={inputCls} /></div>
+            <div>
+              <label className={labelCls}>Store Phone 2 (Optional)</label>
+              <input
+                value={settings['store.phone2'] ?? settings['store.phone_2'] ?? ''}
+                onChange={e => set('store.phone2', e.target.value)}
+                className={inputCls}
+              />
+            </div>
             <div><label className={labelCls}>{t('settings.storeEmail')}</label><input value={settings['store.email'] ?? ''} onChange={e => set('store.email', e.target.value)} className={inputCls} /></div>
             <div className="flex gap-3">
               <div className="flex-1"><label className={labelCls}>{t('settings.currency')}</label><input value={settings['store.currency'] ?? 'AED'} onChange={e => set('store.currency', e.target.value)} className={inputCls} /></div>
               <div className="w-28"><label className={labelCls}>Symbol</label><input value={settings['store.currency_symbol'] ?? 'د.إ'} onChange={e => set('store.currency_symbol', e.target.value)} className={inputCls} /></div>
             </div>
+            <div>
+              <label className={labelCls}>Date Format</label>
+              <select
+                value={settings['date.format'] ?? 'dd/mm/yyyy'}
+                onChange={e => set('date.format', e.target.value)}
+                className={inputCls}
+              >
+                {DATE_FORMAT_OPTIONS.map((fmt) => (
+                  <option key={fmt} value={fmt}>
+                    {fmt}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
-              onClick={() => save(['store.name','store.address','store.phone','store.email','store.currency','store.currency_symbol','store_logo'])}
+              onClick={() => save(['store.name','store.name_ar','store.address','store.phone','store.phone2','store.email','store.currency','store.currency_symbol','store_logo','date.format'])}
               disabled={saving}
               className={saveBtnCls}
             >
@@ -1152,6 +1194,111 @@ export default function SettingsPage(): JSX.Element {
                     <span className="text-sm">{label}</span>
                   </label>
                 ))}
+              </div>
+            </div>
+
+            {/* ── We Work With — Logos ── */}
+            <div className="pt-2 border-t border-border">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Receipt Header (A4)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Header Name (English)</label>
+                  <input
+                    value={settings['receipt.header_name_en'] ?? ''}
+                    onChange={e => set('receipt.header_name_en', e.target.value)}
+                    className={inputCls}
+                    placeholder={settings['store.name'] ?? 'Mahali Garage'}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Header Name (Arabic)</label>
+                  <input
+                    value={settings['receipt.header_name_ar'] ?? ''}
+                    onChange={e => set('receipt.header_name_ar', e.target.value)}
+                    className={inputCls}
+                    dir="rtl"
+                    placeholder={settings['store.name_ar'] ?? settings['store.name_arabic'] ?? settings['store.arabic_name'] ?? ''}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className={labelCls}>Header Tel</label>
+                  <input
+                    value={settings['receipt.header_tel'] ?? ''}
+                    onChange={e => set('receipt.header_tel', e.target.value)}
+                    className={inputCls}
+                    placeholder={settings['store.phone'] ?? ''}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className={labelCls}>Header Mobile</label>
+                  <input
+                    value={settings['receipt.header_mobile'] ?? ''}
+                    onChange={e => set('receipt.header_mobile', e.target.value)}
+                    className={inputCls}
+                    placeholder={settings['store.phone'] ?? settings['store.phone2'] ?? settings['store.phone_2'] ?? ''}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className={labelCls}>Header Text Color</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={settings['receipt.header_text_color'] ?? '#111827'}
+                      onChange={e => set('receipt.header_text_color', e.target.value)}
+                      className="w-10 h-10 rounded border border-border cursor-pointer p-0.5 bg-transparent"
+                    />
+                    <input
+                      value={settings['receipt.header_text_color'] ?? '#111827'}
+                      onChange={e => set('receipt.header_text_color', e.target.value)}
+                      className={inputCls + ' w-32 font-mono'}
+                      placeholder="#111827"
+                      maxLength={7}
+                    />
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-foreground underline"
+                      onClick={() => set('receipt.header_text_color', '#111827')}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Applies to name, tel, and mobile in the receipt header.</p>
+                </div>
+                <div className="md:col-span-2 flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4"
+                      checked={(settings['receipt.header_show_tel'] ?? 'true') === 'true'}
+                      onChange={() =>
+                        set(
+                          'receipt.header_show_tel',
+                          (settings['receipt.header_show_tel'] ?? 'true') === 'true' ? 'false' : 'true',
+                        )
+                      }
+                    />
+                    <span>Show Tel on receipt header</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4"
+                      checked={(settings['receipt.header_show_mobile'] ?? 'true') === 'true'}
+                      onChange={() =>
+                        set(
+                          'receipt.header_show_mobile',
+                          (settings['receipt.header_show_mobile'] ?? 'true') === 'true' ? 'false' : 'true',
+                        )
+                      }
+                    />
+                    <span>Show Mobile on receipt header</span>
+                  </label>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Leave empty to use Store Information values.
+                  </p>
+                </div>
               </div>
             </div>
 

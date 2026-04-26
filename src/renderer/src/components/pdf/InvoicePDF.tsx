@@ -2,6 +2,7 @@ import React from 'react'
 import {
   Document, Page, Text, View, StyleSheet, Image,
 } from '@react-pdf/renderer'
+import { formatDateByPattern, getDateFormat } from '../../store/dateFormatStore'
 
 interface SaleItem {
   product_name: string
@@ -81,11 +82,12 @@ const styles = StyleSheet.create({
   balanceText: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#dc2626', textAlign: 'center' },
 })
 
-function fmtDate(d: string): string { return new Date(d).toLocaleDateString() }
+function fmtDate(d: string): string { return formatDateByPattern(d, getDateFormat()) }
 
 export function InvoicePDF({ inv }: { inv: InvoiceData }): JSX.Element {
   const sym = inv.currency_symbol ?? 'د.إ'
-  const code = inv.currency_code ?? 'AED'
+  const code = inv.currency_code ?? 'Ð'
+  const displayCode = code.trim().toUpperCase() === 'AED' ? 'Ð' : code
   const fmt = (n: number): string => `${sym}${n.toFixed(2)}`
   const logoSrc = inv.store_logo?.startsWith('data:') ? inv.store_logo : null
 
@@ -105,7 +107,7 @@ export function InvoicePDF({ inv }: { inv: InvoiceData }): JSX.Element {
             <Text style={styles.invoiceTitle}>INVOICE</Text>
             <Text style={styles.invoiceNum}>{inv.invoice_number}</Text>
             <Text style={styles.invoiceDate}>Date: {fmtDate(inv.created_at)}</Text>
-            <Text style={[styles.invoiceDate, { marginTop: 2 }]}>{sym} · {code}</Text>
+            <Text style={[styles.invoiceDate, { marginTop: 2 }]}>{sym} · {displayCode}</Text>
           </View>
         </View>
 
@@ -152,7 +154,7 @@ export function InvoicePDF({ inv }: { inv: InvoiceData }): JSX.Element {
           {inv.tax_enabled && inv.tax_amount > 0 && <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax ({inv.tax_rate}%)</Text><Text style={styles.totalValue}>{fmt(inv.tax_amount)}</Text></View>}
           <View style={styles.grandTotal}><Text style={styles.grandLabel}>TOTAL</Text><Text style={styles.grandValue}>{fmt(inv.total_amount)}</Text></View>
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Paid</Text><Text style={[styles.totalValue, { color: '#16a34a' }]}>{fmt(inv.amount_paid)}</Text></View>
-          <Text style={styles.codeFootnote}>Amounts in {code}</Text>
+          <Text style={styles.codeFootnote}>Amounts in {displayCode}</Text>
         </View>
 
         {inv.balance_due > 0 && (

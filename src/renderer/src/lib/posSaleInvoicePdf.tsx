@@ -41,7 +41,9 @@ export async function fetchInvoiceDataForSale(saleId: number): Promise<InvoiceDa
     store_phone: settings['store.phone'],
     invoice_footer: settings['invoice.footer_text'],
     currency_symbol: settings['store.currency_symbol'] ?? 'د.إ',
-    currency_code: settings['store.currency'] ?? 'AED',
+    currency_code: (settings['store.currency'] ?? 'Ð').trim().toUpperCase() === 'AED'
+      ? 'Ð'
+      : (settings['store.currency'] ?? 'Ð'),
     store_logo: settings['store_logo'] || undefined,
   }
 }

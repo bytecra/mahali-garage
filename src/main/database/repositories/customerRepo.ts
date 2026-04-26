@@ -38,6 +38,25 @@ export interface CustomerSummaryStats {
 }
 
 export const customerRepo = {
+  findByPhone(phone: string): Pick<CustomerRow, 'id' | 'name' | 'phone'> | undefined {
+    const input = phone.trim()
+    if (!input) return undefined
+    const digitsOnly = input.replace(/\D/g, '')
+    const phoneNorm = `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(phone,''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', '')`
+    if (digitsOnly.length >= 2) {
+      return getDb().prepare(`
+        SELECT id, name, phone FROM customers
+        WHERE (${phoneNorm}) = ?
+        LIMIT 1
+      `).get(digitsOnly) as Pick<CustomerRow, 'id' | 'name' | 'phone'> | undefined
+    }
+    return getDb().prepare(`
+      SELECT id, name, phone FROM customers
+      WHERE phone = ?
+      LIMIT 1
+    `).get(input) as Pick<CustomerRow, 'id' | 'name' | 'phone'> | undefined
+  },
+
   list(filters: CustomerFilters = {}): { items: CustomerRow[]; total: number } {
     const { search = '', with_debt = false, page = 1, pageSize = 25 } = filters
     const offset = (page - 1) * pageSize

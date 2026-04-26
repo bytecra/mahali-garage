@@ -84,6 +84,11 @@ function statusLabel(s: string): string {
   return map[s] ?? s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
+function normalizeRepairStatus(status: string): string {
+  if (status === 'waiting_programming') return 'waiting_for_programming'
+  return status
+}
+
 // ── Droppable column wrapper ────────────────────────────────────────────────
 function DroppableColumn({
   col, count, children,
@@ -167,7 +172,10 @@ function RepairsPageInner(): JSX.Element {
     setLoading(true)
     if (view === 'kanban' && jobSection === 'active') {
       const res = await window.electronAPI.jobCards.getByStatus({ profile: profileParam })
-      if (res.success) setRepairs(res.data as RepairRow[])
+      if (res.success) {
+        const rows = (res.data as RepairRow[]).map(r => ({ ...r, status: normalizeRepairStatus(r.status) }))
+        setRepairs(rows)
+      }
     } else {
       const res = await window.electronAPI.jobCards.list({
         search,
@@ -179,6 +187,7 @@ function RepairsPageInner(): JSX.Element {
       })
       if (res.success) {
         const rows = (res.data as { rows: RepairRow[] }).rows
+          .map(r => ({ ...r, status: normalizeRepairStatus(r.status) }))
         setRepairs(rows.filter(r => (jobSection === 'archived' ? r.archived === 1 : r.archived !== 1)))
       }
     }

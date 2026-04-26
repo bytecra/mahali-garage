@@ -333,29 +333,6 @@ function JobDetailsTabInner(props: {
 
   return (
     <div className="space-y-5 max-h-[min(70vh,720px)] overflow-y-auto pe-1">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div>
-          <label className={labelCls}>Job Type</label>
-          <select value={form.job_type} onChange={e => setField('job_type', e.target.value)} className={inputCls}>
-            {jobTypes.length > 0
-              ? jobTypes.map(jt => <option key={jt.id} value={jt.name}>{jt.name}</option>)
-              : <option value={form.job_type}>{form.job_type}</option>}
-          </select>
-        </div>
-        <div>
-          <label className={labelCls}>Priority</label>
-          <select value={form.priority} onChange={e => setField('priority', e.target.value)} className={inputCls}>
-            {PRIORITIES.map(v => <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className={labelCls}>Status</label>
-          <select value={form.status} onChange={e => setField('status', e.target.value)} className={inputCls}>
-            {STATUSES.map(v => <option key={v} value={v}>{STATUS_LABELS[v]}</option>)}
-          </select>
-        </div>
-      </div>
-
       {selectedVehicle && (
         <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
           <div>
@@ -692,15 +669,6 @@ function JobDetailsTabInner(props: {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className={labelCls}>Customer complaint</label>
-        <textarea value={form.complaint} onChange={e => setField('complaint', e.target.value)} rows={2} className={inputCls} />
-      </div>
-
-      <div className="space-y-2">
-        <label className={labelCls}>Internal notes</label>
-        <textarea value={form.notes} onChange={e => setField('notes', e.target.value)} rows={2} className={inputCls} />
-      </div>
       <label className="flex items-center gap-2 cursor-pointer text-sm">
         <input
           type="checkbox"

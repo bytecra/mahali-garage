@@ -24,7 +24,7 @@ import CarTab from './job-tabs/CarTab'
 import type { VehicleOption } from './job-tabs/vehicleOption'
 import InvoiceCreatedModal, { type InvoiceCreatedPayload } from './InvoiceCreatedModal'
 
-type TabId = 'job' | 'inspection' | 'payment' | 'progress' | 'log' | 'attachment' | 'customer' | 'car'
+type TabId = 'customer-vehicle' | 'job' | 'payment' | 'inspection' | 'attachment' | 'progress' | 'log'
 
 interface Props {
   open: boolean
@@ -54,6 +54,16 @@ interface CustomerLite {
   phone: string | null
   email: string | null
   address: string | null
+}
+
+type JobWarrantyRow = {
+  id: number
+  scope: string
+  title: string
+  effective_date: string
+  expiry_date: string | null
+  invoice_number: string
+  line_label: string | null
 }
 
 function newLineKey(): string {
@@ -105,7 +115,7 @@ export default function AddJobModal({
   const navigate = useNavigate()
   const canDelete = usePermission('repairs.delete')
   const isEdit = !!repairId
-  const [tab, setTab] = useState<TabId>('job')
+  const [tab, setTab] = useState<TabId>('customer-vehicle')
   const [saving, setSaving] = useState(false)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [invoiceCreated, setInvoiceCreated] = useState<InvoiceCreatedPayload | null>(null)
@@ -118,6 +128,8 @@ export default function AddJobModal({
     total_amount: number
     status: string
   } | null>(null)
+  const [jobWarranties, setJobWarranties] = useState<JobWarrantyRow[]>([])
+  const [warrantyLoading, setWarrantyLoading] = useState(false)
 
   const [technicians, setTechnicians] = useState<Technician[]>([])
   const [vehicles, setVehicles] = useState<VehicleOption[]>([])
@@ -143,6 +155,7 @@ export default function AddJobModal({
   const [selectedMarkerType, setSelectedMarkerType] = useState<InspectionMarkerType>('scratch')
   /** Per job / per job invoice: include car diagram on printed invoice */
   const [showInspectionOnInvoice, setShowInspectionOnInvoice] = useState(false)
+  const effectiveJobId = repairId ?? null
 
   const setField = useCallback((key: keyof JobFormState, val: string | boolean) => {
     setForm(f => ({ ...f, [key]: val }))
@@ -158,7 +171,7 @@ export default function AddJobModal({
 
   useEffect(() => {
     if (!open) return
-    setTab('job')
+    setTab('customer-vehicle')
     Promise.all([
       window.electronAPI.users.list({}),
       window.electronAPI.vehicles.list({ pageSize: 500 }),
@@ -321,6 +334,27 @@ export default function AddJobModal({
       }
     })
   }, [open, repairId, invoiceWizardRefreshKey])
+
+  useEffect(() => {
+    if (!effectiveJobId || !linkedJobInvoice?.invoice_number) {
+      setJobWarranties([])
+      return
+    }
+    let cancelled = false
+    setWarrantyLoading(true)
+    void window.electronAPI.jobCards.listWarrantiesForJob(effectiveJobId).then(res => {
+      if (cancelled) return
+      setWarrantyLoading(false)
+      if (res.success && Array.isArray(res.data)) {
+        setJobWarranties(res.data as JobWarrantyRow[])
+      } else {
+        setJobWarranties([])
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [effectiveJobId, linkedJobInvoice?.invoice_number, linkedJobInvoice?.total_amount, attachmentLogTick])
 
   useEffect(() => {
     if (!open) return
@@ -505,7 +539,7 @@ export default function AddJobModal({
 
   const handleSave = async (): Promise<void> => {
     if (!selectedCustomer || !selectedVehicle) {
-      toast.error('Select a customer and vehicle (Customer and Car tabs).')
+      toast.error('Select a customer and vehicle (Customer & Vehicle tab).')
       return
     }
     if (lineValidationRequired && !validateLines()) return
@@ -672,8 +706,6 @@ export default function AddJobModal({
     }
   }
 
-  const effectiveJobId = repairId ?? null
-
   const generateInvoice = async (): Promise<void> => {
     if (!effectiveJobId) {
       toast.error('Save the job before generating an invoice.')
@@ -772,6 +804,10 @@ export default function AddJobModal({
     !!selectedVehicle &&
     lineItems.some(l => l.description.trim().length >= 3 && l.cost > 0 && l.sell > 0)
 
+  const canUseInvoiceAction = onOpenInvoiceWizard
+    ? canGenerateInvoice && (!linkedJobInvoice || linkedJobInvoice.status === 'draft')
+    : canGenerateInvoice && !invoiceLoading
+
   const modalTitle =
     isEdit ? (
       <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -779,20 +815,24 @@ export default function AddJobModal({
         {jobNumber ? (
           <span className="text-base font-mono font-medium text-muted-foreground tabular-nums">{jobNumber}</span>
         ) : null}
+        {linkedJobInvoice?.invoice_number ? (
+          <span className="text-sm font-mono font-medium text-emerald-700 dark:text-emerald-300 tabular-nums">
+            {linkedJobInvoice.invoice_number}
+          </span>
+        ) : null}
       </span>
     ) : (
       t('repairs.addJob')
     )
 
   const tabs: { id: TabId; label: string }[] = [
+    { id: 'customer-vehicle', label: 'Customer & Vehicle' },
     { id: 'job', label: 'Job' },
-    { id: 'inspection', label: 'Car inspection' },
     { id: 'payment', label: 'Payment' },
-    { id: 'progress', label: 'Progress' },
-    { id: 'log', label: 'Log' },
+    { id: 'inspection', label: 'Car inspection' },
     { id: 'attachment', label: 'Attachment' },
-    { id: 'customer', label: 'Customer' },
-    { id: 'car', label: 'Car & invoice' },
+    { id: 'progress', label: 'Progress' },
+    { id: 'log', label: 'History' },
   ]
 
   return (
@@ -833,9 +873,25 @@ export default function AddJobModal({
                 type="button"
                 onClick={requestArchiveToggle}
                 disabled={archiveBusy}
-                className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted disabled:opacity-60"
+                className="px-4 py-2 text-sm rounded-md border border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 disabled:opacity-60"
               >
                 {archiveBusy ? t('common.loading') : (isArchived ? 'Restore' : 'Archive')}
+              </button>
+            )}
+            {isEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenInvoiceWizard && effectiveJobId) {
+                    onOpenInvoiceWizard(effectiveJobId)
+                    return
+                  }
+                  void generateInvoice()
+                }}
+                disabled={!canUseInvoiceAction}
+                className="px-4 py-2 text-sm rounded-md border border-cyan-500/60 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-60"
+              >
+                {invoiceLoading ? 'Generating…' : 'Generate Invoice'}
               </button>
             )}
             <button
@@ -888,22 +944,149 @@ export default function AddJobModal({
           </div>
 
           <div className="min-h-[320px]">
+            {tab === 'customer-vehicle' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Job Type</label>
+                    <select
+                      value={form.job_type}
+                      onChange={e => setField('job_type', e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {jobTypes.length > 0
+                        ? jobTypes.map(jt => (
+                          <option key={jt.id} value={jt.name}>
+                            {jt.name}
+                          </option>
+                        ))
+                        : <option value={form.job_type}>{form.job_type}</option>}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Priority</label>
+                    <select
+                      value={form.priority}
+                      onChange={e => setField('priority', e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Status</label>
+                    <select
+                      value={form.status}
+                      onChange={e => setField('status', e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="waiting_parts">Waiting for Parts</option>
+                      <option value="waiting_for_programming">Waiting for Programming</option>
+                      <option value="ready">Ready for Pickup</option>
+                      <option value="completed_delivered">Completed / Delivered</option>
+                      <option value="delivered">Delivered (legacy)</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+                <CustomerTab
+                  selectedCustomer={selectedCustomer}
+                  onSelectCustomer={handleSelectCustomer}
+                  onCustomerUpdated={handleCustomerRecordUpdated}
+                />
+                <div className="border-t border-border pt-4">
+                  <CarTab
+                    jobCardId={effectiveJobId}
+                    warrantyRefreshKey={attachmentLogTick}
+                    customerId={selectedCustomer?.id ?? null}
+                    allVehicles={vehicles}
+                    selectedVehicle={selectedVehicle}
+                    onSelectVehicle={handleSelectVehicle}
+                    onVehicleUpdated={handleVehicleRecordUpdated}
+                    onOpenInvoiceWizard={
+                      onOpenInvoiceWizard && effectiveJobId
+                        ? () => onOpenInvoiceWizard(effectiveJobId)
+                        : undefined
+                    }
+                    onGenerateInvoice={() => void generateInvoice()}
+                    invoiceLoading={invoiceLoading}
+                    canGenerateInvoice={canGenerateInvoice}
+                    showInvoiceActions={false}
+                    showLinkedInvoiceSummary={false}
+                    showWarranties={false}
+                    linkedJobInvoice={linkedJobInvoice}
+                    onViewInvoiceInList={num => {
+                      onClose()
+                      navigate(`/invoices?highlight=${encodeURIComponent(num)}`)
+                    }}
+                  />
+                </div>
+              </div>
+            )}
             {tab === 'job' && (
-              <JobDetailsTab
+              <div className="space-y-4">
+                <JobDetailsTab
+                  form={form}
+                  setField={setField}
+                  lineItems={lineItems}
+                  technicians={technicians}
+                  jobTypes={jobTypes}
+                  selectedVehicle={selectedVehicle}
+                  addLine={addLine}
+                  removeLine={removeLine}
+                  updateLine={updateLine}
+                  isCatalogChecked={isCatalogChecked}
+                  toggleCatalog={toggleCatalog}
+                  inventoryProducts={inventoryProducts}
+                  inventoryLoading={inventoryLoading}
+                  onAddProductFromInventory={addProductFromInventory}
+                />
+                {linkedJobInvoice && effectiveJobId && (
+                  <div className="rounded-lg border border-border bg-muted/10 px-3 py-3 text-sm space-y-2">
+                    <p className="font-medium">Warranties (this job)</p>
+                    {warrantyLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading…</p>
+                    ) : jobWarranties.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No warranties yet. Use <strong className="font-medium text-foreground">Edit invoice & warranties</strong> in the Payment tab (draft invoice only).
+                      </p>
+                    ) : (
+                      <ul className="space-y-2 text-xs">
+                        {jobWarranties.map(w => (
+                          <li key={w.id} className="border border-border/60 rounded-md px-2 py-1.5 bg-background/80">
+                            <span className="font-medium">{w.title}</span>
+                            <span className="text-muted-foreground ms-1">({w.scope})</span>
+                            {w.line_label ? (
+                              <span className="block text-muted-foreground truncate">Line: {w.line_label}</span>
+                            ) : null}
+                            <span className="block text-muted-foreground">
+                              {w.invoice_number} · {w.effective_date}
+                              {w.expiry_date ? ` → ${w.expiry_date}` : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {tab === 'payment' && (
+              <JobPaymentTab
                 form={form}
                 setField={setField}
                 lineItems={lineItems}
-                technicians={technicians}
-                jobTypes={jobTypes}
-                selectedVehicle={selectedVehicle}
-                addLine={addLine}
-                removeLine={removeLine}
-                updateLine={updateLine}
-                isCatalogChecked={isCatalogChecked}
-                toggleCatalog={toggleCatalog}
-                inventoryProducts={inventoryProducts}
-                inventoryLoading={inventoryLoading}
-                onAddProductFromInventory={addProductFromInventory}
+                isEdit={isEdit}
+                linkedJobInvoice={linkedJobInvoice}
+                onViewInvoiceInList={num => {
+                  onClose()
+                  navigate(`/invoices?highlight=${encodeURIComponent(num)}`)
+                }}
               />
             )}
             {tab === 'inspection' && (
@@ -921,47 +1104,12 @@ export default function AddJobModal({
                 hasJobInvoice={Boolean(linkedJobInvoice)}
               />
             )}
-            {tab === 'payment' && (
-              <JobPaymentTab form={form} setField={setField} lineItems={lineItems} isEdit={isEdit} />
-            )}
-
             {tab === 'progress' && <ProgressTab jobCardId={effectiveJobId} />}
             {tab === 'log' && <LogTab jobCardId={effectiveJobId} refreshKey={attachmentLogTick} />}
             {tab === 'attachment' && (
               <AttachmentTab
                 jobCardId={effectiveJobId}
                 onMutate={() => setAttachmentLogTick(t => t + 1)}
-              />
-            )}
-            {tab === 'customer' && (
-              <CustomerTab
-                selectedCustomer={selectedCustomer}
-                onSelectCustomer={handleSelectCustomer}
-                onCustomerUpdated={handleCustomerRecordUpdated}
-              />
-            )}
-            {tab === 'car' && (
-              <CarTab
-                jobCardId={effectiveJobId}
-                warrantyRefreshKey={attachmentLogTick}
-                customerId={selectedCustomer?.id ?? null}
-                allVehicles={vehicles}
-                selectedVehicle={selectedVehicle}
-                onSelectVehicle={handleSelectVehicle}
-                onVehicleUpdated={handleVehicleRecordUpdated}
-                onOpenInvoiceWizard={
-                  onOpenInvoiceWizard && effectiveJobId
-                    ? () => onOpenInvoiceWizard(effectiveJobId)
-                    : undefined
-                }
-                onGenerateInvoice={() => void generateInvoice()}
-                invoiceLoading={invoiceLoading}
-                canGenerateInvoice={canGenerateInvoice}
-                linkedJobInvoice={linkedJobInvoice}
-                onViewInvoiceInList={num => {
-                  onClose()
-                  navigate(`/invoices?highlight=${encodeURIComponent(num)}`)
-                }}
               />
             )}
           </div>

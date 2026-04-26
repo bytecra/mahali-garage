@@ -18,8 +18,10 @@ export default function JobPaymentTab(props: {
   setField: (key: keyof JobFormState, val: string | boolean) => void
   lineItems: JobLineItem[]
   isEdit: boolean
+  linkedJobInvoice?: { id?: number; invoice_number: string; total_amount: number; status: string } | null
+  onViewInvoiceInList?: (invoiceNumber: string) => void
 }): JSX.Element {
-  const { form, setField, lineItems, isEdit } = props
+  const { form, setField, lineItems, isEdit, linkedJobInvoice, onViewInvoiceInList } = props
   const inputCls =
     'w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring'
   const labelCls = 'block text-sm font-medium mb-1'
@@ -261,6 +263,33 @@ export default function JobPaymentTab(props: {
           />
         </div>
       </div>
+
+      {linkedJobInvoice && (
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm space-y-2">
+          <p className="font-medium text-emerald-800 dark:text-emerald-200">Invoice created</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+            <span>
+              <span className="text-foreground font-mono font-semibold">{linkedJobInvoice.invoice_number}</span>
+            </span>
+            <span>
+              Total: <CurrencyText amount={linkedJobInvoice.total_amount} className="font-medium text-foreground" />
+            </span>
+            <span className="capitalize">Status: {linkedJobInvoice.status}</span>
+          </div>
+          {onViewInvoiceInList && (
+            <button
+              type="button"
+              onClick={() => onViewInvoiceInList(linkedJobInvoice.invoice_number)}
+              className="text-sm text-primary font-medium hover:underline"
+            >
+              View in Invoices →
+            </button>
+          )}
+          <p className="text-xs text-muted-foreground">
+            You can generate again to refresh draft lines from the current job items.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

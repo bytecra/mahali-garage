@@ -32,6 +32,9 @@ export default function CarTab(props: {
   onGenerateInvoice: () => void
   invoiceLoading: boolean
   canGenerateInvoice: boolean
+  showInvoiceActions?: boolean
+  showLinkedInvoiceSummary?: boolean
+  showWarranties?: boolean
   linkedJobInvoice?: { id?: number; invoice_number: string; total_amount: number; status: string } | null
   onViewInvoiceInList?: (invoiceNumber: string) => void
 }): JSX.Element {
@@ -47,6 +50,9 @@ export default function CarTab(props: {
     onGenerateInvoice,
     invoiceLoading,
     canGenerateInvoice,
+    showInvoiceActions = true,
+    showLinkedInvoiceSummary = true,
+    showWarranties = true,
     linkedJobInvoice,
     onViewInvoiceInList,
   } = props
@@ -153,7 +159,7 @@ export default function CarTab(props: {
             </div>
           )}
 
-          {linkedJobInvoice && (
+          {showLinkedInvoiceSummary && linkedJobInvoice && (
             <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm space-y-2">
               <p className="font-medium text-emerald-800 dark:text-emerald-200">Invoice created</p>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
@@ -180,7 +186,7 @@ export default function CarTab(props: {
             </div>
           )}
 
-          {linkedJobInvoice && jobCardId && (
+          {showWarranties && linkedJobInvoice && jobCardId && (
             <div className="rounded-lg border border-border bg-muted/10 px-3 py-3 text-sm space-y-2">
               <p className="font-medium">Warranties (this job)</p>
               {warrantyLoading ? (
@@ -209,49 +215,51 @@ export default function CarTab(props: {
             </div>
           )}
 
-          <div className="pt-4 border-t border-border space-y-2">
-            {onOpenInvoiceWizard ? (
-              <>
+          {showInvoiceActions && (
+            <div className="pt-4 border-t border-border space-y-2">
+              {onOpenInvoiceWizard ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={!canGenerateInvoice || !invoiceIsDraft}
+                    onClick={onOpenInvoiceWizard}
+                    className="w-full sm:w-auto px-6 py-3 text-sm font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {linkedJobInvoice
+                      ? invoiceIsDraft
+                        ? 'Edit invoice & warranties'
+                        : 'Invoice locked'
+                      : 'Invoice wizard'}
+                  </button>
+                  <p className="text-xs text-muted-foreground max-w-xl">
+                    Opens the invoice wizard where you can set lines, tax, and <strong className="font-medium text-foreground">warranties</strong>.
+                    {linkedJobInvoice && !invoiceIsDraft
+                      ? ' This invoice is no longer a draft, so it cannot be changed here.'
+                      : null}
+                  </p>
+                </>
+              ) : (
                 <button
                   type="button"
-                  disabled={!canGenerateInvoice || !invoiceIsDraft}
-                  onClick={onOpenInvoiceWizard}
+                  disabled={!canGenerateInvoice || invoiceLoading}
+                  onClick={onGenerateInvoice}
                   className="w-full sm:w-auto px-6 py-3 text-sm font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {linkedJobInvoice
-                    ? invoiceIsDraft
-                      ? 'Edit invoice & warranties'
-                      : 'Invoice locked'
-                    : 'Invoice wizard'}
+                  {invoiceLoading ? 'Generating…' : 'Generate invoice'}
                 </button>
-                <p className="text-xs text-muted-foreground max-w-xl">
-                  Opens the invoice wizard where you can set lines, tax, and <strong className="font-medium text-foreground">warranties</strong>.
-                  {linkedJobInvoice && !invoiceIsDraft
-                    ? ' This invoice is no longer a draft, so it cannot be changed here.'
-                    : null}
+              )}
+              {!onOpenInvoiceWizard && !canGenerateInvoice && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Requires a saved job with customer, vehicle, and at least one line item.
                 </p>
-              </>
-            ) : (
-              <button
-                type="button"
-                disabled={!canGenerateInvoice || invoiceLoading}
-                onClick={onGenerateInvoice}
-                className="w-full sm:w-auto px-6 py-3 text-sm font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {invoiceLoading ? 'Generating…' : 'Generate invoice'}
-              </button>
-            )}
-            {!onOpenInvoiceWizard && !canGenerateInvoice && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Requires a saved job with customer, vehicle, and at least one line item.
-              </p>
-            )}
-            {onOpenInvoiceWizard && !canGenerateInvoice && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Requires a saved job with customer, vehicle, and at least one line item.
-              </p>
-            )}
-          </div>
+              )}
+              {onOpenInvoiceWizard && !canGenerateInvoice && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Requires a saved job with customer, vehicle, and at least one line item.
+                </p>
+              )}
+            </div>
+          )}
         </>
       )}
 

@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { getCurrencySymbol } from '../store/currencyStore'
+import { formatDateByPattern, getDateFormat } from '../store/dateFormatStore'
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
@@ -16,11 +17,13 @@ export function formatCurrency(amount: number | null | undefined, symbol?: strin
 }
 
 export function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString()
+  return formatDateByPattern(dateStr, getDateFormat())
 }
 
 export function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleString()
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return dateStr
+  return `${formatDateByPattern(d, getDateFormat())} ${d.toLocaleTimeString()}`
 }
 
 export function generateSaleNumber(prefix: string, num: number): string {
