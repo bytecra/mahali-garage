@@ -13,7 +13,7 @@ export function formatCurrency(amount: number | null | undefined, symbol?: strin
   const safe = isNaN(n) ? 0 : n
   const sign = safe < 0 ? '-' : ''
   const absFormatted = Math.abs(safe).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${sign}${absFormatted}${sym}`
+  return `${sign}${sym}${absFormatted}`
 }
 
 export function formatDate(dateStr: string): string {

@@ -1,5 +1,6 @@
 type Department = 'mechanical' | 'programming' | 'both'
 import { type DateFormatOption, formatDateByPattern } from '../store/dateFormatStore'
+import { DIRHAM_SVG_HTML } from './dirhamSvg'
 
 interface ReceiptLine {
   service_name: string
@@ -64,11 +65,11 @@ function parseLines(raw: string | null): ReceiptLine[] {
   }
 }
 
-function currency(n: number, symbol: string): string {
+function currency(n: number, _symbol: string): string {
   const safe = Number.isFinite(n) ? n : 0
   const sign = safe < 0 ? '-' : ''
   const formatted = Math.abs(safe).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${sign}${formatted}${symbol}`
+  return `${sign}${DIRHAM_SVG_HTML}${formatted}`
 }
 
 function toDateFormat(value: string | undefined): DateFormatOption {
