@@ -49,19 +49,18 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // Allow F12 to toggle DevTools for debugging
-  globalShortcut.register('F12', () => {
-    const win = BrowserWindow.getFocusedWindow()
-    if (win) {
-      if (win.webContents.isDevToolsOpened()) {
-        win.webContents.closeDevTools()
-      } else {
-        if (!app.isPackaged) {
+  if (!app.isPackaged) {
+    globalShortcut.register('F12', () => {
+      const win = BrowserWindow.getFocusedWindow()
+      if (win) {
+        if (win.webContents.isDevToolsOpened()) {
+          win.webContents.closeDevTools()
+        } else {
           win.webContents.openDevTools()
         }
       }
-    }
-  })
+    })
+  }
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -128,8 +127,11 @@ app.whenReady().then(async () => {
     registerAllHandlers()
     log.info('IPC handlers registered')
 
-    // Listen for successful activation so we can open the main window
-    ipcMain.once('app:licenseActivated', () => {
+    // Listen for successful activation so we can open the main window.
+    // ipcMain.on (not once) so a retry after a failed attempt still fires;
+    // the mainWindow guard prevents opening a second window.
+    ipcMain.on('app:licenseActivated', () => {
+      if (mainWindow) return  // already open — ignore duplicate signals
       const status = checkLicense()
       if (!(status.valid && status.licensed)) {
         log.warn('Ignoring app:licenseActivated; license is not valid/licensed')

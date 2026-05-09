@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { userRepo } from '../database/repositories/userRepo'
 import { hasFeature as checkLicenseFeature } from '../licensing/license-manager'
+import log from '../utils/logger'
 
 // Role-based default permissions — single source of truth
 // When adding/changing these, also update 006_role_permissions.ts ROLE_DEFAULTS_SNAP
@@ -163,8 +164,8 @@ export const authService = {
     try {
       return roleAllowed && checkLicenseFeature(feature)
     } catch (e) {
-      console.error('[authService] License check failed, falling back to role-only:', e)
-      return roleAllowed
+      log.error('[authService] License check failed, denying access for safety:', e)
+      return false
     }
   },
 

@@ -33,7 +33,7 @@ export function registerLicenseHandlers(): void {
 
   ipcMain.handle('license:getStatus', (_event) => {
     try {
-      return ok(licenseManager.getLicenseInfo())
+      return ok(licenseManager.checkLicense())
     } catch (e) {
       log.error('license:getStatus', e)
       return err('Failed', 'ERR_LICENSE')

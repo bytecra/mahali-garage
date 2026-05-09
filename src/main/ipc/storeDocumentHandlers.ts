@@ -6,8 +6,9 @@ import { authService } from '../services/authService'
 import { ok, err } from '../utils/ipcResponse'
 import log from '../utils/logger'
 
-const docsDir = path.join(app.getPath('userData'), 'store', 'docs')
-fs.mkdirSync(docsDir, { recursive: true })
+function getDocsDir(): string {
+  return path.join(app.getPath('userData'), 'store', 'docs')
+}
 
 function isOwnerOrManager(session: { role: string } | undefined): boolean {
   return session?.role === 'owner' || session?.role === 'manager'
@@ -15,12 +16,13 @@ function isOwnerOrManager(session: { role: string } | undefined): boolean {
 
 function isPathUnderDocs(filePath: string): boolean {
   const resolved = path.resolve(filePath)
-  const base = path.resolve(docsDir)
+  const base = path.resolve(getDocsDir())
   return resolved === base || resolved.startsWith(base + path.sep)
 }
 
 /** If name exists on disk, append timestamp before extension. */
 function uniqueDiskFileName(originalName: string): string {
+  const docsDir = getDocsDir()
   const ext = path.extname(originalName)
   const base = path.basename(originalName, ext) || 'document'
   const safeBase = base.replace(/[^\w\-.\s]/g, '_').trim() || 'document'
@@ -30,6 +32,8 @@ function uniqueDiskFileName(originalName: string): string {
 }
 
 export function registerStoreDocumentHandlers(): void {
+  const docsDir = getDocsDir()
+  fs.mkdirSync(docsDir, { recursive: true })
   ipcMain.handle('storeDocuments:list', event => {
     try {
       const session = authService.getSession(event.sender.id)

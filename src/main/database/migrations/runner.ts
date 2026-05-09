@@ -149,6 +149,8 @@ export async function runMigrations(db: Database.Database): Promise<void> {
 
     log.info(`Running migration ${migration.name}...`)
 
+    // preUp runs OUTSIDE the transaction. If preUp succeeds but up() throws,
+    // preUp changes cannot be rolled back — ensure any preUp logic is idempotent.
     if (migration.preUp) migration.preUp(db)
 
     const run = db.transaction(() => {

@@ -178,7 +178,8 @@ export const saleRepo = {
         }
       }
 
-      // Validate & update stock for each item
+      // Validate stock and cache results — avoids a second SELECT per item in the write loop
+      const productCache = new Map<number, { id: number; stock_quantity: number; name: string }>()
       for (const item of input.items) {
         if (!item.product_id) continue
         const product = db.prepare(`SELECT id, stock_quantity, name FROM products WHERE id = ?`).get(item.product_id) as { id: number; stock_quantity: number; name: string } | undefined
@@ -186,6 +187,7 @@ export const saleRepo = {
         if (product.stock_quantity < item.quantity) {
           throw new Error(`Insufficient stock for "${product.name}": have ${product.stock_quantity}, need ${item.quantity}`)
         }
+        productCache.set(item.product_id, product)
       }
 
       // Insert sale
@@ -212,7 +214,7 @@ export const saleRepo = {
       )
       const sale_id = saleResult.lastInsertRowid as number
 
-      // Insert items + adjust stock
+      // Insert items + adjust stock (reuse cached product data from validation above)
       for (const item of input.items) {
         db.prepare(`
           INSERT INTO sale_items (sale_id, product_id, product_name, product_sku, unit_price, cost_price, quantity, discount, line_total)
@@ -220,8 +222,7 @@ export const saleRepo = {
         `).run(sale_id, item.product_id, item.product_name, item.product_sku, item.unit_price, item.cost_price, item.quantity, item.discount, item.line_total)
 
         if (item.product_id) {
-          const prod = db.prepare(`SELECT stock_quantity FROM products WHERE id = ?`).get(item.product_id) as { stock_quantity: number }
-          const qty_before = prod.stock_quantity
+          const qty_before = productCache.get(item.product_id)!.stock_quantity
           const qty_after = qty_before - item.quantity
           db.prepare(`UPDATE products SET stock_quantity = ?, updated_at = datetime('now') WHERE id = ?`).run(qty_after, item.product_id)
           db.prepare(`
@@ -353,11 +354,14 @@ export const saleRepo = {
 
   saveDraft(input: CreateSaleInput): number {
     const db = getDb()
-    const saleNumRaw = (db.prepare(`SELECT value FROM settings WHERE key = 'sale.next_number'`).get() as { value: string } | undefined)?.value ?? '1'
-    const saleNext = parseInt(saleNumRaw, 10)
-    const sale_number = `DRAFT-${String(saleNext).padStart(6, '0')}`
 
     const txn = db.transaction(() => {
+      // Use a dedicated draft counter so saving drafts never gaps the sale number sequence
+      db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('draft.next_number', '1')`).run()
+      const draftNumRaw = (db.prepare(`SELECT value FROM settings WHERE key = 'draft.next_number'`).get() as { value: string } | undefined)?.value ?? '1'
+      const draftNext = parseInt(draftNumRaw, 10) || 1
+      const sale_number = `DRAFT-${String(draftNext).padStart(6, '0')}`
+
       const result = db.prepare(`
         INSERT INTO sales (sale_number, customer_id, user_id, subtotal, discount_type, discount_value,
           discount_amount, tax_enabled, tax_rate, tax_amount, total_amount, amount_paid, balance_due, status, notes)
@@ -371,7 +375,7 @@ export const saleRepo = {
         db.prepare(`INSERT INTO sale_items (sale_id, product_id, product_name, product_sku, unit_price, cost_price, quantity, discount, line_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
           .run(sale_id, item.product_id, item.product_name, item.product_sku, item.unit_price, item.cost_price, item.quantity, item.discount, item.line_total)
       }
-      db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'sale.next_number'`).run(String(saleNext + 1))
+      db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'draft.next_number'`).run(String(draftNext + 1))
       return sale_id
     })
     return txn() as number

@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { app, dialog } from 'electron'
-import { getDb } from '../database/index'
+import { getDb, closeDatabase } from '../database/index'
 import log from '../utils/logger'
 
 function defaultBackupDir(): string {
@@ -45,13 +45,21 @@ export const backupService = {
       const dbPath = path.join(app.getPath('userData'), 'mahali.db')
       const archivePath = `${dbPath}.pre-restore`
 
-      // Archive current DB
+      // Archive current DB before touching anything
       fs.copyFileSync(dbPath, archivePath)
 
-      // Copy backup over current DB
+      // Close the live connection so WAL is flushed and the file lock is released
+      closeDatabase()
+
+      // Overwrite with the backup
       fs.copyFileSync(backupPath, dbPath)
 
-      log.info(`Backup restored from: ${backupPath}`)
+      log.info(`Backup restored from: ${backupPath}. Relaunching app.`)
+
+      // Relaunch so the new DB is opened cleanly on startup
+      app.relaunch()
+      setTimeout(() => app.quit(), 500)
+
       return { success: true }
     } catch (e) {
       log.error('Backup restore failed', e)

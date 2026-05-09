@@ -10,7 +10,18 @@ import { app } from 'electron'
 import { getDeviceId } from './device-fingerprint'
 import { encrypt, decrypt } from './encryption'
 
-/** Embedded fallback for packaged apps where env vars are not set (dev can override via LICENSE_HMAC_SECRET). */
+/**
+ * Embedded fallback for packaged apps where env vars are not set (dev can override via LICENSE_HMAC_SECRET).
+ *
+ * Phase 4 eval — server-side license validation: current risk is that a determined
+ * attacker can extract this constant from the binary and forge valid license codes.
+ * Mitigation (no server required): inject a unique secret per release via CI using
+ * the LICENSE_HMAC_SECRET env var, so the hardcoded fallback is never shipped in
+ * production builds. True forgery prevention requires online validation against a
+ * license server, but that adds internet-connectivity requirements unsuitable for
+ * offline garage environments. Adopt server validation only if piracy becomes a
+ * measurable business problem.
+ */
 const DEFAULT_HMAC_SECRET =
   '0f3466a0c8c1a0f22ab2313fbed729449dc996e286ef88f5bb41a8de72bf706a'
 
@@ -204,50 +215,6 @@ export function activateLicense(code: string): { success: boolean; error?: strin
   }
 }
 
-/**
- * Return current license info for display (device ID, type, expiry, days left).
- */
-export function getLicenseInfo(): LicenseStatus {
-  return checkLicense()
-}
-
-/**
- * Returns true if the current license is expired.
- */
-export function isExpired(): boolean {
-  const filePath = getLicensePath()
-  try {
-    if (!fs.existsSync(filePath)) return true
-    const raw = fs.readFileSync(filePath)
-    const decrypted = decrypt(raw)
-    if (!decrypted) return true
-    const data = deserializeLicenseData(decrypted)
-    if (!data) return true
-    if (data.expiresAt === 0) return false
-    const nowSec = Math.floor(Date.now() / 1000)
-    return nowSec > data.expiresAt
-  } catch {
-    return true
-  }
-}
-
-/**
- * Days until expiration. null for LIFETIME, 0 if expired.
- */
-export function getDaysRemaining(): number | null {
-  const status = checkLicense()
-  return status.daysRemaining ?? null
-}
-
-export function extractTierFromLicenseType(
-  type: LicenseType
-): 'BASIC' | 'STANDARD' | 'PREMIUM' | 'UNKNOWN' {
-  if (type.startsWith('BASIC')) return 'BASIC'
-  if (type.startsWith('STANDARD')) return 'STANDARD'
-  if (type.startsWith('PREMIUM')) return 'PREMIUM'
-  return 'UNKNOWN'
-}
-
 export function getUserLimitForTier(
   tier: 'BASIC' | 'STANDARD' | 'PREMIUM' | 'UNKNOWN'
 ): number {
@@ -293,7 +260,7 @@ export function getTieredLicenseInfo(): LicenseInfo {
     duration,
     type,
     expiresAt: status.expiresAt ?? null,
-    isActive: status.valid && status.licensed && !isExpired(),
+    isActive: status.valid && status.licensed,
     daysRemaining: status.daysRemaining ?? null,
     maxUsers,
   }

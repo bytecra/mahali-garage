@@ -187,4 +187,16 @@ export const userRepo = {
       .prepare(`UPDATE users SET preferences_json = ?, updated_at = datetime('now') WHERE id = ?`)
       .run(json, userId)
   },
+
+  getPasswordInfo(id: number): { password_hash: string; must_change_password: number } | undefined {
+    return getDb()
+      .prepare(`SELECT password_hash, must_change_password FROM users WHERE id = ?`)
+      .get(id) as { password_hash: string; must_change_password: number } | undefined
+  },
+
+  setPassword(id: number, hash: string): void {
+    getDb()
+      .prepare(`UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = datetime('now') WHERE id = ?`)
+      .run(hash, id)
+  },
 }
