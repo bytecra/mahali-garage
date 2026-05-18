@@ -41,7 +41,6 @@ function statusLabel(s: string): string {
     pending: 'Pending',
     in_progress: 'In Progress',
     waiting_parts: 'Waiting for Parts',
-    waiting_for_programming: 'Waiting for Programming',
     ready: 'Ready for Pickup',
     completed_delivered: 'Completed / Delivered',
     delivered: 'Delivered',
@@ -218,13 +217,9 @@ export default function JobDetailDrawer(props: {
                           <span className="truncate flex items-center gap-1.5 min-w-0">
                             {(p.description ?? 'Item').trim() || 'Item'}
                             <span
-                              className={`shrink-0 text-[10px] uppercase font-semibold px-1 py-0 rounded ${
-                                p.line_department === 'programming'
-                                  ? 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'
-                                  : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
-                              }`}
+                              className="shrink-0 text-[10px] uppercase font-semibold px-1 py-0 rounded bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300"
                             >
-                              {p.line_department === 'programming' ? 'Prog' : 'Mech'}
+                              Tech
                             </span>
                           </span>
                           <span className="tabular-nums shrink-0 text-muted-foreground">

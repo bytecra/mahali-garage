@@ -49,7 +49,7 @@ import {
 } from '../../utils/reportExcelExport'
 
 type ReportTab = 'sales' | 'profit' | 'department_reports' | 'inventory' | 'lowstock' | 'topproducts' | 'debts' | 'expenses_category' | 'expenses_monthly' | 'assets' | 'attendance' | 'salary' | 'performance'
-type ReportDept = 'all' | 'mechanical' | 'programming'
+type ReportDept = 'all' | 'tech'
 type DepartmentPreset = 'today' | 'week' | 'month' | 'custom'
 
 type DepartmentReportDeptSlice = {
@@ -106,8 +106,7 @@ function ReportsPageInner(): JSX.Element {
   const [reportDept, setReportDept] = useState<ReportDept>('all')
   const [data, setData] = useState<unknown[]>([])
   const [departmentData, setDepartmentData] = useState<{
-    mechanical: DepartmentReportDeptSlice
-    programming: DepartmentReportDeptSlice
+    tech: DepartmentReportDeptSlice
     both: DepartmentReportDeptSlice
   } | null>(null)
   const [departmentPreset, setDepartmentPreset] = useState<DepartmentPreset>('month')
@@ -121,7 +120,7 @@ function ReportsPageInner(): JSX.Element {
   const [exportDateFrom, setExportDateFrom] = useState('')
   const [exportDateTo, setExportDateTo] = useState('')
   const [exportWeekDate, setExportWeekDate] = useState('')
-  const [exportDepartment, setExportDepartment] = useState<'mechanical' | 'programming' | 'both'>('both')
+  const [exportDepartment, setExportDepartment] = useState<'tech' | 'both'>('both')
 
   const [periodCompareMode, setPeriodCompareMode] = useState<ComparisonMode>('single')
   const [monthComparePreset, setMonthComparePreset] = useState<MonthComparisonPreset>('this_vs_last_month')
@@ -228,7 +227,7 @@ function ReportsPageInner(): JSX.Element {
       }
 
       const records = recordsRes.data ?? []
-      const storeName = (storeNameRes?.success ? storeNameRes.data : null) || 'Mahali Garage'
+      const storeName = (storeNameRes?.success ? storeNameRes.data : null) || 'Power Key'
 
       const statusCounts: Record<string, { status_name: string; status_emoji: string; count: number }> = {}
       for (const r of records) {
@@ -291,7 +290,7 @@ function ReportsPageInner(): JSX.Element {
         return
       }
 
-      const storeName = (storeRes?.success ? storeRes.data : null) || 'Mahali Garage'
+      const storeName = (storeRes?.success ? storeRes.data : null) || 'Power Key'
       const currencySym = (currencyRes?.success ? currencyRes.data : null) || 'د.إ'
       const data = reportRes.data
 
@@ -437,8 +436,7 @@ function ReportsPageInner(): JSX.Element {
         total_revenue: number
         avg_hours_per_job: number
         avg_revenue_per_job: number
-        mechanical_jobs: number
-        programming_jobs: number
+        tech_jobs: number
         both_jobs: number
       }>) ?? []
 
@@ -447,7 +445,7 @@ function ReportsPageInner(): JSX.Element {
         fromDate: perfFromDate,
         toDate: perfToDate,
         department: perfDept,
-        storeName: (storeRes?.success ? storeRes.data : null) || 'Mahali Garage',
+        storeName: (storeRes?.success ? storeRes.data : null) || 'Power Key',
         currencySymbol: (currencyRes?.success ? currencyRes.data : null) || 'AED',
       })
 
@@ -462,16 +460,12 @@ function ReportsPageInner(): JSX.Element {
 
   async function handleExportPdf(): Promise<void> {
     const storeRes = await window.electronAPI.settings.get('store_name')
-    const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Mahali Garage'
+    const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Power Key'
     const currencyRes = await window.electronAPI.settings.get('currency')
     const currency = (currencyRes?.success ? currencyRes.data : null) ?? 'AED'
 
     const department = exportDepartment
-    const depts: Array<'Mechanical' | 'Programming'> = department === 'both'
-      ? ['Mechanical', 'Programming']
-      : department === 'mechanical'
-        ? ['Mechanical']
-        : ['Programming']
+    const depts: Array<'Tech'> = ['Tech']
 
     const mapSaleRow = (row: {
       sale_number: string
@@ -506,7 +500,7 @@ function ReportsPageInner(): JSX.Element {
 
         for (let i = 0; i < depts.length; i++) {
           const dept = depts[i]
-          const deptParam = dept.toLowerCase() as 'mechanical' | 'programming'
+          const deptParam = 'tech' as const
           let html = ''
 
           if (tab === 'sales') {
@@ -632,7 +626,7 @@ function ReportsPageInner(): JSX.Element {
 
       for (let i = 0; i < depts.length; i++) {
         const dept = depts[i]
-        const deptParam = dept.toLowerCase() as 'mechanical' | 'programming'
+        const deptParam = 'tech' as const
         let html = ''
 
         if (tab === 'sales') {
@@ -728,17 +722,12 @@ function ReportsPageInner(): JSX.Element {
 
   async function handleExportExcel(): Promise<void> {
     const storeRes = await window.electronAPI.settings.get('store_name')
-    const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Mahali Garage'
+    const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Power Key'
     const currencyRes = await window.electronAPI.settings.get('currency')
     const currencySymbol = (currencyRes?.success ? currencyRes.data : null) ?? 'AED'
 
     const department = exportDepartment
-    const depts: Array<'Mechanical' | 'Programming'> =
-      department === 'both'
-        ? ['Mechanical', 'Programming']
-        : department === 'mechanical'
-          ? ['Mechanical']
-          : ['Programming']
+    const depts: Array<'Tech'> = ['Tech']
 
     setExportingModal(true)
     try {
@@ -760,7 +749,7 @@ function ReportsPageInner(): JSX.Element {
 
         for (let i = 0; i < depts.length; i++) {
           const dept = depts[i]
-          const deptParam = dept.toLowerCase() as 'mechanical' | 'programming'
+          const deptParam = 'tech' as const
 
           if (tab === 'sales') {
             const [salesRes1, salesRes2] = await Promise.all([
@@ -868,7 +857,7 @@ function ReportsPageInner(): JSX.Element {
 
       for (let i = 0; i < depts.length; i++) {
         const dept = depts[i]
-        const deptParam = dept.toLowerCase() as 'mechanical' | 'programming'
+        const deptParam = 'tech' as const
 
         if (tab === 'sales') {
           const salesRes = await window.electronAPI.reports.salesDaily(resolvedFromFull, resolvedToFull, deptParam)
@@ -956,7 +945,7 @@ function ReportsPageInner(): JSX.Element {
         window.electronAPI.settings.get('store.name'),
         window.electronAPI.settings.get('store.currency_symbol'),
       ])
-      const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Mahali Garage'
+      const storeName = (storeRes?.success ? storeRes.data : null) ?? 'Power Key'
       const sym = (currencyRes?.success ? currencyRes.data : null) ?? 'د.إ'
       const periodLabel = `${dateFrom} → ${dateTo}`
       const money = (n: number): string => `${sym}${n.toFixed(2)}`
@@ -970,8 +959,8 @@ function ReportsPageInner(): JSX.Element {
           storeName,
           dateFrom,
           dateTo,
-          mechanical: departmentData.mechanical,
-          programming: departmentData.programming,
+          mechanical: departmentData.tech,
+          programming: departmentData.tech,
           both: departmentData.both,
           currencySymbol: sym,
         })
@@ -981,7 +970,7 @@ function ReportsPageInner(): JSX.Element {
       }
 
       const deptLabelQuick =
-        reportDept === 'all' ? 'Both' : reportDept === 'mechanical' ? 'Mechanical' : 'Programming'
+        reportDept === 'all' ? 'All' : 'Tech'
 
       if (tab === 'sales' && compareData?.sales) {
         const [a, b] = compareData.sales
@@ -1105,7 +1094,7 @@ function ReportsPageInner(): JSX.Element {
           return
         }
         const dept =
-          reportDept === 'all' ? 'Both' : reportDept === 'mechanical' ? 'Mechanical' : 'Programming'
+          reportDept === 'all' ? 'All' : 'Tech'
         const html = buildDailySalesPdf({
           storeName,
           dateFrom,
@@ -1136,7 +1125,7 @@ function ReportsPageInner(): JSX.Element {
         const grossProfit = rows.reduce((s, r) => s + r.gross_profit, 0)
         const marginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
         const dept =
-          reportDept === 'all' ? 'Both' : reportDept === 'mechanical' ? 'Mechanical' : 'Programming'
+          reportDept === 'all' ? 'All' : 'Tech'
         const html = buildProfitPdf({
           storeName,
           dateFrom,
@@ -1166,7 +1155,7 @@ function ReportsPageInner(): JSX.Element {
           return
         }
         const dept =
-          reportDept === 'all' ? 'Both' : reportDept === 'mechanical' ? 'Mechanical' : 'Programming'
+          reportDept === 'all' ? 'All' : 'Tech'
         const html = buildTopServicesPdf({
           storeName,
           dateFrom,
@@ -1493,8 +1482,7 @@ function ReportsPageInner(): JSX.Element {
         res = await window.electronAPI.reports.departmentSummary(dateFrom, dateTo)
         if (res?.success && res.data) {
           setDepartmentData(res.data as {
-            mechanical: DepartmentReportDeptSlice
-            programming: DepartmentReportDeptSlice
+            tech: DepartmentReportDeptSlice
             both: DepartmentReportDeptSlice
           })
         }
@@ -1762,8 +1750,7 @@ function ReportsPageInner(): JSX.Element {
                 className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="all">{t('common.all')}</option>
-                <option value="mechanical">{t('reports.dept.mechanical', { defaultValue: 'Mechanical' })}</option>
-                <option value="programming">{t('reports.dept.programming', { defaultValue: 'Programming' })}</option>
+                <option value="tech">{t('reports.dept.tech', { defaultValue: 'Tech' })}</option>
               </select>
             </div>
           )}
@@ -1873,8 +1860,7 @@ function ReportsPageInner(): JSX.Element {
             className="px-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="all">{t('common.all')}</option>
-            <option value="mechanical">{t('reports.dept.mechanical', { defaultValue: 'Mechanical' })}</option>
-            <option value="programming">{t('reports.dept.programming', { defaultValue: 'Programming' })}</option>
+            <option value="tech">{t('reports.dept.tech', { defaultValue: 'Tech' })}</option>
           </select>
         </div>
       )}
@@ -2036,8 +2022,7 @@ function ReportsPageInner(): JSX.Element {
                 className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
               >
                 <option value="all">All Departments</option>
-                <option value="mechanical">Mechanical</option>
-                <option value="programming">Programming</option>
+                <option value="tech">Tech</option>
               </select>
             </div>
           )}
@@ -2142,8 +2127,7 @@ function ReportsPageInner(): JSX.Element {
                 className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
               >
                 <option value="all">All</option>
-                <option value="mechanical">Mechanical</option>
-                <option value="programming">Programming</option>
+                <option value="tech">Tech</option>
               </select>
             </div>
 
@@ -2365,8 +2349,7 @@ function ReportsPageInner(): JSX.Element {
 
           {tab === 'department_reports' && departmentData ? (
             <DepartmentReportsPanel
-              mechanical={departmentData.mechanical}
-              programming={departmentData.programming}
+              tech={departmentData.tech}
               both={departmentData.both}
             />
           ) : tab === 'sales' && compareData?.sales ? (
@@ -2554,34 +2537,13 @@ function ReportsPageInner(): JSX.Element {
                   <input
                     type="radio"
                     name="export-department"
-                    value="mechanical"
-                    checked={exportDepartment === 'mechanical'}
-                    onChange={() => setExportDepartment('mechanical')}
+                    value="tech"
+                    checked={exportDepartment === 'tech'}
+                    onChange={() => setExportDepartment('tech')}
                   />
-                  <span>Mechanical</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="export-department"
-                    value="programming"
-                    checked={exportDepartment === 'programming'}
-                    onChange={() => setExportDepartment('programming')}
-                  />
-                  <span>Programming</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="export-department"
-                    value="both"
-                    checked={exportDepartment === 'both'}
-                    onChange={() => setExportDepartment('both')}
-                  />
-                  <span>Both</span>
+                  <span>Tech</span>
                 </label>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">(generates 2 files)</p>
             </div>
 
             <div className="flex items-center justify-end gap-2">
@@ -2662,12 +2624,10 @@ function TopProductsComparisonTable({ rows }: { rows: MergedTopProduct[] }): JSX
 }
 
 function DepartmentReportsPanel({
-  mechanical,
-  programming,
+  tech,
   both,
 }: {
-  mechanical: DepartmentReportDeptSlice
-  programming: DepartmentReportDeptSlice
+  tech: DepartmentReportDeptSlice
   both: DepartmentReportDeptSlice
 }): JSX.Element {
   const { t } = useTranslation()
@@ -2739,9 +2699,8 @@ function DepartmentReportsPanel({
   )
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      {panel(t('reports.dept.mechanical', { defaultValue: 'Mechanical' }), 'bg-amber-50 dark:bg-amber-950/20', mechanical)}
-      {panel(t('reports.dept.programming', { defaultValue: 'Programming' }), 'bg-violet-50 dark:bg-violet-950/20', programming)}
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {panel(t('reports.dept.tech', { defaultValue: 'Tech' }), 'bg-blue-50 dark:bg-blue-950/20', tech)}
       {panel(t('reports.dept.both', { defaultValue: 'Both' }), 'bg-teal-50 dark:bg-teal-950/20', both)}
     </div>
   )

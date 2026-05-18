@@ -132,7 +132,7 @@ export function InvoicePDF({ inv }: { inv: InvoiceData }): JSX.Element {
             ? <Image src={logoSrc} style={styles.logo} />
             : <View style={styles.logoSlot} />}
           <View style={styles.headerMain}>
-            <Text style={styles.storeNameLg}>{inv.store_name ?? 'Garage'}</Text>
+            <Text style={styles.storeNameLg}>{inv.store_name ?? 'Power Key'}</Text>
             {inv.store_address ? <Text style={styles.storeInfo}>{inv.store_address}</Text> : null}
             {inv.store_phone ? <Text style={styles.storeInfo}>Tel: {inv.store_phone}</Text> : null}
           </View>

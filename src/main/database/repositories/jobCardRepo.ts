@@ -1,12 +1,11 @@
 import { getDb } from '../index'
 
-/** Job shop attribution: mechanical-only, programming-only, or both teams involved. */
-export type JobDepartment = 'mechanical' | 'programming' | 'both'
+/** Job shop attribution: tech-only or both teams involved. */
+export type JobDepartment = 'tech' | 'both'
 
 function normalizeDepartment(v: unknown): JobDepartment {
-  if (v === 'programming') return 'programming'
   if (v === 'both') return 'both'
-  return 'mechanical'
+  return 'tech'
 }
 
 function settingVal(db: ReturnType<typeof getDb>, key: string, fallback = ''): string {
@@ -56,7 +55,7 @@ export interface JobCardFilters {
   search?: string
   status?: string
   /** Narrow board/list to jobs for this department only. */
-  department?: 'mechanical' | 'programming' | 'both'
+  department?: 'tech' | 'both'
   /** Profile filled in (1) vs quick intake (0). */
   profile?: 'all' | 'complete' | 'incomplete'
   technician_id?: number
@@ -147,8 +146,8 @@ export interface JobPartInput {
   service_catalog_id?: number | null
   /** Snapshot of catalog default_price when line was built (optional). */
   default_unit_price?: number | null
-  /** Line attribution: mechanical vs programming work (maps to job_parts.line_department). */
-  line_department?: 'mechanical' | 'programming'
+  /** Line attribution: tech work (maps to job_parts.line_department). */
+  line_department?: 'tech'
 }
 
 export const jobCardRepo = {
@@ -190,10 +189,8 @@ export const jobCardRepo = {
       params.push(like, like, like, like, like, like, like, like, like)
     }
     if (status) { conditions.push('j.status = ?'); params.push(status) }
-    if (department === 'mechanical') {
-      conditions.push(`COALESCE(j.department, 'mechanical') IN ('mechanical','both')`)
-    } else if (department === 'programming') {
-      conditions.push(`j.department IN ('programming','both')`)
+    if (department === 'tech') {
+      conditions.push(`COALESCE(j.department, 'tech') IN ('tech','both')`)
     } else if (department === 'both') {
       conditions.push(`j.department = 'both'`)
     }
@@ -266,7 +263,7 @@ export const jobCardRepo = {
         j.created_at DESC
     `).all()
     // Note: 'delivered' (legacy) is excluded from the board; 'completed_delivered' (new) IS included.
-    // 'waiting_for_programming' is also included via the catch-all NOT IN list above.
+    // Legacy 'waiting_for_programming' is also included via the catch-all NOT IN list above.
   },
 
   getById(id: number) {
@@ -296,7 +293,7 @@ export const jobCardRepo = {
       if (p.cost_price === undefined) p.cost_price = null
       if (p.service_catalog_id === undefined) p.service_catalog_id = null
       if (p.default_unit_price === undefined) p.default_unit_price = null
-      if (p.line_department === undefined || p.line_department === null) p.line_department = 'mechanical'
+      if (p.line_department === undefined || p.line_department === null) p.line_department = 'tech'
     }
 
     return { ...(card as object), parts }
@@ -416,7 +413,7 @@ export const jobCardRepo = {
     const svcId = part.service_catalog_id != null && Number.isFinite(part.service_catalog_id) ? part.service_catalog_id : null
     const defUnit =
       part.default_unit_price != null && Number.isFinite(part.default_unit_price) ? part.default_unit_price : null
-    const lineDept = part.line_department === 'programming' ? 'programming' : 'mechanical'
+    const lineDept = 'tech'
     const result = db.prepare(`
       INSERT INTO job_parts (job_card_id, product_id, description, quantity, unit_price, total, cost_price, service_catalog_id, default_unit_price, line_department)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -459,7 +456,7 @@ export const jobCardRepo = {
         j.created_at,
         j.date_in,
         COALESCE(j.archived, 0) AS archived,
-        'mechanical' AS department,
+        'tech' AS department,
         j.status,
         j.total,
         j.balance_due,

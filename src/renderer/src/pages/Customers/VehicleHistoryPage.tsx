@@ -36,9 +36,8 @@ interface JobHistoryRow {
 }
 
 function deptLabel(d: string): string {
-  if (d === 'programming') return 'Programming'
   if (d === 'both') return 'Both'
-  return 'Mechanical'
+  return 'Tech'
 }
 
 function paymentLabel(total: number, balanceDue: number, status: string): string {

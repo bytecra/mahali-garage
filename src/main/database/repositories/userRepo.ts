@@ -23,7 +23,7 @@ export interface UserRow {
 
 export interface UserListRow extends Omit<UserRow, 'password_hash' | 'passcode'> {
   override_count: number
-  /** mechanical | programming | both (multi-skilled) | null (any) */
+  /** tech | both (multi-skilled) | null (any) */
   work_department?: string | null
 }
 

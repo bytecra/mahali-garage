@@ -4,8 +4,8 @@ import { cn, formatCurrency } from '../../../lib/utils'
 import CurrencyText from '../../shared/CurrencyText'
 import { useDebounce } from '../../../hooks/useDebounce'
 
-/** Per-line shop department (mechanical vs programming). */
-export type LineDepartment = 'mechanical' | 'programming'
+/** Per-line shop department. */
+export type LineDepartment = 'tech'
 
 export interface JobLineItem {
   key: string
@@ -47,8 +47,7 @@ const CATALOG_PAGE_SIZE = 80
 
 function catalogDeptShortLabel(department: string): string {
   const d = department.toLowerCase()
-  if (d === 'programming') return 'Prog'
-  if (d === 'mechanical') return 'Mech'
+  if (d === 'tech') return 'Tech'
   if (!d) return '—'
   return d.length > 10 ? `${d.slice(0, 8)}…` : d
 }
@@ -66,7 +65,6 @@ const STATUSES = [
   'pending',
   'in_progress',
   'waiting_parts',
-  'waiting_for_programming',
   'ready',
   'completed_delivered',
   'delivered',
@@ -76,15 +74,13 @@ const STATUS_LABELS: Record<(typeof STATUSES)[number], string> = {
   pending: 'Pending',
   in_progress: 'In Progress',
   waiting_parts: 'Waiting for Parts',
-  waiting_for_programming: 'Waiting for Programming',
   ready: 'Ready',
   completed_delivered: 'Completed / Delivered',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
 }
 const LINE_DEPT_OPTIONS: { value: LineDepartment; label: string }[] = [
-  { value: 'mechanical', label: 'Mechanical' },
-  { value: 'programming', label: 'Programming' },
+  { value: 'tech', label: 'Tech' },
 ]
 const BAYS = ['', 'Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Bay 6']
 
@@ -120,14 +116,10 @@ export function isValidJobLineItem(l: JobLineItem): boolean {
 }
 
 /** Derive job board department from line items (replaces manual job-level department). */
-export function deriveJobBoardDepartment(lineItems: JobLineItem[]): 'mechanical' | 'programming' | 'both' {
+export function deriveJobBoardDepartment(lineItems: JobLineItem[]): 'tech' | 'both' {
   const valid = lineItems.filter(isValidJobLineItem)
-  if (valid.length === 0) return 'both'
-  const hasM = valid.some(l => l.lineDepartment === 'mechanical')
-  const hasP = valid.some(l => l.lineDepartment === 'programming')
-  if (hasM && hasP) return 'both'
-  if (hasP && !hasM) return 'programming'
-  return 'mechanical'
+  if (valid.length === 0) return 'tech'
+  return 'tech'
 }
 
 function marginPct(cost: number, sell: number): number {
@@ -176,7 +168,7 @@ function JobDetailsTabInner(props: {
   const [invSearch, setInvSearch] = useState('')
 
   const [catSearch, setCatSearch] = useState('')
-  const [catDeptFilter, setCatDeptFilter] = useState<'all' | 'mechanical' | 'programming'>('all')
+  const [catDeptFilter, setCatDeptFilter] = useState<'all' | 'tech'>('all')
   const [catalogResults, setCatalogResults] = useState<CatalogSvcRow[]>([])
   const [catalogTotal, setCatalogTotal] = useState(0)
   const [catalogLoading, setCatalogLoading] = useState(false)
@@ -225,7 +217,7 @@ function JobDetailsTabInner(props: {
           id: r.id as number,
           service_name: String(r.service_name ?? ''),
           price: Number(r.default_price ?? r.price ?? 0) || 0,
-          department: String(r.department ?? 'mechanical').toLowerCase(),
+          department: String(r.department ?? 'tech').toLowerCase(),
         }))
         setCatalogResults(mapped)
         setCatalogTotal(Number(payload.total) || 0)
@@ -269,7 +261,7 @@ function JobDetailsTabInner(props: {
           id: r.id as number,
           service_name: String(r.service_name ?? ''),
           price: Number(r.default_price ?? r.price ?? 0) || 0,
-          department: String(r.department ?? 'mechanical').toLowerCase(),
+          department: String(r.department ?? 'tech').toLowerCase(),
         }))
         setCatalogResults(prev => [...prev, ...mapped])
       })
@@ -304,7 +296,7 @@ function JobDetailsTabInner(props: {
       const wd = u.work_department?.toLowerCase() ?? ''
       if (jd === 'both') {
         if (!wd || wd === 'both') return true
-        return wd === 'mechanical' || wd === 'programming'
+        return wd === 'tech'
       }
       if (!wd || wd === 'both') return true
       return wd === jd
@@ -340,7 +332,7 @@ function JobDetailsTabInner(props: {
               Catalog services ({selectedVehicle.make} / {selectedVehicle.model})
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Large catalogs stay fast: search filters on the server in pages of {CATALOG_PAGE_SIZE}. Leave search empty to browse alphabetically; use department to narrow Mechanical vs Programming.
+              Large catalogs stay fast: search filters on the server in pages of {CATALOG_PAGE_SIZE}. Leave search empty to browse alphabetically; use department to narrow by Tech.
               {catalogTotal > 0 && (
                 <span className="block mt-1 text-foreground/90">
                   {catalogTotal.toLocaleString()} match{catalogTotal === 1 ? '' : 'es'} with current filters
@@ -358,13 +350,12 @@ function JobDetailsTabInner(props: {
               <select
                 value={catDeptFilter}
                 onChange={e =>
-                  setCatDeptFilter(e.target.value as 'all' | 'mechanical' | 'programming')
+                  setCatDeptFilter(e.target.value as 'all' | 'tech')
                 }
                 className={inputCls}
               >
                 <option value="all">All departments</option>
-                <option value="mechanical">Mechanical only</option>
-                <option value="programming">Programming only</option>
+                <option value="tech">Tech only</option>
               </select>
             </label>
             <input

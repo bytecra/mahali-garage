@@ -16,8 +16,8 @@ export function migration044(db: Database.Database): void {
       car_model         TEXT,
       car_year          TEXT,
       plate_number      TEXT,
-      department        TEXT NOT NULL DEFAULT 'mechanical'
-                        CHECK(department IN ('mechanical','programming','both')),
+      department        TEXT NOT NULL DEFAULT 'tech'
+                        CHECK(department IN ('tech')),
       service_notes     TEXT,
       technician_id     INTEGER REFERENCES employees(id) ON DELETE SET NULL,
       appointment_date  TEXT NOT NULL,

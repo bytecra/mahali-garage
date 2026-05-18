@@ -10,10 +10,7 @@ import { useDebounce } from '../../hooks/useDebounce'
 import Pagination from '../../components/shared/Pagination'
 
 const DEPT_OPTIONS = [
-  { value: 'mechanical', label: 'Mechanical', color: 'bg-[#0066CC]/15 text-[#0066CC] border-[#0066CC]/30' },
-  { value: 'programming', label: 'Programming', color: 'bg-[#9933CC]/15 text-[#9933CC] border-[#9933CC]/30' },
-  { value: 'electrical', label: 'Electrical', color: 'bg-[#FF9900]/15 text-[#FF9900] border-[#FF9900]/30' },
-  { value: 'painting', label: 'Painting', color: 'bg-[#FF6666]/15 text-[#FF6666] border-[#FF6666]/30' },
+  { value: 'tech', label: 'Tech', color: 'bg-[#0066CC]/15 text-[#0066CC] border-[#0066CC]/30' },
   { value: 'other', label: 'Other', color: 'bg-muted text-muted-foreground border-border' },
 ]
 
@@ -70,7 +67,7 @@ export default function ServiceCatalogPage(): JSX.Element {
 
   const [fServiceName, setFServiceName] = useState('')
   const [fDesc, setFDesc] = useState('')
-  const [fDept, setFDept] = useState('mechanical')
+  const [fDept, setFDept] = useState('tech')
   const [fCat, setFCat] = useState('maintenance')
   const [fPrice, setFPrice] = useState('0')
   const [fEstMin, setFEstMin] = useState('')
@@ -113,7 +110,7 @@ export default function ServiceCatalogPage(): JSX.Element {
     setEditRow(null)
     setFServiceName('')
     setFDesc('')
-    setFDept('mechanical')
+    setFDept('tech')
     setFCat('maintenance')
     setFPrice('0')
     setFEstMin('')
@@ -126,7 +123,7 @@ export default function ServiceCatalogPage(): JSX.Element {
     setEditRow(r)
     setFServiceName(r.service_name)
     setFDesc(r.description ?? '')
-    setFDept(r.department || 'mechanical')
+    setFDept(r.department || 'tech')
     setFCat(r.category || 'other')
     setFPrice(String(r.default_price ?? r.price ?? 0))
     setFEstMin(r.estimated_time != null ? String(r.estimated_time) : '')

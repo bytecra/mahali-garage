@@ -1,11 +1,8 @@
 import { getDb } from '../index'
 
-/** Job card / receipt integration uses mechanical + programming; catalog can store more. */
+/** Job card / receipt integration uses tech; catalog can store more. */
 export type CatalogDepartment =
-  | 'mechanical'
-  | 'programming'
-  | 'electrical'
-  | 'painting'
+  | 'tech'
   | 'other'
 
 export interface ServiceCatalogFilters {
@@ -57,7 +54,7 @@ function rowWithPrice(r: Record<string, unknown>): ServiceCatalogRow {
     service_name: String(r.service_name ?? ''),
     description: r.description != null ? String(r.description) : null,
     default_price: defaultPrice,
-    department: String(r.department ?? 'mechanical'),
+    department: String(r.department ?? 'tech'),
     category: r.category != null ? String(r.category) : null,
     estimated_time: r.estimated_time != null ? Number(r.estimated_time) : null,
     active: Number(r.active ?? 1),
@@ -144,12 +141,11 @@ export const serviceCatalogRepo = {
     return rows.map(r => rowWithPrice(r))
   },
 
-  /** Legacy IPC: split catalog for job vs programming department. */
-  forVehicleMakeModel(_make: string, _model: string): { mechanical: ServiceCatalogRow[]; programming: ServiceCatalogRow[] } {
+  /** Legacy IPC: split catalog for job vs tech department. */
+  forVehicleMakeModel(_make: string, _model: string): { tech: ServiceCatalogRow[] } {
     const { items } = this.list({ active_only: true, page: 1, pageSize: 5000, sort_by: 'name', sort_dir: 'asc' })
     return {
-      mechanical: items.filter(r => r.department !== 'programming'),
-      programming: items.filter(r => r.department === 'programming'),
+      tech: items,
     }
   },
 

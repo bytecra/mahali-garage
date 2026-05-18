@@ -467,7 +467,7 @@ export default function SettingsPage(): JSX.Element {
 
   const saveBranding = async () => {
     setSaving(true)
-    const appName    = settings['app.name']    ?? 'Mahali Garage'
+    const appName    = settings['app.name']    ?? 'Power Key'
     const appTagline = settings['app.tagline'] ?? ''
     const res = await window.electronAPI.settings.setBulk({ 'app.name': appName, 'app.tagline': appTagline })
     setSaving(false)
@@ -921,9 +921,9 @@ export default function SettingsPage(): JSX.Element {
                 <div>
                   <label className={labelCls}>App Name <span className="text-muted-foreground font-normal">(shown in sidebar &amp; login title)</span></label>
                   <input
-                    value={settings['app.name'] ?? 'Mahali Garage'}
+                    value={settings['app.name'] ?? 'Power Key'}
                     onChange={e => set('app.name', e.target.value)}
-                    placeholder="Mahali Garage"
+                    placeholder="Power Key"
                     className={inputCls}
                   />
                 </div>
@@ -932,7 +932,7 @@ export default function SettingsPage(): JSX.Element {
                   <input
                     value={settings['app.tagline'] ?? ''}
                     onChange={e => set('app.tagline', e.target.value)}
-                    placeholder={`Welcome to ${settings['app.name'] ?? 'Mahali Garage'}`}
+                    placeholder={`Welcome to ${settings['app.name'] ?? 'Power Key'}`}
                     className={inputCls}
                   />
                   <p className="text-xs text-muted-foreground mt-1">Leave empty to auto-generate from App Name.</p>
@@ -946,12 +946,12 @@ export default function SettingsPage(): JSX.Element {
             {/* ── Store Info ── */}
             <h3 className="text-sm font-semibold text-foreground">Store Information</h3>
             <div>
-              <label className={labelCls}>Garage logo</label>
+              <label className={labelCls}>Store logo</label>
               <div className="flex flex-wrap items-start gap-4 mt-1">
                 {settings['store_logo'] ? (
                   <img
                     src={settings['store_logo']}
-                    alt="Garage logo preview"
+                    alt="Store logo preview"
                     className="h-24 w-auto max-w-[220px] object-contain rounded-lg border border-border bg-muted/30 p-2"
                   />
                 ) : (
@@ -979,7 +979,7 @@ export default function SettingsPage(): JSX.Element {
             </div>
             <div><label className={labelCls}>{t('settings.storeName')}</label><input value={settings['store.name'] ?? ''} onChange={e => set('store.name', e.target.value)} className={inputCls} /></div>
             <div>
-              <label className={labelCls}>Garage Name (Arabic)</label>
+              <label className={labelCls}>Store Name (Arabic)</label>
               <input
                 value={settings['store.name_ar'] ?? settings['store.name_arabic'] ?? settings['store.arabic_name'] ?? ''}
                 onChange={e => set('store.name_ar', e.target.value)}
@@ -1180,7 +1180,7 @@ export default function SettingsPage(): JSX.Element {
                   ['receipt.show_vat',           'true', 'Show VAT on receipt'],
                   ['receipt.show_brands',         'true', 'Show "We Work with" brands section'],
                   ['receipt.show_terms',          'true', 'Show "Our terms" footer'],
-                  ['receipt.show_logo',           'true', 'Show garage logo on receipt'],
+                  ['receipt.show_logo',           'true', 'Show store logo on receipt'],
                   ['receipt.show_customer_info',  'true', 'Show customer info on receipt'],
                   ['receipt.show_car_info',       'true', 'Show car info on receipt'],
                 ] as const).map(([key, def, label]) => (
@@ -1207,7 +1207,7 @@ export default function SettingsPage(): JSX.Element {
                     value={settings['receipt.header_name_en'] ?? ''}
                     onChange={e => set('receipt.header_name_en', e.target.value)}
                     className={inputCls}
-                    placeholder={settings['store.name'] ?? 'Mahali Garage'}
+                    placeholder={settings['store.name'] ?? 'Power Key'}
                   />
                 </div>
                 <div>
@@ -2724,7 +2724,7 @@ export default function SettingsPage(): JSX.Element {
                 <span className="text-2xl font-black text-primary-foreground">M</span>
               </div>
               <div>
-                <h2 className="text-xl font-bold text-foreground">Mahali Garage</h2>
+                <h2 className="text-xl font-bold text-foreground">Power Key</h2>
                 <p className="text-sm text-muted-foreground">Version {appVersion || '...'}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">By Bytecra</p>
               </div>
@@ -2911,7 +2911,7 @@ export default function SettingsPage(): JSX.Element {
 
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">© 2026 Bytecra. All rights reserved.</p>
-              <p className="text-xs text-muted-foreground">Built for UAE garage management.</p>
+              <p className="text-xs text-muted-foreground">Built for gaming store management.</p>
             </div>
           </div>
         )}

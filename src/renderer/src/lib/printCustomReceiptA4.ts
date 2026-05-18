@@ -1,4 +1,4 @@
-type Department = 'mechanical' | 'programming' | 'both'
+type Department = 'tech' | 'both'
 import { type DateFormatOption, formatDateByPattern } from '../store/dateFormatStore'
 import { DIRHAM_SVG_HTML } from './dirhamSvg'
 
@@ -288,7 +288,7 @@ export async function printCustomReceiptA4(
     ? settingsRes.data
     : {}) as Record<string, string>
 
-  const storeName = settings['store.name'] || 'Mahali Garage'
+  const storeName = settings['store.name'] || 'Power Key'
   const storeNameArabic =
     settings['store.name_ar'] ||
     settings['store.name_arabic'] ||
@@ -516,19 +516,19 @@ export async function printCustomReceiptA4(
         <div class="value"><strong>Date:</strong> ${escapeHtml(dateLabel(receipt.created_at, dateFormat))}</div>
         <div class="value"><strong>Invoice #:</strong> ${escapeHtml(receipt.receipt_number)}</div>
         ${showCarInfo ? `
-        <div class="value"><strong>Car:</strong> ${escapeHtml([receipt.car_company, receipt.car_model].filter(Boolean).join(' ') || 'Walk-in')}</div>
-        ${receipt.plate_number ? `<div class="value"><strong>Plate:</strong> ${escapeHtml(receipt.plate_number)}</div>` : ''}
+        <div class="value"><strong>Device:</strong> ${escapeHtml([receipt.car_company, receipt.car_model].filter(Boolean).join(' ') || 'Walk-in')}</div>
+        ${receipt.plate_number ? `<div class="value"><strong>Serial:</strong> ${escapeHtml(receipt.plate_number)}</div>` : ''}
         ` : ''}
       </div>
     </section>
 
     ${buildInspectionSection(receipt.inspection_data, includeSignatures)}
 
-    ${(receipt.department !== 'programming') && mechanical.length > 0
-      ? section('Mechanical Services', mechanical)
+    ${mechanical.length > 0
+      ? section('Services', mechanical)
       : ''}
-    ${(receipt.department !== 'mechanical') && programming.length > 0
-      ? section('Programming Services', programming)
+    ${programming.length > 0 && mechanical.length === 0
+      ? section('Services', programming)
       : ''}
 
     <section class="totals">

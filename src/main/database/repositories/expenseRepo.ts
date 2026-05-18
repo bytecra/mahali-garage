@@ -2,7 +2,7 @@ import { getDb } from '../index'
 import { settingsRepo } from './settingsRepo'
 
 /** Department slice for expense reports (NULL = shared / applies to both). */
-export type ExpenseReportDepartment = 'all' | 'mechanical' | 'programming'
+export type ExpenseReportDepartment = 'all' | 'tech'
 
 function maxYmd(a: string, b: string): string {
   return a > b ? a : b
@@ -18,10 +18,7 @@ function clampExpenseRange(from: string, to: string): { from: string; to: string
 
 function expenseReportDeptSql(dept: ExpenseReportDepartment, tableAlias = 'e'): string {
   if (dept === 'all') return ''
-  if (dept === 'mechanical') {
-    return ` AND (${tableAlias}.department IS NULL OR ${tableAlias}.department IN ('mechanical','both'))`
-  }
-  return ` AND (${tableAlias}.department IS NULL OR ${tableAlias}.department IN ('programming','both'))`
+  return ` AND (${tableAlias}.department IS NULL OR ${tableAlias}.department IN ('tech','both'))`
 }
 
 export interface ExpenseCategory {

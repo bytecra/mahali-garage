@@ -13,7 +13,7 @@ function statusLabel(s: string): string {
     pending: 'Pending',
     in_progress: 'In Progress',
     waiting_parts: 'Waiting for Parts',
-    waiting_for_programming: 'Waiting for Programming',
+    waiting_for_programming: 'Waiting for Parts',
     ready: 'Ready for Pickup',
     completed_delivered: 'Completed / Delivered',
     delivered: 'Delivered',

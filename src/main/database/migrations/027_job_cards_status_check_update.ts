@@ -15,7 +15,6 @@ export function migration027(db: Database.Database): void {
                                 'pending',
                                 'in_progress',
                                 'waiting_parts',
-                                'waiting_for_programming',
                                 'ready',
                                 'completed_delivered',
                                 'delivered',
@@ -44,7 +43,7 @@ export function migration027(db: Database.Database): void {
       notes                 TEXT,
       customer_authorized   INTEGER DEFAULT 0,
       created_by            INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      department            TEXT NOT NULL DEFAULT 'mechanical',
+      department            TEXT NOT NULL DEFAULT 'tech',
       created_at            TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -58,13 +57,13 @@ export function migration027(db: Database.Database): void {
     SELECT
       id, job_number, vehicle_id, owner_id, job_type, priority,
       CASE
-        WHEN status = 'waiting_programming' THEN 'waiting_for_programming'
+        WHEN status = 'waiting_programming' THEN 'waiting_parts'
         ELSE status
       END as status,
       date_in, expected_completion, date_out, technician_id, bay_number, mileage_in, mileage_out,
       complaint, diagnosis, work_done, labor_hours, labor_rate, labor_total, parts_total, subtotal,
       tax_rate, tax_amount, total, deposit, balance_due, notes, customer_authorized, created_by,
-      COALESCE(department, 'mechanical') as department, created_at, updated_at
+      COALESCE(department, 'tech') as department, created_at, updated_at
     FROM job_cards;
 
     DROP TABLE job_cards;

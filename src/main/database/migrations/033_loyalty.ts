@@ -9,7 +9,7 @@ export function migration033(db: Database.Database): void {
                    ON DELETE CASCADE,
       department   TEXT NOT NULL DEFAULT 'all'
                    CHECK(department IN (
-                     'all','mechanical','programming'
+                     'all','tech'
                    )),
       points       INTEGER NOT NULL DEFAULT 0,
       stamps       INTEGER NOT NULL DEFAULT 0,
@@ -27,7 +27,7 @@ export function migration033(db: Database.Database): void {
                    ON DELETE CASCADE,
       department   TEXT NOT NULL DEFAULT 'all'
                    CHECK(department IN (
-                     'all','mechanical','programming'
+                     'all','tech'
                    )),
       type         TEXT NOT NULL
                    CHECK(type IN (

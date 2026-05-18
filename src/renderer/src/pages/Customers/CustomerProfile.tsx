@@ -121,7 +121,7 @@ export default function CustomerProfile(): JSX.Element {
   const [adjustPoints, setAdjustPoints] = useState('')
   const [adjustStamps, setAdjustStamps] = useState('')
   const [adjustNote, setAdjustNote] = useState('')
-  const [adjustDept, setAdjustDept] = useState<'all' | 'mechanical' | 'programming'>('all')
+  const [adjustDept, setAdjustDept] = useState<'all' | 'tech'>('all')
   const [adjustSaving, setAdjustSaving] = useState(false)
 
   const load = useCallback(async () => {
@@ -569,8 +569,7 @@ export default function CustomerProfile(): JSX.Element {
                   className="w-full border border-border rounded-md px-2 py-1.5 text-sm bg-background"
                 >
                   <option value="all">All</option>
-                  <option value="mechanical">Mechanical</option>
-                  <option value="programming">Programming</option>
+                  <option value="tech">Tech</option>
                 </select>
               )}
               <div className="grid grid-cols-2 gap-2">

@@ -16,7 +16,7 @@ interface CustomerLite {
 
 interface JobTypeOption { id: number; name: string }
 
-type Dept = 'mechanical' | 'programming' | 'both'
+type Dept = 'tech' | 'both'
 
 export default function QuickCreateJobModal(props: {
   open: boolean
@@ -36,7 +36,7 @@ export default function QuickCreateJobModal(props: {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleOption | null>(null)
   const [jobTypes, setJobTypes] = useState<JobTypeOption[]>([])
   const [jobType, setJobType] = useState('General Service')
-  const [department, setDepartment] = useState<Dept>('mechanical')
+  const [department, setDepartment] = useState<Dept>('tech')
   const [addCustOpen, setAddCustOpen] = useState(false)
   const [addCarOpen, setAddCarOpen] = useState(false)
 
@@ -64,7 +64,7 @@ export default function QuickCreateJobModal(props: {
     setSelectedCustomer(null)
     setSelectedVehicle(null)
     setJobType('General Service')
-    setDepartment('mechanical')
+    setDepartment('tech')
     void window.electronAPI.jobTypes.listActive().then(res => {
       if (res.success && res.data) setJobTypes(res.data as JobTypeOption[])
     })
@@ -271,14 +271,10 @@ export default function QuickCreateJobModal(props: {
 
           <div>
             <span className="block text-sm font-medium mb-2">Department (required)</span>
-            <p className="text-xs text-muted-foreground mb-2">
-              Use <strong className="text-foreground">Both</strong> when the same vehicle needs mechanical and programming on this job card. Single-dept jobs stay easier to route and report.
-            </p>
             <div className="flex flex-wrap gap-2">
               {(
                 [
-                  ['mechanical', 'Mechanical'],
-                  ['programming', 'Programming'],
+                  ['tech', 'Tech'],
                   ['both', 'Both'],
                 ] as const
               ).map(([val, label]) => (

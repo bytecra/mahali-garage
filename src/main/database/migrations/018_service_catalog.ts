@@ -15,7 +15,7 @@ export function migration018(db: Database.Database): void {
       brand_id        INTEGER NOT NULL REFERENCES car_brands(id) ON DELETE CASCADE,
       model           TEXT NOT NULL,
       service_name    TEXT NOT NULL,
-      department      TEXT NOT NULL CHECK(department IN ('mechanical','programming')),
+      department      TEXT NOT NULL CHECK(department IN ('tech')),
       price           REAL NOT NULL DEFAULT 0,
       estimated_time  INTEGER,
       active          INTEGER NOT NULL DEFAULT 1,
@@ -30,14 +30,14 @@ export function migration018(db: Database.Database): void {
     `INSERT OR IGNORE INTO car_brands (name, logo) VALUES (?, NULL)`
   )
   const brands = [
-    'Toyota',
-    'Nissan',
-    'Hyundai',
-    'Kia',
-    'Ford',
-    'BMW',
-    'Mercedes',
-    'Honda',
+    'ASUS',
+    'MSI',
+    'Logitech',
+    'Corsair',
+    'Razer',
+    'HyperX',
+    'Gigabyte',
+    'NZXT',
   ]
   for (const name of brands) {
     seed.run(name)

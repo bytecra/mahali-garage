@@ -77,7 +77,7 @@ function createActivationWindow(): void {
     resizable: false,
     show: false,
     autoHideMenuBar: true,
-    title: 'Activate Mahali Garage',
+    title: 'Activate Power Key',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

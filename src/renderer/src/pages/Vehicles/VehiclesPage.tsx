@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Car, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Monitor, Pencil, Trash2 } from 'lucide-react'
 import SearchInput from '../../components/shared/SearchInput'
 import Pagination from '../../components/shared/Pagination'
 import EmptyState from '../../components/shared/EmptyState'
@@ -99,7 +99,7 @@ function VehiclesInner(): JSX.Element {
   }
 
   const handleSave = async () => {
-    if (!form.make || !form.model) { toast.error('Make and Model are required'); return }
+    if (!form.make || !form.model) { toast.error('Brand and Model are required'); return }
     setSaving(true)
     const payload = {
       ...form,
@@ -130,30 +130,30 @@ function VehiclesInner(): JSX.Element {
         {canEdit && (
           <button onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90">
-            <Plus className="w-4 h-4" />Add Vehicle
+            <Plus className="w-4 h-4" />Add Device
           </button>
         )}
       </div>
 
       <div className="mb-4">
-        <SearchInput value={search} onChange={setSearch} placeholder="Search vehicles..." className="w-72" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search devices..." className="w-72" />
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
       ) : items.length === 0 ? (
-        <EmptyState icon={Car} title="No vehicles found" description="Add your first vehicle to get started." />
+        <EmptyState icon={Monitor} title="No devices found" description="Add your first device to get started." />
       ) : (
         <>
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
-                  <th className="text-start px-4 py-3 font-medium">Vehicle</th>
-                  <th className="text-start px-4 py-3 font-medium">Plate</th>
+                  <th className="text-start px-4 py-3 font-medium">Device</th>
+                  <th className="text-start px-4 py-3 font-medium">Serial / ID</th>
                   <th className="text-start px-4 py-3 font-medium">{t('jobCards.owner')}</th>
                   <th className="text-center px-4 py-3 font-medium">Year</th>
-                  <th className="text-end px-4 py-3 font-medium">Mileage</th>
+                  <th className="text-start px-4 py-3 font-medium">Type</th>
                   <th className="text-end px-4 py-3 font-medium">{t('common.actions')}</th>
                 </tr>
               </thead>
@@ -164,7 +164,7 @@ function VehiclesInner(): JSX.Element {
                     <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{v.license_plate ?? '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{v.owner_name ?? '—'}</td>
                     <td className="px-4 py-3 text-center text-muted-foreground">{v.year ?? '—'}</td>
-                    <td className="px-4 py-3 text-end text-muted-foreground">{v.mileage?.toLocaleString()} km</td>
+                    <td className="px-4 py-3 text-muted-foreground">{v.engine_type ?? '—'}</td>
                     <td className="px-4 py-3 text-end">
                       <div className="flex items-center justify-end gap-1">
                         {canEdit && <button onClick={() => openEdit(v)} className="p-1.5 rounded hover:bg-muted"><Pencil className="w-3.5 h-3.5" /></button>}
@@ -180,42 +180,52 @@ function VehiclesInner(): JSX.Element {
         </>
       )}
 
-      <Modal open={formOpen} title={editId ? 'Edit Vehicle' : 'Add Vehicle'} onClose={() => setFormOpen(false)} size="lg"
+      <Modal open={formOpen} title={editId ? 'Edit Device' : 'Add Device'} onClose={() => setFormOpen(false)} size="lg"
         footer={<>
           <button onClick={() => setFormOpen(false)} className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted">{t('common.cancel')}</button>
           <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50">{saving ? t('common.loading') : t('common.save')}</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium mb-1">Make *</label><input value={form.make} onChange={e => setForm(f => ({ ...f, make: e.target.value }))} className={inputCls} placeholder="e.g. Toyota" /></div>
-          <div><label className="block text-sm font-medium mb-1">Model *</label><input value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} className={inputCls} placeholder="e.g. Camry" /></div>
+          <div><label className="block text-sm font-medium mb-1">Brand *</label><input value={form.make} onChange={e => setForm(f => ({ ...f, make: e.target.value }))} className={inputCls} placeholder="e.g. ASUS, MSI, Sony" /></div>
+          <div><label className="block text-sm font-medium mb-1">Model *</label><input value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} className={inputCls} placeholder="e.g. ROG Strix, PS5" /></div>
           <div><label className="block text-sm font-medium mb-1">Year</label><input type="number" value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} className={inputCls} placeholder="2024" /></div>
-          <div><label className="block text-sm font-medium mb-1">License Plate</label><input value={form.license_plate} onChange={e => setForm(f => ({ ...f, license_plate: e.target.value }))} className={inputCls} /></div>
-          <div><label className="block text-sm font-medium mb-1">VIN</label><input value={form.vin} onChange={e => setForm(f => ({ ...f, vin: e.target.value }))} className={inputCls} /></div>
-          <div><label className="block text-sm font-medium mb-1">Color</label><input value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} className={inputCls} /></div>
-          <div><label className="block text-sm font-medium mb-1">Mileage (km)</label><input type="number" value={form.mileage} onChange={e => setForm(f => ({ ...f, mileage: e.target.value }))} className={inputCls} /></div>
+          <div><label className="block text-sm font-medium mb-1">Serial Number</label><input value={form.license_plate} onChange={e => setForm(f => ({ ...f, license_plate: e.target.value }))} className={inputCls} placeholder="e.g. SN123456789" /></div>
+          <div><label className="block text-sm font-medium mb-1">Part Number / Device ID</label><input value={form.vin} onChange={e => setForm(f => ({ ...f, vin: e.target.value }))} className={inputCls} placeholder="e.g. PN-ABCXYZ" /></div>
+          <div><label className="block text-sm font-medium mb-1">Color</label><input value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} className={inputCls} placeholder="e.g. Black, White" /></div>
           <div><label className="block text-sm font-medium mb-1">{t('jobCards.owner')}</label>
             <select value={form.owner_id ?? ''} onChange={e => setForm(f => ({ ...f, owner_id: e.target.value ? Number(e.target.value) : null }))} className={inputCls}>
               <option value="">— None —</option>
               {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           </div>
-          <div><label className="block text-sm font-medium mb-1">Engine Type</label><input value={form.engine_type} onChange={e => setForm(f => ({ ...f, engine_type: e.target.value }))} className={inputCls} placeholder="e.g. V6 3.5L" /></div>
-          <div><label className="block text-sm font-medium mb-1">Transmission</label>
-            <select value={form.transmission} onChange={e => setForm(f => ({ ...f, transmission: e.target.value }))} className={inputCls}>
+          <div><label className="block text-sm font-medium mb-1">Device Type</label>
+            <select value={form.engine_type} onChange={e => setForm(f => ({ ...f, engine_type: e.target.value }))} className={inputCls}>
               <option value="">—</option>
-              <option value="automatic">Automatic</option>
-              <option value="manual">Manual</option>
-              <option value="cvt">CVT</option>
+              <option value="Desktop PC">Desktop PC</option>
+              <option value="Laptop">Laptop</option>
+              <option value="Console">Console</option>
+              <option value="Handheld">Handheld</option>
+              <option value="Peripheral">Peripheral</option>
+              <option value="Monitor">Monitor</option>
+              <option value="Other">Other</option>
             </select>
           </div>
-          <div><label className="block text-sm font-medium mb-1">Insurance Company</label><input value={form.insurance_company} onChange={e => setForm(f => ({ ...f, insurance_company: e.target.value }))} className={inputCls} /></div>
-          <div><label className="block text-sm font-medium mb-1">Insurance Expiry</label><input type="date" value={form.insurance_expiry} onChange={e => setForm(f => ({ ...f, insurance_expiry: e.target.value }))} className={inputCls} /></div>
+          <div><label className="block text-sm font-medium mb-1">Condition</label>
+            <select value={form.transmission} onChange={e => setForm(f => ({ ...f, transmission: e.target.value }))} className={inputCls}>
+              <option value="">—</option>
+              <option value="new">New</option>
+              <option value="used">Used</option>
+              <option value="refurbished">Refurbished</option>
+            </select>
+          </div>
+          <div><label className="block text-sm font-medium mb-1">Warranty Provider</label><input value={form.insurance_company} onChange={e => setForm(f => ({ ...f, insurance_company: e.target.value }))} className={inputCls} placeholder="e.g. ASUS Warranty" /></div>
+          <div><label className="block text-sm font-medium mb-1">Warranty Expiry</label><input type="date" value={form.insurance_expiry} onChange={e => setForm(f => ({ ...f, insurance_expiry: e.target.value }))} className={inputCls} /></div>
           <div className="col-span-2"><label className="block text-sm font-medium mb-1">{t('common.notes')}</label><textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className={inputCls} /></div>
         </div>
       </Modal>
 
       <ConfirmDialog open={!!deleteTarget} title={t('common.delete')}
-        message={`Delete ${deleteTarget?.make} ${deleteTarget?.model} (${deleteTarget?.license_plate ?? 'no plate'})? This cannot be undone.`}
+        message={`Delete ${deleteTarget?.make} ${deleteTarget?.model} (${deleteTarget?.license_plate ?? 'no serial'})? This cannot be undone.`}
         confirmLabel={t('common.delete')} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
     </div>
   )

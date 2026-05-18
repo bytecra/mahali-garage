@@ -4,14 +4,10 @@ import { parseTvDisplayWidgets } from '../../lib/tvDisplayWidgets'
 
 type DashboardData = {
   todayRevenue: number
-  vehiclesInGarageMechanical: number
-  vehiclesInGarageProgramming: number
-  readyForPickupMechanical: number
-  readyForPickupProgramming: number
-  activeJobCardsMechanical: number
-  activeJobCardsProgramming: number
-  todayDeliveredMechanical: number
-  todayDeliveredProgramming: number
+  vehiclesInGarageTech: number
+  readyForPickupTech: number
+  activeJobCardsTech: number
+  todayDeliveredTech: number
 }
 
 type CashMethod = { cash: number; non_cash: number; total: number }
@@ -28,10 +24,8 @@ type TvJobCard = {
 }
 
 type EmployeesAvailabilityData = {
-  mechanical_total: number
-  mechanical_available: number
-  programming_total: number
-  programming_available: number
+  tech_total: number
+  tech_available: number
   both_total: number
   both_available: number
   not_marked: number
@@ -46,7 +40,6 @@ type EmployeesAvailabilityData = {
 const TV_COLUMNS = [
   { key: 'in_progress', label: 'In Progress', color: 'border-blue-500' },
   { key: 'waiting_parts', label: 'Waiting for Parts', color: 'border-amber-500' },
-  { key: 'waiting_for_programming', label: 'Waiting for Programming', color: 'border-violet-500' },
   { key: 'ready', label: 'Ready for Pickup', color: 'border-emerald-500' },
 ] as const
 
@@ -62,7 +55,7 @@ export default function TvDisplayPage(): JSX.Element {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [cash, setCash] = useState<CashMethod>({ cash: 0, non_cash: 0, total: 0 })
   const [jobs, setJobs] = useState<TvJobCard[]>([])
-  const [garageName, setGarageName] = useState('Mahali Garage')
+  const [garageName, setGarageName] = useState('Power Key')
   const [now, setNow] = useState(new Date())
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [widgets, setWidgets] = useState(() => parseTvDisplayWidgets())
@@ -80,7 +73,7 @@ export default function TvDisplayPage(): JSX.Element {
 
       if (settingsRes.success && settingsRes.data) {
         const s = settingsRes.data as Record<string, string>
-        setGarageName(s['app.name'] || s['store.name'] || 'Mahali Garage')
+        setGarageName(s['app.name'] || s['store.name'] || 'Power Key')
         setWidgets(parseTvDisplayWidgets(s['tv_display_widgets'] ?? null))
       }
       if (dashRes.success && dashRes.data) setDashboard(dashRes.data as DashboardData)
@@ -149,28 +142,28 @@ export default function TvDisplayPage(): JSX.Element {
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
         {widgets.vehicles_in_garage && <div className={statCls}>
-          <div className="text-xl text-slate-300">Vehicles in Garage</div>
+          <div className="text-xl text-slate-300">Devices in Store</div>
           <div className="text-5xl font-bold text-emerald-400 mt-2">
-            M: {dashboard?.vehiclesInGarageMechanical ?? 0} <span className="text-slate-500">|</span> P: {dashboard?.vehiclesInGarageProgramming ?? 0}
+            {dashboard?.vehiclesInGarage ?? 0}
           </div>
         </div>}
         {widgets.active_job_cards && <div className={statCls}>
           <div className="text-xl text-slate-300">Active Job Cards</div>
           <div className="text-5xl font-bold text-blue-400 mt-2">
-            M: {dashboard?.activeJobCardsMechanical ?? 0} <span className="text-slate-500">|</span> P: {dashboard?.activeJobCardsProgramming ?? 0}
+            {dashboard?.activeJobCardsTech ?? 0}
           </div>
         </div>}
         {widgets.ready_for_pickup && <div className={statCls}>
           <div className="text-xl text-slate-300">Ready for Pickup</div>
           <div className="text-5xl font-bold text-emerald-400 mt-2">
-            M: {dashboard?.readyForPickupMechanical ?? 0} <span className="text-slate-500">|</span> P: {dashboard?.readyForPickupProgramming ?? 0}
+            {dashboard?.readyForPickupTech ?? 0}
           </div>
         </div>}
 
         {widgets.today_delivered && <div className={statCls}>
           <div className="text-xl text-slate-300">Today's Delivered</div>
           <div className="text-5xl font-bold text-emerald-400 mt-2">
-            M: {dashboard?.todayDeliveredMechanical ?? 0} <span className="text-slate-500">|</span> P: {dashboard?.todayDeliveredProgramming ?? 0}
+            {dashboard?.todayDeliveredTech ?? 0}
           </div>
         </div>}
         {widgets.cash_in_hand && <div className={statCls}>
@@ -186,12 +179,8 @@ export default function TvDisplayPage(): JSX.Element {
             <div className="text-xl text-slate-300">Employees Available Today</div>
             <div className="text-3xl font-bold text-cyan-400 mt-2 leading-tight space-y-1">
               <div>
-                M: {employeesAvailability.mechanical_available}
-                <span className="text-slate-500 font-normal">/{employeesAvailability.mechanical_total}</span>
-              </div>
-              <div>
-                P: {employeesAvailability.programming_available}
-                <span className="text-slate-500 font-normal">/{employeesAvailability.programming_total}</span>
+                Tech: {employeesAvailability.tech_available}
+                <span className="text-slate-500 font-normal">/{employeesAvailability.tech_total}</span>
               </div>
               <div>
                 B: {employeesAvailability.both_available}

@@ -1,7 +1,7 @@
 import { getDb } from '../index'
 import { insertCustomReceiptCashInTx } from './cashDrawerRepo'
 
-type Department = 'mechanical' | 'programming' | 'both'
+type Department = 'tech' | 'both'
 
 interface CustomServiceLine {
   service_name: string
@@ -206,8 +206,8 @@ function cleanText(value?: string | null): string | null {
 }
 
 function normalizeDepartment(value: string): Department {
-  if (value === 'mechanical' || value === 'programming' || value === 'both') return value
-  return 'both'
+  if (value === 'both') return value
+  return 'tech'
 }
 
 function normalizeLines(lines: CustomServiceLine[] | undefined): CustomServiceLine[] {

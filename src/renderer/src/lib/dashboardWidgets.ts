@@ -1,5 +1,5 @@
 export const DASHBOARD_WIDGETS = [
-  { id: 'vehicles_in_garage', label: 'Vehicles in Garage' },
+  { id: 'vehicles_in_garage', label: 'Devices in Store' },
   { id: 'ready_for_pickup', label: 'Ready for Pickup' },
   { id: 'active_job_cards', label: 'Active Job Cards' },
   { id: 'total_vehicles', label: 'Total Vehicles' },

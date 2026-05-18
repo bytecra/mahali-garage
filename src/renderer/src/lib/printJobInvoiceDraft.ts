@@ -85,7 +85,7 @@ export async function printJobInvoiceDraft(snapshot: JobInvoicePrintSnapshot): P
   const settingsRes = await window.electronAPI.settings.getAll()
   const settings = (settingsRes.success && settingsRes.data ? settingsRes.data : {}) as Record<string, string>
 
-  const storeName = settings['store.name']?.trim() || snapshot.storeName?.trim() || 'Mahali Garage'
+  const storeName = settings['store.name']?.trim() || snapshot.storeName?.trim() || 'Power Key'
   const storeNameArabic =
     settings['store.name_ar'] ||
     settings['store.name_arabic'] ||

@@ -48,8 +48,7 @@ export function registerCustomReceiptHandlers(): void {
             source_id: Number(result.id),
             created_by: session.userId,
             department:
-              data.department === 'mechanical' ||
-              data.department === 'programming'
+              data.department === 'tech'
                 ? data.department
                 : undefined,
           })

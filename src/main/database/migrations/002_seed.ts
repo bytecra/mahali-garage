@@ -49,7 +49,7 @@ export function migration002(db: Database.Database): void {
 
   // ── Default settings ──────────────────────────────────────────────────────
   const defaults: Record<string, string> = {
-    'store.name':                 'Mahali Garage',
+    'store.name':                 'Power Key',
     'store.address':              '',
     'store.phone':                '',
     'store.email':                '',

@@ -8,8 +8,8 @@ interface BrandingState {
 }
 
 export const useBrandingStore = create<BrandingState>((set) => ({
-  appName:    'Mahali Garage',
-  appTagline: 'Professional garage and auto repair shop management system',
+  appName:    'Power Key',
+  appTagline: 'Professional gaming store management system',
 
   setBranding: (appName, appTagline) => set({ appName, appTagline }),
 
@@ -18,7 +18,7 @@ export const useBrandingStore = create<BrandingState>((set) => ({
       const res = await window.electronAPI.settings.getAll()
       if (res.success && res.data) {
         const s = res.data as Record<string, string>
-        const appName    = s['app.name']    || 'Mahali Garage'
+        const appName    = s['app.name']    || 'Power Key'
         const appTagline = s['app.tagline'] || `Welcome to ${appName}`
         set({ appName, appTagline })
       }

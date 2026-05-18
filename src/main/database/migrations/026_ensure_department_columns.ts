@@ -7,10 +7,10 @@ function hasColumn(db: Database.Database, table: string, column: string): boolea
 
 export function migration026(db: Database.Database): void {
   if (!hasColumn(db, 'job_cards', 'department')) {
-    db.exec(`ALTER TABLE job_cards ADD COLUMN department TEXT NOT NULL DEFAULT 'mechanical'`)
+    db.exec(`ALTER TABLE job_cards ADD COLUMN department TEXT NOT NULL DEFAULT 'tech'`)
   }
 
   if (!hasColumn(db, 'invoices', 'department')) {
-    db.exec(`ALTER TABLE invoices ADD COLUMN department TEXT NOT NULL DEFAULT 'mechanical'`)
+    db.exec(`ALTER TABLE invoices ADD COLUMN department TEXT NOT NULL DEFAULT 'tech'`)
   }
 }

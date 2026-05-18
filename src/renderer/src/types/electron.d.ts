@@ -278,10 +278,8 @@ declare global {
         getSummary: () => Promise<IpcResponse<unknown>>
         employeesAvailability: () => Promise<
           IpcResponse<{
-            mechanical_total: number
-            mechanical_available: number
-            programming_total: number
-            programming_available: number
+            tech_total: number
+            tech_available: number
             both_total: number
             both_available: number
             not_marked: number
@@ -424,7 +422,7 @@ declare global {
         get: (customerId: number, department?: string) => Promise<IpcResponse<{
           id: number
           customer_id: number
-          department: 'all' | 'mechanical' | 'programming'
+          department: 'all' | 'tech'
           points: number
           stamps: number
           total_visits: number
@@ -434,7 +432,7 @@ declare global {
         getAllDepts: (customerId: number) => Promise<IpcResponse<Array<{
           id: number
           customer_id: number
-          department: 'all' | 'mechanical' | 'programming'
+          department: 'all' | 'tech'
           points: number
           stamps: number
           total_visits: number
@@ -443,7 +441,7 @@ declare global {
         }>>>
         addTransaction: (data: {
           customer_id: number
-          department?: 'all' | 'mechanical' | 'programming'
+          department?: 'all' | 'tech'
           type: 'earn_points' | 'earn_stamps' | 'redeem' | 'manual_adjust'
           points_delta: number
           stamps_delta: number
@@ -477,11 +475,11 @@ declare global {
           source: 'invoice' | 'receipt'
           source_id: number
           created_by: number
-          department?: 'mechanical' | 'programming'
+          department?: 'tech'
         }) => Promise<IpcResponse<null>>
         redeemReward: (params: {
           customer_id: number
-          department: 'all' | 'mechanical' | 'programming'
+          department: 'all' | 'tech'
           note: string
           created_by: number
         }) => Promise<IpcResponse<null>>
