@@ -1,7 +1,7 @@
 {
-  "name": "mahali-garage",
+  "name": "power-key",
   "version": "0.10.0",
-  "description": "Professional garage and auto repair shop management system",
+  "description": "Professional gaming store management system",
   "main": "./out/main/index.js",
   "author": "",
   "license": "UNLICENSED",
@@ -97,11 +97,11 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.11"
   },
-  "productName": "Mahali Garage",
+  "productName": "Power Key",
   "build": {
-    "appId": "com.ali.mahali-garage",
-    "productName": "Mahali Garage",
-    "copyright": "Copyright © Mahali Garage",
+    "appId": "com.ali.power-key",
+    "productName": "Power Key",
+    "copyright": "Copyright © Power Key",
     "artifactName": "${productName}-Setup-${version}.${ext}",
     "directories": {
       "output": "release",

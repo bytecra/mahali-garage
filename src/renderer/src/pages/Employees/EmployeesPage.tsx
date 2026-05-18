@@ -130,8 +130,7 @@ interface RegisterMarkEntry {
 const ROLES = ['Technician', 'Cashier', 'Manager', 'Supervisor', 'Admin', 'Helper', 'Driver', 'Other']
 /** Stored in SQLite as lowercase; labels stay Title Case in the UI. */
 const DEPARTMENT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'mechanical', label: 'Mechanical' },
-  { value: 'programming', label: 'Programming' },
+  { value: 'tech', label: 'Tech' },
 ]
 
 function normalizeDepartmentForForm(raw: string | null | undefined): string {
@@ -452,7 +451,7 @@ export default function EmployeesPage(): JSX.Element {
   }
 
   const [registerDate, setRegisterDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [registerDept, setRegisterDept] = useState<'all' | 'mechanical' | 'programming'>('all')
+  const [registerDept, setRegisterDept] = useState<'all' | 'tech'>('all')
   const [registerEmployees, setRegisterEmployees] = useState<
     Array<{ id: number; employee_id: string; full_name: string; department: string }>
   >([])
@@ -814,8 +813,7 @@ export default function EmployeesPage(): JSX.Element {
               className="border border-input rounded-md px-3 py-1.5 text-sm bg-background"
             >
               <option value="all">All Departments</option>
-              <option value="mechanical">Mechanical</option>
-              <option value="programming">Programming</option>
+              <option value="tech">Tech</option>
             </select>
 
             <div className="flex gap-2 ml-auto flex-wrap">
@@ -1559,7 +1557,7 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
         department: employee.department ?? '',
         phone: employee.phone ?? undefined,
         role: employee.role ?? undefined,
-        storeName: idCardStoreName || 'Mahali Garage',
+        storeName: idCardStoreName || 'Power Key',
         config: idCardConfig,
       })
 
@@ -1905,7 +1903,7 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                         opacity: 0.9,
                       }}
                     >
-                      {idCardStoreName || 'Mahali Garage'}
+                      {idCardStoreName || 'Power Key'}
                     </span>
                     {idCardConfig.showDepartment && employee?.department && (
                       <span
@@ -2013,7 +2011,7 @@ function EmployeeViewModal({ employee, tab, setTab, onClose, onRefresh }: ViewPr
                     }}
                   >
                     <span style={{ fontSize: '9px', opacity: 0.7 }}>EMPLOYEE ID CARD</span>
-                    <span style={{ fontSize: '9px', opacity: 0.7 }}>Mahali Garage</span>
+                    <span style={{ fontSize: '9px', opacity: 0.7 }}>Power Key</span>
                   </div>
                 </div>
               </div>

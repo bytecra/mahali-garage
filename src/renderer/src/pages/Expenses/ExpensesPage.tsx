@@ -24,7 +24,7 @@ const monthStart = today.slice(0, 7) + '-01'
 
 const EMPTY_FORM = {
   name: '', category_id: '' as string | number, amount: '',
-  date: today, due_date: '', department: '' as '' | 'mechanical' | 'programming' | 'both',
+  date: today, due_date: '', department: '' as '' | 'tech' | 'both',
   branch: '', notes: '', receipt_path: '',
 }
 
@@ -110,7 +110,7 @@ function ExpensesPageInner(): JSX.Element {
       name: e.name, category_id: e.category_id ?? '',
       amount: String(e.amount), date: e.date,
       due_date: e.due_date ?? '',
-      department: (e.department === 'mechanical' || e.department === 'programming' || e.department === 'both' ? e.department : ''),
+      department: (e.department === 'tech' || e.department === 'both' ? e.department : ''),
       branch: e.branch ?? '', notes: e.notes ?? '',
       receipt_path: e.receipt_path ?? '',
     })
@@ -382,9 +382,8 @@ function ExpensesPageInner(): JSX.Element {
           <div>
             <label className={labelCls}>{t('reports.department', { defaultValue: 'Department' })}</label>
             <select value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value as typeof f.department }))} className={inputCls}>
-              <option value="">{t('expenses.deptShared', { defaultValue: 'Shared (both departments)' })}</option>
-              <option value="mechanical">{t('reports.dept.mechanical', { defaultValue: 'Mechanical' })}</option>
-              <option value="programming">{t('reports.dept.programming', { defaultValue: 'Programming' })}</option>
+              <option value="">{t('expenses.deptShared', { defaultValue: 'Shared' })}</option>
+              <option value="tech">Tech</option>
               <option value="both">{t('expenses.deptBoth', { defaultValue: 'Both' })}</option>
             </select>
           </div>

@@ -11,7 +11,7 @@ interface UserRow {
   id: number; username: string; full_name: string; role: string
   is_active: number; created_at: string; override_count: number
   auth_type?: 'password' | 'passcode_4' | 'passcode_6'
-  /** mechanical | programming | both (any job) | empty */
+  /** tech | both (any job) | empty */
   work_department?: string | null
 }
 
@@ -200,9 +200,7 @@ export default function UsersPage(): JSX.Element {
                       ? '—'
                       : u.work_department === 'both'
                         ? 'Both'
-                        : u.work_department === 'programming'
-                          ? 'Programming'
-                          : 'Mechanical'}
+                        : 'Tech'}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs ${u.is_active ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
@@ -457,7 +455,7 @@ function UserFormModal({ open, user, onClose, onSaved }: {
     auth_type: 'password' as 'password' | 'passcode_4' | 'passcode_6',
     passcode: '',
     passcode_confirm: '',
-    work_department: '' as '' | 'mechanical' | 'programming' | 'both',
+    work_department: '' as '' | 'tech' | 'both',
   })
   const set = (k: keyof typeof form, v: string | boolean) => setForm(f => ({ ...f, [k]: v }))
 
@@ -476,7 +474,7 @@ function UserFormModal({ open, user, onClose, onSaved }: {
         passcode: '',
         passcode_confirm: '',
         work_department:
-          wd === 'mechanical' || wd === 'programming' || wd === 'both' ? wd : '',
+          wd === 'tech' || wd === 'both' ? wd : '',
       })
     } else setForm({
       username: '',
@@ -623,8 +621,7 @@ function UserFormModal({ open, user, onClose, onSaved }: {
           </p>
           <select value={form.work_department} onChange={e => set('work_department', e.target.value)} className={inputCls}>
             <option value="">Not set (any)</option>
-            <option value="mechanical">Mechanical</option>
-            <option value="programming">Programming</option>
+            <option value="tech">Tech</option>
             <option value="both">Both</option>
           </select>
         </div>

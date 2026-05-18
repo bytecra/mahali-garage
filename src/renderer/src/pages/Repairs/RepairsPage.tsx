@@ -26,7 +26,6 @@ const KANBAN_COLS = [
   { status: 'pending',             label: 'Pending',                 color: 'bg-slate-50 dark:bg-slate-950/30',     ring: 'ring-slate-400 dark:ring-slate-500' },
   { status: 'in_progress',         label: 'In Progress',             color: 'bg-blue-50 dark:bg-blue-950/30',       ring: 'ring-blue-400 dark:ring-blue-500' },
   { status: 'waiting_parts',       label: 'Waiting for Parts',       color: 'bg-yellow-50 dark:bg-yellow-950/30',   ring: 'ring-yellow-400 dark:ring-yellow-500' },
-  { status: 'waiting_for_programming', label: 'Waiting for Programming', color: 'bg-violet-50 dark:bg-violet-950/30',   ring: 'ring-violet-400 dark:ring-violet-500' },
   { status: 'ready',               label: 'Ready for Pickup',        color: 'bg-green-50 dark:bg-green-950/30',     ring: 'ring-green-400 dark:ring-green-500' },
   { status: 'completed_delivered', label: 'Completed / Delivered',   color: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-400 dark:ring-emerald-500' },
 ] as const
@@ -37,7 +36,6 @@ const STATUS_COLORS: Record<string, string> = {
   pending:             'bg-slate-100 text-slate-700 dark:bg-slate-950 dark:text-slate-400',
   in_progress:         'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400',
   waiting_parts:       'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400',
-  waiting_for_programming: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400',
   ready:               'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400',
   completed_delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
   delivered:           'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400',
@@ -52,21 +50,19 @@ const PRIORITY_COLORS: Record<string, string> = {
 }
 
 const DEPT_LIST_BADGE: Record<string, string> = {
-  mechanical:  'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300',
-  programming: 'bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-300',
+  tech:        'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300',
   both:        'bg-teal-100 text-teal-900 dark:bg-teal-950 dark:text-teal-300',
 }
 
 function listDeptLabel(d: string | undefined): string {
-  if (d === 'programming') return 'Programming'
   if (d === 'both') return 'Both'
-  return 'Mechanical'
+  return 'Tech'
 }
 
 const BAYS = ['Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Bay 6']
 
 const ALL_STATUS_OPTIONS = [
-  'pending', 'in_progress', 'waiting_parts', 'waiting_for_programming',
+  'pending', 'in_progress', 'waiting_parts',
   'ready', 'completed_delivered', 'delivered', 'cancelled',
 ]
 
@@ -75,7 +71,6 @@ function statusLabel(s: string): string {
     pending:             'Pending',
     in_progress:         'In Progress',
     waiting_parts:       'Waiting for Parts',
-    waiting_for_programming: 'Waiting for Programming',
     ready:               'Ready for Pickup',
     completed_delivered: 'Completed / Delivered',
     delivered:           'Delivered (legacy)',
@@ -85,7 +80,7 @@ function statusLabel(s: string): string {
 }
 
 function normalizeRepairStatus(status: string): string {
-  if (status === 'waiting_programming') return 'waiting_for_programming'
+  if (status === 'waiting_programming' || status === 'waiting_for_programming') return 'waiting_parts'
   return status
 }
 
@@ -144,7 +139,7 @@ function RepairsPageInner(): JSX.Element {
   const [loading, setLoading]         = useState(true)
   const [search, setSearch]           = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [deptFilter, setDeptFilter]   = useState<'' | 'mechanical' | 'programming' | 'both'>('')
+  const [deptFilter, setDeptFilter]   = useState<'' | 'tech' | 'both'>('')
   const [techFilter, setTechFilter]   = useState('')
   const [bayFilter, setBayFilter]     = useState('')
   const [profileFilter, setProfileFilter] = useState<'' | 'incomplete' | 'complete'>('')
@@ -363,9 +358,8 @@ function RepairsPageInner(): JSX.Element {
     }
     if (techFilter && r.technician_name !== techFilter) return false
     if (bayFilter && r.bay_number !== bayFilter) return false
-    const raw = r.department ?? 'mechanical'
-    if (deptFilter === 'mechanical' && raw !== 'mechanical' && raw !== 'both') return false
-    if (deptFilter === 'programming' && raw !== 'programming' && raw !== 'both') return false
+    const raw = r.department ?? 'tech'
+    if (deptFilter === 'tech' && raw !== 'tech' && raw !== 'both') return false
     if (deptFilter === 'both' && raw !== 'both') return false
     return true
   })
@@ -415,11 +409,10 @@ function RepairsPageInner(): JSX.Element {
             ))}
           </select>
         )}
-        <select value={deptFilter} onChange={e => setDeptFilter(e.target.value as '' | 'mechanical' | 'programming' | 'both')}
+        <select value={deptFilter} onChange={e => setDeptFilter(e.target.value as '' | 'tech' | 'both')}
           className="px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="">All Departments</option>
-          <option value="mechanical">Mechanical (incl. Both)</option>
-          <option value="programming">Programming (incl. Both)</option>
+          <option value="tech">Tech</option>
           <option value="both">Both only</option>
         </select>
         <select value={techFilter} onChange={e => setTechFilter(e.target.value)}
@@ -513,7 +506,7 @@ function RepairsPageInner(): JSX.Element {
               <tbody className="divide-y divide-border">
                 {filtered.map(r => {
                   const vehicle = [r.vehicle_make, r.vehicle_model, r.vehicle_year].filter(Boolean).join(' ')
-                  const deptKey = r.department ?? 'mechanical'
+                  const deptKey = r.department ?? 'tech'
                   return (
                     <tr key={r.id} className="group hover:bg-muted/30">
                       <td className="px-4 py-3 font-mono text-xs">
@@ -542,7 +535,7 @@ function RepairsPageInner(): JSX.Element {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${DEPT_LIST_BADGE[deptKey] ?? DEPT_LIST_BADGE.mechanical}`}>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${DEPT_LIST_BADGE[deptKey] ?? DEPT_LIST_BADGE.tech}`}>
                           {listDeptLabel(deptKey)}
                         </span>
                       </td>

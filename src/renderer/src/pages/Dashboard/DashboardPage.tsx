@@ -25,17 +25,13 @@ interface DashboardData {
   lowStock: number
   totalVehicles: number
   vehiclesInGarage: number
-  vehiclesInGarageMechanical: number
-  vehiclesInGarageProgramming: number
+  vehiclesInGarageTech: number
   readyForPickup: number
-  readyForPickupMechanical: number
-  readyForPickupProgramming: number
+  readyForPickupTech: number
   activeJobCards: number
-  activeJobCardsMechanical: number
-  activeJobCardsProgramming: number
+  activeJobCardsTech: number
   todayDelivered: number
-  todayDeliveredMechanical: number
-  todayDeliveredProgramming: number
+  todayDeliveredTech: number
   salesTrend: Array<{ day: string; revenue: number; count: number }>
   topProducts: Array<{ product_name: string; total_qty: number; total_revenue: number }>
   urgentJobCards: Array<{
@@ -48,14 +44,11 @@ interface DashboardData {
   totalCustomerDebt: number
 }
 
-function DeptBreakdown({ mechanical, programming }: { mechanical: number; programming: number }): JSX.Element {
+function DeptBreakdown({ tech }: { tech: number }): JSX.Element {
   return (
     <p className="text-base font-bold text-foreground mt-0.5 leading-snug">
-      <span className="text-muted-foreground font-normal text-sm">Mechanical:</span>{' '}
-      {mechanical}
-      <span className="text-muted-foreground mx-2">|</span>
-      <span className="text-muted-foreground font-normal text-sm">Programming:</span>{' '}
-      {programming}
+      <span className="text-muted-foreground font-normal text-sm">Tech:</span>{' '}
+      {tech}
     </p>
   )
 }
@@ -642,10 +635,8 @@ export default function DashboardPage(): JSX.Element {
   const [data, setData] = useState<DashboardData | null>(null)
   const [taskSummary, setTaskSummary] = useState<TaskSummary | null>(null)
   const [employeesAvailability, setEmployeesAvailability] = useState<{
-    mechanical_total: number
-    mechanical_available: number
-    programming_total: number
-    programming_available: number
+    tech_total: number
+    tech_available: number
     both_total: number
     both_available: number
     not_marked: number
@@ -707,8 +698,7 @@ export default function DashboardPage(): JSX.Element {
         {widgets.vehicles_in_garage && <StatCard icon={Car} label={t('dashboard.vehiclesInGarage')}
           valueContent={(
             <DeptBreakdown
-              mechanical={data?.vehiclesInGarageMechanical ?? 0}
-              programming={data?.vehiclesInGarageProgramming ?? 0}
+              tech={data?.vehiclesInGarageTech ?? 0}
             />
           )}
           sub={t('dashboard.activeRepairsLabel')}
@@ -716,8 +706,7 @@ export default function DashboardPage(): JSX.Element {
         {widgets.ready_for_pickup && <StatCard icon={CheckCircle} label={t('dashboard.readyForPickup')}
           valueContent={(
             <DeptBreakdown
-              mechanical={data?.readyForPickupMechanical ?? 0}
-              programming={data?.readyForPickupProgramming ?? 0}
+              tech={data?.readyForPickupTech ?? 0}
             />
           )}
           sub={t('dashboard.completedJobs')}
@@ -725,8 +714,7 @@ export default function DashboardPage(): JSX.Element {
         {widgets.active_job_cards && <StatCard icon={Wrench} label={t('dashboard.activeJobCards')}
           valueContent={(
             <DeptBreakdown
-              mechanical={data?.activeJobCardsMechanical ?? 0}
-              programming={data?.activeJobCardsProgramming ?? 0}
+              tech={data?.activeJobCardsTech ?? 0}
             />
           )}
           sub={t('dashboard.inProgress')}
@@ -734,8 +722,7 @@ export default function DashboardPage(): JSX.Element {
         {widgets.today_delivered && <StatCard icon={PackageCheck} label="Today's Delivered"
           valueContent={(
             <DeptBreakdown
-              mechanical={data?.todayDeliveredMechanical ?? 0}
-              programming={data?.todayDeliveredProgramming ?? 0}
+              tech={data?.todayDeliveredTech ?? 0}
             />
           )}
           sub="Completed & delivered today"
@@ -760,19 +747,13 @@ export default function DashboardPage(): JSX.Element {
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {[
               {
-                label: 'Mechanical',
-                available: employeesAvailability.mechanical_available,
-                total: employeesAvailability.mechanical_total,
+                label: 'Tech',
+                available: employeesAvailability.tech_available,
+                total: employeesAvailability.tech_total,
                 color: '#3b82f6',
-              },
-              {
-                label: 'Programming',
-                available: employeesAvailability.programming_available,
-                total: employeesAvailability.programming_total,
-                color: '#f97316',
               },
               {
                 label: 'Both',

@@ -3,7 +3,7 @@ import { getDb } from '../index'
 export interface LoyaltyRow {
   id: number
   customer_id: number
-  department: 'all' | 'mechanical' | 'programming'
+  department: 'all' | 'tech'
   points: number
   stamps: number
   total_visits: number
@@ -91,7 +91,7 @@ export type ProcessAutoEarnParams = {
   source: 'invoice' | 'receipt'
   source_id: number
   created_by: number
-  department?: 'mechanical' | 'programming'
+  department?: 'tech'
 }
 
 function processAutoEarnImpl(params: ProcessAutoEarnParams): void {
@@ -103,7 +103,7 @@ function processAutoEarnImpl(params: ProcessAutoEarnParams): void {
   if (params.source === 'receipt' &&
       !config.autoEarnReceipt) return
 
-  const dept: 'all' | 'mechanical' | 'programming' =
+  const dept: 'all' | 'tech' =
     config.deptMode === 'per_dept' && params.department
       ? params.department
       : 'all'
@@ -140,7 +140,7 @@ export const loyaltyRepo = {
 
   getLoyalty(
     customerId: number,
-    department: 'all' | 'mechanical' | 'programming'
+    department: 'all' | 'tech'
       = 'all'
   ): LoyaltyRow {
     const db = getDb()
@@ -173,7 +173,7 @@ export const loyaltyRepo = {
 
   addTransaction(tx: {
     customer_id: number
-    department: 'all' | 'mechanical' | 'programming'
+    department: 'all' | 'tech'
     type: 'earn_points' | 'earn_stamps' |
           'redeem' | 'manual_adjust'
     points_delta: number
@@ -260,7 +260,7 @@ export const loyaltyRepo = {
 
   redeemReward(params: {
     customer_id: number
-    department: 'all' | 'mechanical' | 'programming'
+    department: 'all' | 'tech'
     note: string
     created_by: number
   }): void {

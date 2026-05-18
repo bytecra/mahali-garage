@@ -1,5 +1,5 @@
 export const TV_DISPLAY_WIDGETS = [
-  { id: 'vehicles_in_garage', label: 'Vehicles in Garage' },
+  { id: 'vehicles_in_garage', label: 'Devices in Store' },
   { id: 'active_job_cards', label: 'Active Job Cards' },
   { id: 'ready_for_pickup', label: 'Ready for Pickup' },
   { id: 'today_delivered', label: "Today's Delivered" },

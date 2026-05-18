@@ -21,7 +21,7 @@ const CHECK_INTERVAL_MS = 60_000 // check every 60 s
 let timer: ReturnType<typeof setInterval> | null = null
 
 function defaultBackupDir(): string {
-  return path.join(app.getPath('documents'), 'Mahali Garage Backups')
+  return path.join(app.getPath('documents'), 'Power Key Backups')
 }
 
 export function getBackupSettings(): BackupConfig {
@@ -120,7 +120,7 @@ export function performBackup(cfg?: BackupConfig): { success: boolean; message: 
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const destPath = path.join(dir, `mahali-garage-backup-${ts}.db`)
+    const destPath = path.join(dir, `power-key-backup-${ts}.db`)
 
     const db = getDb()
     db.prepare('VACUUM INTO ?').run(destPath)
@@ -159,7 +159,7 @@ function rotateBackups(dir: string, keep: number): void {
 
   try {
     const files = fs.readdirSync(dir)
-      .filter(f => f.startsWith('mahali-garage-backup-') && f.endsWith('.db'))
+      .filter(f => f.startsWith('power-key-backup-') && f.endsWith('.db'))
       .map(f => ({ name: f, full: path.join(dir, f), mtime: fs.statSync(path.join(dir, f)).mtimeMs }))
       .sort((a, b) => b.mtime - a.mtime) // newest first
 

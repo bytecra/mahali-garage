@@ -55,8 +55,7 @@ export function migration036(
                       DEFAULT 'all'
                       CHECK(department IN (
                         'all',
-                        'mechanical',
-                        'programming'
+                        'tech'
                       )),
       notes           TEXT,
       marked_by       INTEGER

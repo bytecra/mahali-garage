@@ -9,7 +9,7 @@ import log from '../utils/logger'
 
 const DOCUMENTS_BASE = path.join(
   app.getPath('documents'),
-  'Mahali Garage',
+  'Power Key',
   'Employee Documents',
 )
 

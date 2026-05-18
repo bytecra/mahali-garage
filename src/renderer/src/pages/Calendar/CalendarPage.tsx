@@ -95,10 +95,8 @@ function toYMDLocal(d: Date): string {
 function getEventColor(event: CalendarEvent): string {
   if (event.event_source === 'appointment') {
     switch (event.department) {
-      case 'mechanical':
+      case 'tech':
         return '#3b82f6'
-      case 'programming':
-        return '#f97316'
       default:
         return '#22c55e'
     }
@@ -204,7 +202,7 @@ function AppointmentFormModal({
   const [carModel, setCarModel] = useState('')
   const [carYear, setCarYear] = useState('')
   const [plateNumber, setPlateNumber] = useState('')
-  const [department, setDepartment] = useState<'mechanical' | 'programming' | 'both'>('mechanical')
+  const [department, setDepartment] = useState<'tech' | 'both'>('tech')
   const [serviceNotes, setServiceNotes] = useState('')
   const [appointmentDate, setAppointmentDate] = useState(() => toYMDLocal(new Date()))
   const [appointmentTime, setAppointmentTime] = useState('09:00')
@@ -257,8 +255,7 @@ function AppointmentFormModal({
   const filteredTechnicians = employees.filter((e) => {
     const d = (e.department || '').toLowerCase()
     if (department === 'both') return true
-    if (department === 'mechanical') return d === 'mechanical' || d === 'both' || d === ''
-    if (department === 'programming') return d === 'programming' || d === 'both' || d === ''
+    if (department === 'tech') return d === 'tech' || d === 'both' || d === ''
     return true
   })
 
@@ -454,7 +451,7 @@ function AppointmentFormModal({
 
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            {t('calendar.sectionVehicle', { defaultValue: 'Vehicle' })}
+            {t('calendar.sectionVehicle', { defaultValue: 'Device' })}
           </p>
           {selectedCustomer && vehicles.length > 0 && !isNewCustomer && (
             <select
@@ -462,14 +459,14 @@ function AppointmentFormModal({
               onChange={(e) => pickVehicle(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background"
             >
-              <option value="">{t('calendar.selectVehicle', { defaultValue: 'Select vehicle' })}</option>
+              <option value="">{t('calendar.selectVehicle', { defaultValue: 'Select device' })}</option>
               {vehicles.map((v) => (
                 <option key={v.id} value={String(v.id)}>
                   {v.make} {v.model}
                   {v.license_plate ? ` · ${v.license_plate}` : ''}
                 </option>
               ))}
-              <option value="new">{t('calendar.addNewCar', { defaultValue: 'Add new car' })}</option>
+              <option value="new">{t('calendar.addNewCar', { defaultValue: 'Add new device' })}</option>
             </select>
           )}
           {(isNewCustomer || isNewCar || (selectedCustomer && vehicles.length === 0)) && (
@@ -477,7 +474,7 @@ function AppointmentFormModal({
               <input
                 value={carCompany}
                 onChange={(e) => setCarCompany(e.target.value)}
-                placeholder={t('vehicles.make', { defaultValue: 'Make' })}
+                placeholder={t('vehicles.make', { defaultValue: 'Brand' })}
                 className="px-3 py-2 text-sm border border-border rounded-lg bg-background"
               />
               <input
@@ -495,7 +492,7 @@ function AppointmentFormModal({
               <input
                 value={plateNumber}
                 onChange={(e) => setPlateNumber(e.target.value)}
-                placeholder={t('vehicles.plate', { defaultValue: 'Plate' })}
+                placeholder={t('vehicles.plate', { defaultValue: 'Serial' })}
                 className="px-3 py-2 text-sm border border-border rounded-lg bg-background"
               />
             </div>
@@ -512,9 +509,7 @@ function AppointmentFormModal({
               onChange={(e) => setDepartment(e.target.value as typeof department)}
               className="px-3 py-2 text-sm border border-border rounded-lg bg-background"
             >
-              <option value="mechanical">{t('calendar.dept.mechanical', { defaultValue: 'Mechanical' })}</option>
-              <option value="programming">{t('calendar.dept.programming', { defaultValue: 'Programming' })}</option>
-              <option value="both">{t('calendar.dept.both', { defaultValue: 'Both' })}</option>
+              <option value="tech">Tech</option>
             </select>
             <select
               value={String(technicianId)}
@@ -870,24 +865,11 @@ function CalendarPageInner(): JSX.Element {
   const eventStyleGetter = (event: CalendarEvent) => {
     if (event.event_source === 'appointment') {
       switch (event.department) {
-        case 'mechanical':
+        case 'tech':
           return {
             style: {
               backgroundColor: '#3b82f6',
               borderColor: '#2563eb',
-              color: '#ffffff',
-              borderRadius: '6px',
-              border: 'none',
-              fontSize: '12px',
-              padding: '2px 6px',
-              opacity: event.status === 'cancelled' ? 0.4 : 1,
-            },
-          }
-        case 'programming':
-          return {
-            style: {
-              backgroundColor: '#f97316',
-              borderColor: '#ea580c',
               color: '#ffffff',
               borderRadius: '6px',
               border: 'none',

@@ -40,15 +40,13 @@ export function jobCardToastHint(r: Pick<RepairRow, 'vehicle_make' | 'vehicle_mo
 }
 
 const DEPT_BADGE: Record<string, string> = {
-  mechanical:  'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border-amber-200/60',
-  programming: 'bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-300 border-violet-200/60',
+  tech:        'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border-amber-200/60',
   both:        'bg-teal-100 text-teal-900 dark:bg-teal-950 dark:text-teal-300 border-teal-200/60',
 }
 
 function deptLabel(d: string | undefined): string {
-  if (d === 'programming') return 'Prog'
   if (d === 'both') return 'Both'
-  return 'Mech'
+  return 'Tech'
 }
 
 interface Props {
@@ -66,7 +64,7 @@ export default function RepairCard({ repair, onClick = () => {}, onOpenDetails }
   const vehicle = [repair.vehicle_make, repair.vehicle_model, repair.vehicle_year].filter(Boolean).join(' ') || '—'
   const isDraft = repair.profile_complete === 0
   const isArchived = repair.archived === 1
-  const deptKey = repair.department ?? 'mechanical'
+  const deptKey = repair.department ?? 'tech'
 
   return (
     <div
@@ -103,7 +101,7 @@ export default function RepairCard({ repair, onClick = () => {}, onOpenDetails }
               Draft
             </span>
           )}
-          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide ${DEPT_BADGE[deptKey] ?? DEPT_BADGE.mechanical}`}>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide ${DEPT_BADGE[deptKey] ?? DEPT_BADGE.tech}`}>
             {deptLabel(repair.department)}
           </span>
           <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${PRIORITY_COLORS[repair.priority] ?? PRIORITY_COLORS.normal}`}>

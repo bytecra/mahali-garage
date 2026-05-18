@@ -248,7 +248,7 @@ export interface AttendanceBulkMarkInput {
 
 export interface LoyaltyTransactionInput {
   customer_id: number
-  department?: 'all' | 'mechanical' | 'programming'
+  department?: 'all' | 'tech'
   type: 'earn_points' | 'earn_stamps' | 'redeem' | 'manual_adjust'
   points_delta: number
   stamps_delta: number
@@ -265,12 +265,12 @@ export interface LoyaltyAutoEarnParams {
   source: 'invoice' | 'receipt'
   source_id: number
   created_by: number
-  department?: 'mechanical' | 'programming'
+  department?: 'tech'
 }
 
 export interface LoyaltyRedeemParams {
   customer_id: number
-  department: 'all' | 'mechanical' | 'programming'
+  department: 'all' | 'tech'
   note: string
   created_by: number
 }

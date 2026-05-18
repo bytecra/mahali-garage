@@ -1,19 +1,19 @@
 import Database from 'better-sqlite3'
 
 /**
- * Jobs report to one department only (mechanical | programming).
- * Legacy "both" → mechanical. Technicians get optional work_department on users.
+ * Jobs report to one department only (tech).
+ * Legacy "both" → tech. Technicians get optional work_department on users.
  */
 export function migration050(db: Database.Database): void {
   db.exec(`
-    UPDATE job_cards SET department = 'mechanical' WHERE department = 'both';
+    UPDATE job_cards SET department = 'tech' WHERE department != 'tech';
   `)
 
   const tables = new Set(
     (db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as { name: string }[]).map(r => r.name),
   )
   if (tables.has('appointments')) {
-    db.exec(`UPDATE appointments SET department = 'mechanical' WHERE department = 'both'`)
+    db.exec(`UPDATE appointments SET department = 'tech' WHERE department != 'tech'`)
   }
 
   const userCols = new Set(

@@ -84,7 +84,7 @@ function InvoicesPageInner(): JSX.Element {
     unit_price: number
     total_price: number
   }> | null>(null)
-  const [storeName, setStoreName] = useState('Mahali Garage')
+  const [storeName, setStoreName] = useState('Power Key')
 
   useEffect(() => {
     try {

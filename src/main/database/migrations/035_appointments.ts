@@ -19,12 +19,10 @@ export function migration035(
       car_model         TEXT,
       car_year          TEXT,
       plate_number      TEXT,
-      department        TEXT NOT NULL 
-                        DEFAULT 'mechanical'
+      department        TEXT NOT NULL
+                        DEFAULT 'tech'
                         CHECK(department IN (
-                          'mechanical',
-                          'programming',
-                          'both'
+                          'tech'
                         )),
       service_notes     TEXT,
       technician_id     INTEGER

@@ -73,7 +73,7 @@ function newLineKey(): string {
 const EMPTY_LINE = (): JobLineItem => ({
   key: newLineKey(),
   description: '',
-  lineDepartment: 'mechanical',
+  lineDepartment: 'tech',
   quantity: 1,
   cost: 0,
   sell: 0,
@@ -120,7 +120,7 @@ export default function AddJobModal({
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [invoiceCreated, setInvoiceCreated] = useState<InvoiceCreatedPayload | null>(null)
   const [invoiceCreatedOpen, setInvoiceCreatedOpen] = useState(false)
-  const [storeName, setStoreName] = useState('Mahali Garage')
+  const [storeName, setStoreName] = useState('Power Key')
   const [jobNumber, setJobNumber] = useState<string | null>(null)
   const [linkedJobInvoice, setLinkedJobInvoice] = useState<{
     id?: number
@@ -270,7 +270,7 @@ export default function AddJobModal({
               key: p.id != null ? `db-${p.id}` : newLineKey(),
               dbId: p.id,
               description: p.description ?? '',
-              lineDepartment: p.line_department === 'programming' ? 'programming' : 'mechanical',
+              lineDepartment: 'tech',
               quantity: p.quantity,
               cost: Number(p.cost_price ?? 0) || 0,
               sell: p.unit_price,
@@ -406,7 +406,7 @@ export default function AddJobModal({
       {
         key: newLineKey(),
         description: p.name,
-        lineDepartment: 'mechanical',
+        lineDepartment: 'tech',
         quantity: 1,
         cost: Math.max(0, p.cost_price),
         sell: Math.max(0, p.sell_price),
@@ -506,7 +506,7 @@ export default function AddJobModal({
       {
         key: newLineKey(),
         description: row.service_name,
-        lineDepartment: row.department === 'programming' ? 'programming' : 'mechanical',
+        lineDepartment: 'tech',
         quantity: 1,
         cost: row.price,
         sell: row.price,
@@ -986,7 +986,6 @@ export default function AddJobModal({
                       <option value="pending">Pending</option>
                       <option value="in_progress">In Progress</option>
                       <option value="waiting_parts">Waiting for Parts</option>
-                      <option value="waiting_for_programming">Waiting for Programming</option>
                       <option value="ready">Ready for Pickup</option>
                       <option value="completed_delivered">Completed / Delivered</option>
                       <option value="delivered">Delivered (legacy)</option>

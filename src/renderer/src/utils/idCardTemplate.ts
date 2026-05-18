@@ -220,7 +220,7 @@ export function buildIdCardHtml(params: {
         EMPLOYEE ID CARD
       </span>
       <span class="footer-text">
-        Mahali Garage
+        Power Key
       </span>
     </div>
 

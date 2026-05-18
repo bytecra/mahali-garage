@@ -144,7 +144,7 @@ export async function buildDailySalesExcelBuffer(params: {
 }): Promise<ArrayBuffer> {
   const { storeName, currencySymbol, dateFrom, dateTo, department, salesRows } = params
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'Mahali Garage'
+  wb.creator = 'Power Key'
   wb.created = new Date()
 
   const daily = aggregateSalesByDay(salesRows)
@@ -221,7 +221,7 @@ export async function buildProfitExcelBuffer(params: {
 }): Promise<ArrayBuffer> {
   const { storeName, currencySymbol, dateFrom, dateTo, department, profitRows } = params
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'Mahali Garage'
+  wb.creator = 'Power Key'
   wb.created = new Date()
 
   const totalRev = profitRows.reduce((s, x) => s + x.revenue, 0)
@@ -286,7 +286,7 @@ export async function buildTopProductsExcelBuffer(params: {
   const { storeName, currencySymbol, dateFrom, dateTo, department, rows } = params
   const sorted = [...rows].sort((a, b) => b.total_revenue - a.total_revenue)
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'Mahali Garage'
+  wb.creator = 'Power Key'
   wb.created = new Date()
 
   const sheet = wb.addWorksheet('Top Products', { properties: { tabColor: { argb: 'FFCA8A04' } } })
@@ -344,7 +344,7 @@ export async function buildDailySalesComparisonExcelBuffer(params: {
 }): Promise<ArrayBuffer> {
   const { storeName, currencySymbol, department, p1, p2, rows1, rows2 } = params
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'Mahali Garage'
+  wb.creator = 'Power Key'
   wb.created = new Date()
 
   const aligned = buildAlignedSalesChart(rows1, rows2)
@@ -450,7 +450,7 @@ export async function buildProfitComparisonExcelBuffer(params: {
 }): Promise<ArrayBuffer> {
   const { storeName, currencySymbol, department, p1, p2, profit1, profit2 } = params
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'Mahali Garage'
+  wb.creator = 'Power Key'
   wb.created = new Date()
 
   const t1 = profit1.reduce(
@@ -589,7 +589,7 @@ export async function buildTopProductsComparisonExcelBuffer(params: {
   const { storeName, currencySymbol, department, p1, p2, rows1, rows2 } = params
   const merged = mergeTopProducts(rows1, rows2)
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'Mahali Garage'
+  wb.creator = 'Power Key'
   wb.created = new Date()
 
   const sheet = wb.addWorksheet('Top Products Compare', { properties: { tabColor: { argb: 'FFCA8A04' } } })

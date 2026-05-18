@@ -92,7 +92,7 @@ export interface CreateSaleInput {
   amount_paid: number
   balance_due: number
   notes?: string
-  /** Stored on invoice row; defaults to mechanical for POS / non-garage sales. */
+  /** Stored on invoice row; defaults to tech for POS / non-garage sales. */
   department?: string
   items: SaleItemInput[]
   payments: PaymentInput[]
@@ -232,9 +232,9 @@ export const saleRepo = {
         }
       }
 
-      const invDept = input.department === 'programming' || input.department === 'both' || input.department === 'mechanical'
+      const invDept = input.department === 'tech' || input.department === 'both'
         ? input.department
-        : 'mechanical'
+        : 'tech'
       db.prepare(`INSERT INTO invoices (sale_id, invoice_number, department) VALUES (?, ?, ?)`).run(sale_id, invoice_number, invDept)
 
       db.prepare(`UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'invoice.next_number'`).run(String(invNext + 1))

@@ -13,7 +13,7 @@ export function registerLoyaltyHandlers(): void {
         if (!authService.getSession(event.sender.id))
           return err('Forbidden', 'ERR_FORBIDDEN')
         const dept = (department || 'all') as
-          'all' | 'mechanical' | 'programming'
+          'all' | 'tech'
         return ok(loyaltyRepo.getLoyalty(
           customerId, dept))
       } catch (e) {
@@ -37,7 +37,7 @@ export function registerLoyaltyHandlers(): void {
   ipcMain.handle('loyalty:addTransaction',
     (event, data: {
       customer_id: number
-      department?: 'all' | 'mechanical' | 'programming'
+      department?: 'all' | 'tech'
       type: 'earn_points' | 'earn_stamps' | 'redeem' | 'manual_adjust'
       points_delta: number
       stamps_delta: number

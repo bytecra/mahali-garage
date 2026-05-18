@@ -4,7 +4,7 @@ import { assetRepo } from './assetRepo'
 import { salaryRepo } from './salaryRepo'
 import { settingsRepo } from './settingsRepo'
 
-export type ReportDepartmentFilter = 'all' | 'mechanical' | 'programming'
+export type ReportDepartmentFilter = 'all' | 'tech'
 
 function maxYmd(a: string, b: string): string {
   return a > b ? a : b
@@ -30,27 +30,18 @@ function clampDateTimeRange(from: string, to: string): { from: string; to: strin
 
 function invoiceDeptPredicate(dept: ReportDepartmentFilter, invoiceAlias = 'i'): string {
   if (dept === 'all') return '1=1'
-  if (dept === 'mechanical') {
-    return `COALESCE(${invoiceAlias}.department, 'mechanical') IN ('mechanical','both')`
-  }
-  return `COALESCE(${invoiceAlias}.department, 'mechanical') IN ('programming','both')`
+  return `COALESCE(${invoiceAlias}.department, 'tech') IN ('tech','both')`
 }
 
 function customReceiptDeptPredicate(dept: ReportDepartmentFilter, alias = 'cr'): string {
   if (dept === 'all') return '1=1'
-  if (dept === 'mechanical') {
-    return `COALESCE(json_array_length(CASE WHEN json_valid(${alias}.mechanical_services_json) THEN ${alias}.mechanical_services_json ELSE '[]' END), 0) > 0`
-  }
-  return `COALESCE(json_array_length(CASE WHEN json_valid(${alias}.programming_services_json) THEN ${alias}.programming_services_json ELSE '[]' END), 0) > 0`
+  return `COALESCE(json_array_length(CASE WHEN json_valid(${alias}.mechanical_services_json) THEN ${alias}.mechanical_services_json ELSE '[]' END), 0) > 0`
 }
 
-/** Job card department filter (aligns with invoice-style mechanical / programming + both). */
+/** Job card department filter (aligns with invoice-style tech + both). */
 function jobDeptPredicate(dept: ReportDepartmentFilter, alias = 'j'): string {
   if (dept === 'all') return '1=1'
-  if (dept === 'mechanical') {
-    return `COALESCE(${alias}.department, 'mechanical') IN ('mechanical','both')`
-  }
-  return `COALESCE(${alias}.department, 'mechanical') IN ('programming','both')`
+  return `COALESCE(${alias}.department, 'tech') IN ('tech','both')`
 }
 
 /** Amount collected on a job (matches customer summary semantics). */
@@ -71,8 +62,7 @@ export const reportRepo = {
         payments_non_cash: 0,
       }
       return {
-        mechanical: { ...emptySlice },
-        programming: { ...emptySlice },
+        tech: { ...emptySlice },
         both: { ...emptySlice },
       }
     }
@@ -81,7 +71,7 @@ export const reportRepo = {
     const customByDept = db.prepare(`
       WITH lines AS (
         SELECT
-          'mechanical' as dept,
+          'tech' as dept,
           date(cr.created_at) as d,
           CAST(json_extract(j.value, '$.sell_price') AS REAL) as sell_price,
           CAST(json_extract(j.value, '$.cost') AS REAL) as cost,
@@ -92,7 +82,7 @@ export const reportRepo = {
         WHERE cr.created_at BETWEEN ? AND ?
         UNION ALL
         SELECT
-          'programming' as dept,
+          'tech' as dept,
           date(cr.created_at) as d,
           CAST(json_extract(j.value, '$.sell_price') AS REAL) as sell_price,
           CAST(json_extract(j.value, '$.cost') AS REAL) as cost,
@@ -110,7 +100,7 @@ export const reportRepo = {
       FROM lines
       GROUP BY dept
     `).all(clamped.from, clamped.to, clamped.from, clamped.to) as Array<{
-      dept: 'mechanical' | 'programming'
+      dept: 'tech'
       revenue: number
       cost: number
       receipts_count: number
@@ -119,9 +109,8 @@ export const reportRepo = {
     const jobsByDept = db.prepare(`
       SELECT
         CASE
-          WHEN department = 'programming' THEN 'programming'
           WHEN department = 'both' THEN 'both'
-          ELSE 'mechanical'
+          ELSE 'tech'
         END as dept,
         COUNT(*) as jobs_count,
         COALESCE(SUM(COALESCE(labor_total,0) + COALESCE(parts_total,0)),0) as jobs_revenue
@@ -129,12 +118,11 @@ export const reportRepo = {
       WHERE created_at BETWEEN ? AND ?
         AND status != 'cancelled'
       GROUP BY CASE
-        WHEN department = 'programming' THEN 'programming'
         WHEN department = 'both' THEN 'both'
-        ELSE 'mechanical'
+        ELSE 'tech'
       END
     `).all(clamped.from, clamped.to) as Array<{
-      dept: 'mechanical' | 'programming' | 'both'
+      dept: 'tech' | 'both'
       jobs_count: number
       jobs_revenue: number
     }>
@@ -143,7 +131,7 @@ export const reportRepo = {
       SELECT dept, service_name, SUM(qty) as total_qty, SUM(revenue) as total_revenue
       FROM (
         SELECT
-          'mechanical' as dept,
+          'tech' as dept,
           TRIM(COALESCE(json_extract(j.value, '$.service_name'), '')) as service_name,
           1 as qty,
           CAST(json_extract(j.value, '$.sell_price') AS REAL) as revenue
@@ -154,7 +142,7 @@ export const reportRepo = {
         UNION ALL
 
         SELECT
-          'programming' as dept,
+          'tech' as dept,
           TRIM(COALESCE(json_extract(j.value, '$.service_name'), '')) as service_name,
           1 as qty,
           CAST(json_extract(j.value, '$.sell_price') AS REAL) as revenue
@@ -166,9 +154,8 @@ export const reportRepo = {
 
         SELECT
           CASE
-            WHEN department = 'programming' THEN 'programming'
             WHEN department = 'both' THEN 'both'
-            ELSE 'mechanical'
+            ELSE 'tech'
           END as dept,
           TRIM(COALESCE(job_type, 'Job Card')) as service_name,
           1 as qty,
@@ -181,18 +168,18 @@ export const reportRepo = {
       GROUP BY dept, service_name
       ORDER BY dept, total_qty DESC, total_revenue DESC
     `).all(
-      clamped.from, clamped.to,  // mechanical custom_receipts
-      clamped.from, clamped.to,  // programming custom_receipts
+      clamped.from, clamped.to,  // tech custom_receipts (mechanical_services_json)
+      clamped.from, clamped.to,  // tech custom_receipts (programming_services_json)
       clamped.from, clamped.to,  // job_cards
     ) as Array<{
-      dept: 'mechanical' | 'programming' | 'both'
+      dept: 'tech' | 'both'
       service_name: string
       total_qty: number
       total_revenue: number
     }>
 
     type PayDeptSlice = {
-      dept: 'mechanical' | 'programming' | 'both'
+      dept: 'tech' | 'both'
       cash_sum: number
       non_cash_sum: number
     }
@@ -201,9 +188,8 @@ export const reportRepo = {
       jobPartsCogsByDept = db.prepare(`
         SELECT
           CASE
-            WHEN j.department = 'programming' THEN 'programming'
             WHEN j.department = 'both' THEN 'both'
-            ELSE 'mechanical'
+            ELSE 'tech'
           END AS dept,
           COALESCE(SUM(COALESCE(p.cost_price, 0) * COALESCE(p.quantity, 0)), 0) AS parts_cost
         FROM job_parts p
@@ -222,9 +208,8 @@ export const reportRepo = {
         .prepare(`
         SELECT
           CASE
-            WHEN COALESCE(i.department, 'mechanical') = 'programming' THEN 'programming'
-            WHEN COALESCE(i.department, 'mechanical') = 'both' THEN 'both'
-            ELSE 'mechanical'
+            WHEN COALESCE(i.department, 'tech') = 'both' THEN 'both'
+            ELSE 'tech'
           END AS dept,
           COALESCE(SUM(CASE WHEN p.method = 'cash' THEN p.amount ELSE 0 END), 0) AS cash_sum,
           COALESCE(SUM(CASE WHEN p.method != 'cash' THEN p.amount ELSE 0 END), 0) AS non_cash_sum
@@ -244,9 +229,8 @@ export const reportRepo = {
       customPayByDept = db.prepare(`
         SELECT
           CASE
-            WHEN department = 'programming' THEN 'programming'
             WHEN department = 'both' THEN 'both'
-            ELSE 'mechanical'
+            ELSE 'tech'
           END AS dept,
           COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) = 'cash' THEN amount ELSE 0 END), 0) AS cash_sum,
           COALESCE(SUM(CASE WHEN LOWER(TRIM(payment_method)) != 'cash' THEN amount ELSE 0 END), 0) AS non_cash_sum
@@ -264,9 +248,8 @@ export const reportRepo = {
         .prepare(`
         SELECT
           CASE
-            WHEN j.department = 'programming' THEN 'programming'
             WHEN j.department = 'both' THEN 'both'
-            ELSE 'mechanical'
+            ELSE 'tech'
           END AS dept,
           COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(j.payment_method, ''))) = 'cash' THEN ${JOB_COLLECTED_SQL} ELSE 0 END), 0) AS cash_sum,
           COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(j.payment_method, ''))) != 'cash' THEN ${JOB_COLLECTED_SQL} ELSE 0 END), 0) AS non_cash_sum
@@ -282,16 +265,7 @@ export const reportRepo = {
     }
 
     const byDept = {
-      mechanical: {
-        revenue: 0,
-        cost: 0,
-        gross_profit: 0,
-        jobs_count: 0,
-        top_services: [] as Array<{ service_name: string; total_qty: number; total_revenue: number }>,
-        payments_cash: 0,
-        payments_non_cash: 0,
-      },
-      programming: {
+      tech: {
         revenue: 0,
         cost: 0,
         gross_profit: 0,
@@ -331,13 +305,13 @@ export const reportRepo = {
     }
 
     for (const row of jobPartsCogsByDept) {
-      const d = row.dept === 'programming' ? 'programming' : row.dept === 'both' ? 'both' : 'mechanical'
+      const d = row.dept === 'both' ? 'both' : 'tech'
       byDept[d].cost += row.parts_cost ?? 0
     }
 
     function mergeDeptPayments(rows: PayDeptSlice[]): void {
       for (const row of rows) {
-        const k = row.dept === 'both' ? 'both' : row.dept === 'programming' ? 'programming' : 'mechanical'
+        const k = row.dept === 'both' ? 'both' : 'tech'
         byDept[k].payments_cash += row.cash_sum ?? 0
         byDept[k].payments_non_cash += row.non_cash_sum ?? 0
       }
@@ -346,11 +320,9 @@ export const reportRepo = {
     mergeDeptPayments(customPayByDept)
     mergeDeptPayments(jobPayByDept)
 
-    byDept.mechanical.gross_profit = byDept.mechanical.revenue - byDept.mechanical.cost
-    byDept.programming.gross_profit = byDept.programming.revenue - byDept.programming.cost
+    byDept.tech.gross_profit = byDept.tech.revenue - byDept.tech.cost
     byDept.both.gross_profit = byDept.both.revenue - byDept.both.cost
-    byDept.mechanical.top_services = byDept.mechanical.top_services.slice(0, 5)
-    byDept.programming.top_services = byDept.programming.top_services.slice(0, 5)
+    byDept.tech.top_services = byDept.tech.top_services.slice(0, 5)
     byDept.both.top_services = byDept.both.top_services.slice(0, 5)
 
     return byDept
@@ -418,53 +390,36 @@ export const reportRepo = {
     // Garage-specific metrics (safe — tables may not exist in older DBs)
     let totalVehicles = 0,
       vehiclesInGarage = 0,
-      vehiclesInGarageMechanical = 0,
-      vehiclesInGarageProgramming = 0,
+      vehiclesInGarageTech = 0,
       readyForPickup = 0,
-      readyForPickupMechanical = 0,
-      readyForPickupProgramming = 0,
+      readyForPickupTech = 0,
       activeJobCards = 0,
-      activeJobCardsMechanical = 0,
-      activeJobCardsProgramming = 0,
+      activeJobCardsTech = 0,
       todayDelivered = 0,
-      todayDeliveredMechanical = 0,
-      todayDeliveredProgramming = 0
+      todayDeliveredTech = 0
     try {
       totalVehicles = (db.prepare('SELECT COUNT(*) as cnt FROM vehicles').get() as { cnt: number }).cnt
       vehiclesInGarage = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards WHERE COALESCE(archived,0)=0 AND status IN ('pending','in_progress','waiting_parts','waiting_for_programming')`
+        `SELECT COUNT(*) as cnt FROM job_cards WHERE COALESCE(archived,0)=0 AND status IN ('pending','in_progress','waiting_parts')`
       ).get() as { cnt: number }).cnt
-      vehiclesInGarageMechanical = (db.prepare(
+      vehiclesInGarageTech = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE COALESCE(archived,0)=0 AND status IN ('pending','in_progress','waiting_parts','waiting_for_programming')
-           AND COALESCE(department, 'mechanical') IN ('mechanical','both')`
-      ).get() as { cnt: number }).cnt
-      vehiclesInGarageProgramming = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE COALESCE(archived,0)=0 AND status IN ('pending','in_progress','waiting_parts','waiting_for_programming')
-           AND department IN ('programming','both')`
+         WHERE COALESCE(archived,0)=0 AND status IN ('pending','in_progress','waiting_parts')
+           AND COALESCE(department, 'tech') IN ('tech','both')`
       ).get() as { cnt: number }).cnt
       readyForPickup = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards WHERE COALESCE(archived,0)=0 AND status = 'ready'`
       ).get() as { cnt: number }).cnt
-      readyForPickupMechanical = (db.prepare(
+      readyForPickupTech = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE COALESCE(archived,0)=0 AND status = 'ready' AND COALESCE(department, 'mechanical') IN ('mechanical','both')`
-      ).get() as { cnt: number }).cnt
-      readyForPickupProgramming = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE COALESCE(archived,0)=0 AND status = 'ready' AND department IN ('programming','both')`
+         WHERE COALESCE(archived,0)=0 AND status = 'ready' AND COALESCE(department, 'tech') IN ('tech','both')`
       ).get() as { cnt: number }).cnt
       activeJobCards = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards WHERE COALESCE(archived,0)=0 AND status NOT IN ('delivered','completed_delivered','cancelled')`
       ).get() as { cnt: number }).cnt
-      activeJobCardsMechanical = (db.prepare(
+      activeJobCardsTech = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE COALESCE(archived,0)=0 AND status NOT IN ('delivered','completed_delivered','cancelled') AND COALESCE(department, 'mechanical') IN ('mechanical','both')`
-      ).get() as { cnt: number }).cnt
-      activeJobCardsProgramming = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE COALESCE(archived,0)=0 AND status NOT IN ('delivered','completed_delivered','cancelled') AND department IN ('programming','both')`
+         WHERE COALESCE(archived,0)=0 AND status NOT IN ('delivered','completed_delivered','cancelled') AND COALESCE(department, 'tech') IN ('tech','both')`
       ).get() as { cnt: number }).cnt
       todayDelivered = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
@@ -474,17 +429,11 @@ export const reportRepo = {
     } catch { /* tables not ready yet */ }
     // dept breakdown for today's delivered — separate try so total still shows if dept column missing
     try {
-      todayDeliveredMechanical = (db.prepare(
+      todayDeliveredTech = (db.prepare(
         `SELECT COUNT(*) as cnt FROM job_cards
          WHERE COALESCE(archived,0)=0 AND status IN ('delivered','completed_delivered')
            AND date(COALESCE(date_out, updated_at)) = ?
-           AND COALESCE(department, 'mechanical') IN ('mechanical','both')`
-      ).get(today) as { cnt: number }).cnt
-      todayDeliveredProgramming = (db.prepare(
-        `SELECT COUNT(*) as cnt FROM job_cards
-         WHERE COALESCE(archived,0)=0 AND status IN ('delivered','completed_delivered')
-           AND date(COALESCE(date_out, updated_at)) = ?
-           AND department IN ('programming','both')`
+           AND COALESCE(department, 'tech') IN ('tech','both')`
       ).get(today) as { cnt: number }).cnt
     } catch { /* department column not available */ }
 
@@ -934,10 +883,8 @@ export const reportRepo = {
   },
 
   employeesAvailableToday(): {
-    mechanical_total: number
-    mechanical_available: number
-    programming_total: number
-    programming_available: number
+    tech_total: number
+    tech_available: number
     both_total: number
     both_available: number
     not_marked: number
@@ -993,10 +940,8 @@ export const reportRepo = {
       active_tasks: number
     }>
 
-    let mech_total = 0
-    let mech_avail = 0
-    let prog_total = 0
-    let prog_avail = 0
+    let tech_total = 0
+    let tech_avail = 0
     let both_total = 0
     let both_avail = 0
     let not_marked = 0
@@ -1010,11 +955,9 @@ export const reportRepo = {
 
     for (const emp of rows) {
       const deptRaw = emp.department?.trim().toLowerCase() ?? ''
-      const dept =
-        deptRaw === 'mechanical' || deptRaw === 'programming' ? deptRaw : 'both'
+      const dept = deptRaw === 'both' ? 'both' : 'tech'
 
-      if (dept === 'mechanical') mech_total++
-      else if (dept === 'programming') prog_total++
+      if (dept === 'tech') tech_total++
       else both_total++
 
       let available = false
@@ -1034,8 +977,7 @@ export const reportRepo = {
       }
 
       if (available) {
-        if (dept === 'mechanical') mech_avail++
-        else if (dept === 'programming') prog_avail++
+        if (dept === 'tech') tech_avail++
         else both_avail++
       } else if (reason && reason !== 'not_marked') {
         unavailable.push({
@@ -1048,11 +990,9 @@ export const reportRepo = {
     }
 
     return {
-      mechanical_total: mech_total,
-      mechanical_available: mech_avail,
-      programming_total: prog_total,
-      programming_available: prog_avail,
-      both_total: both_total,
+      tech_total,
+      tech_available: tech_avail,
+      both_total,
       both_available: both_avail,
       not_marked,
       unavailable_reason: unavailable,
@@ -1074,8 +1014,7 @@ export const reportRepo = {
     total_revenue: number
     avg_hours_per_job: number
     avg_revenue_per_job: number
-    mechanical_jobs: number
-    programming_jobs: number
+    tech_jobs: number
     both_jobs: number
   }> {
     const clamped = clampDateRange(params.fromDate, params.toDate)
@@ -1117,8 +1056,7 @@ export const reportRepo = {
       total_revenue: number
       avg_hours_per_job: number
       avg_revenue_per_job: number
-      mechanical_jobs: number
-      programming_jobs: number
+      tech_jobs: number
       both_jobs: number
     }
 
@@ -1149,13 +1087,9 @@ export const reportRepo = {
           ELSE 0
         END AS avg_revenue_per_job,
         SUM(CASE
-          WHEN cr.department = 'mechanical'
+          WHEN cr.department != 'both'
           THEN 1 ELSE 0
-        END) AS mechanical_jobs,
-        SUM(CASE
-          WHEN cr.department = 'programming'
-          THEN 1 ELSE 0
-        END) AS programming_jobs,
+        END) AS tech_jobs,
         SUM(CASE
           WHEN cr.department = 'both'
           THEN 1 ELSE 0

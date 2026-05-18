@@ -87,7 +87,7 @@ export default function JobInvoiceWizardModal(props: {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [job, setJob] = useState<JobRecord | null>(null)
-  const [storeName, setStoreName] = useState('Mahali Garage')
+  const [storeName, setStoreName] = useState('Power Key')
   const [existingInvoice, setExistingInvoice] = useState<ExistingInvoiceBrief | null>(null)
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
