@@ -16,7 +16,7 @@ export const backupService = {
       const db = getDb()
       const dir = defaultBackupDir()
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-      const destPath = path.join(dir, `mahali-backup-${ts}.db`)
+      const destPath = path.join(dir, `power-key-backup-${ts}.db`)
 
       // SQLite online backup using VACUUM INTO (available in SQLite 3.27+)
       db.prepare(`VACUUM INTO ?`).run(destPath)

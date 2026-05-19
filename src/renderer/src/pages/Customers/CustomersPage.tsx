@@ -10,7 +10,7 @@ import { useDebounce } from '../../hooks/useDebounce'
 import CurrencyText from '../../components/shared/CurrencyText'
 import CustomerForm from './CustomerForm'
 import CustomerProfile from './CustomerProfile'
-import VehicleHistoryPage from './VehicleHistoryPage'
+import VehicleHistoryPage from './DeviceHistoryPage'
 
 interface Customer {
   id: number; name: string; phone: string | null; email: string | null

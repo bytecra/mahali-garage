@@ -13,19 +13,20 @@ export function migration010(db: Database.Database): void {
     );
 
     INSERT OR IGNORE INTO job_types (name, description, sort_order) VALUES
-      ('General Service',   'Routine maintenance and service',        1),
-      ('Oil Change',        'Oil and filter change service',          2),
-      ('Brake Service',     'Brake inspection and repair',            3),
-      ('Engine Repair',     'Engine diagnostics and repairs',         4),
-      ('Transmission Work', 'Transmission service and repair',        5),
-      ('Electrical Repair', 'Electrical system diagnostics',          6),
-      ('Body Work',         'Body and paint work',                    7),
-      ('Tire Service',      'Tire replacement and balancing',         8),
-      ('Diagnostic',        'General diagnostic services',            9),
-      ('AC/Heating',        'Climate control service',               10),
-      ('Suspension',        'Suspension and steering repair',        11),
-      ('Exhaust System',    'Exhaust system repair',                 12),
-      ('Custom Work',       'Custom modifications',                  13),
-      ('Other',             'Other services',                        14);
+      ('Build New PC',       'Full custom PC build from components',          1),
+      ('PC Repair',          'Diagnose and repair desktop PC issues',         2),
+      ('Laptop Repair',      'Diagnose and repair laptop issues',             3),
+      ('Console Repair',     'Repair gaming consoles (PS, Xbox, Nintendo)',   4),
+      ('PC Cleaning',        'Internal dust cleaning and thermal paste',      5),
+      ('Console Cleaning',   'Internal cleaning of gaming consoles',          6),
+      ('OS Installation',    'Windows / Linux installation and setup',        7),
+      ('Software Setup',     'Driver, software, and game installation',       8),
+      ('Upgrade',            'RAM, SSD, GPU or other hardware upgrade',       9),
+      ('Data Recovery',      'Recover data from failed drives',              10),
+      ('Network Setup',      'Home or office network and router setup',      11),
+      ('Virus Removal',      'Malware and virus removal',                    12),
+      ('Screen Replacement', 'Laptop or monitor screen replacement',         13),
+      ('Controller Repair',  'Gamepad and controller repair',                14),
+      ('Other',              'Other services',                               15);
   `)
 }

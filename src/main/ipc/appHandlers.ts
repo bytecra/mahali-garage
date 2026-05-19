@@ -34,7 +34,7 @@ function pickReleaseAsset(
       if (n.endsWith('.exe')) s += 5
       if (n.endsWith('.msi')) s += 4
       if (/setup|installer|squirrel|full|x64|win64|amd64/i.test(n)) s += 3
-      if (/^mahali|garage/i.test(n)) s += 1
+      if (/^power.key/i.test(n)) s += 1
     } else if (plat === 'darwin') {
       if (n.endsWith('.dmg')) s += 5
       if (n.endsWith('.pkg')) s += 4
@@ -69,11 +69,11 @@ export function registerAppHandlers(): void {
     try {
       const currentVersion = app.getVersion()
       const response = await fetch(
-        'https://api.github.com/repos/bytecra/mahali-garage/releases/latest',
+        'https://api.github.com/repos/bytecra/power-key/releases/latest',
         {
           headers: {
             Accept: 'application/vnd.github.v3+json',
-            'User-Agent': 'Mahali-Garage-App',
+            'User-Agent': 'Power-Key-App',
           },
           signal: AbortSignal.timeout(10000),
         }
@@ -140,10 +140,10 @@ export function registerAppHandlers(): void {
       }
       const url = downloadUrl.trim()
       const downloadsPath = app.getPath('downloads')
-      const rawName = url.split('/').pop() ?? 'mahali-garage-update.exe'
+      const rawName = url.split('/').pop() ?? 'power-key-update.exe'
       const baseClean = rawName.split('?')[0] || 'setup.exe'
       const ext = path.extname(baseClean) || (process.platform === 'win32' ? '.exe' : '')
-      const fileName = `mahali-garage-update-${Date.now()}${ext}`
+      const fileName = `power-key-update-${Date.now()}${ext}`
       const destPath = path.join(downloadsPath, fileName)
 
       return await new Promise<
@@ -257,6 +257,16 @@ export function registerAppHandlers(): void {
     if (!trimmed.startsWith('https://')) return
     if (!authService.getSession(event.sender.id)) return
     await shell.openExternal(trimmed)
+  })
+
+  ipcMain.handle('app:setZoom', (event, factor: unknown) => {
+    const f = Number(factor)
+    if (!Number.isFinite(f) || f < 0.5 || f > 2.0) return
+    event.sender.setZoomFactor(f)
+  })
+
+  ipcMain.handle('app:getZoom', (event) => {
+    return event.sender.getZoomFactor()
   })
 
 }

@@ -103,6 +103,17 @@ export function registerBuybackHandlers(): void {
     }
   })
 
+  ipcMain.handle('buybacks:listByCustomer', (event, customerId: number) => {
+    try {
+      if (!authService.hasPermission(event.sender.id, 'repairs.view'))
+        return err('Forbidden', 'ERR_FORBIDDEN')
+      return ok(buybackRepo.listByCustomer(customerId))
+    } catch (e) {
+      log.error('buybacks:listByCustomer', e)
+      return err('Failed')
+    }
+  })
+
   ipcMain.handle('buybacks:delete', (event, id: number) => {
     try {
       if (!authService.hasPermission(event.sender.id, 'repairs.edit'))

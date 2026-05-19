@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { vehicleRepo } from '../database/repositories/vehicleRepo'
+import { vehicleRepo } from '../database/repositories/deviceRepo'
 import { authService } from '../services/authService'
 import { hasFeature } from '../licensing/license-manager'
 import { ok, err } from '../utils/ipcResponse'
@@ -15,7 +15,7 @@ function requireLicense(feature: string): string | null {
   return null
 }
 
-export function registerVehicleHandlers(): void {
+export function registerDeviceHandlers(): void {
   ipcMain.handle('vehicles:list', (event, filters) => {
     try {
       const licErr = requireLicense('vehicles.view')

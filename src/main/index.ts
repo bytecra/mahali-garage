@@ -3,7 +3,7 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { is } from '@electron-toolkit/utils'
 import log from 'electron-log'
-import { initDatabase } from './database/index'
+import { initDatabase, getDb } from './database/index'
 import { registerAllHandlers } from './ipc/index'
 import { checkLicense } from './licensing/license-manager'
 import { initBackupScheduler, stopBackupScheduler } from './services/backupScheduler'
@@ -36,6 +36,16 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+    try {
+      const db = getDb()
+      const row = db.prepare(`SELECT value FROM settings WHERE key = 'app.zoom_factor'`).get() as { value: string } | undefined
+      const factor = row ? parseFloat(row.value) : 1.0
+      if (Number.isFinite(factor) && factor >= 0.5 && factor <= 2.0) {
+        mainWindow?.webContents.setZoomFactor(factor)
+      }
+    } catch {
+      // zoom restore is best-effort
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

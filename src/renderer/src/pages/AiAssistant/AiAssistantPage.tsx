@@ -6,11 +6,11 @@ export default function AiAssistantPage() {
 
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-foreground">
-          Mahali AI Assistant
+          Power Key AI Assistant
         </h1>
         <p className="text-muted-foreground text-sm max-w-md">
           Coming soon — Data is the fuel for AI,
-          like the fuel for a car 🚗⛽
+          like power is the key to gaming ⚡🎮
         </p>
         <p className="text-muted-foreground text-sm">
           Wait for our update soon. Thank you!

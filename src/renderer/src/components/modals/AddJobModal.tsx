@@ -14,17 +14,16 @@ import JobDetailsTab, {
   type JobFormState,
 } from './job-tabs/JobDetailsTab'
 import type { InspectionMarker, InspectionMarkerType } from '../inspection/carInspectionTypes'
-import CarInspectionTab from './job-tabs/CarInspectionTab'
 import JobPaymentTab from './job-tabs/JobPaymentTab'
 import ProgressTab from './job-tabs/ProgressTab'
 import LogTab from './job-tabs/LogTab'
 import AttachmentTab from './job-tabs/AttachmentTab'
 import CustomerTab from './job-tabs/CustomerTab'
-import CarTab from './job-tabs/CarTab'
+import CarTab from './job-tabs/DeviceTab'
 import type { VehicleOption } from './job-tabs/vehicleOption'
 import InvoiceCreatedModal, { type InvoiceCreatedPayload } from './InvoiceCreatedModal'
 
-type TabId = 'customer-vehicle' | 'job' | 'payment' | 'inspection' | 'attachment' | 'progress' | 'log'
+type TabId = 'customer-vehicle' | 'job' | 'payment' | 'attachment' | 'progress' | 'log'
 
 interface Props {
   open: boolean
@@ -538,8 +537,8 @@ export default function AddJobModal({
   }, [isEdit, loadedProfileComplete, markProfileComplete])
 
   const handleSave = async (): Promise<void> => {
-    if (!selectedCustomer || !selectedVehicle) {
-      toast.error('Select a customer and vehicle (Customer & Vehicle tab).')
+    if (!selectedCustomer) {
+      toast.error('Select a customer (Customer tab).')
       return
     }
     if (lineValidationRequired && !validateLines()) return
@@ -826,10 +825,9 @@ export default function AddJobModal({
     )
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'customer-vehicle', label: 'Customer & Vehicle' },
+    { id: 'customer-vehicle', label: 'Customer' },
     { id: 'job', label: 'Job' },
     { id: 'payment', label: 'Payment' },
-    { id: 'inspection', label: 'Car inspection' },
     { id: 'attachment', label: 'Attachment' },
     { id: 'progress', label: 'Progress' },
     { id: 'log', label: 'History' },
@@ -998,33 +996,6 @@ export default function AddJobModal({
                   onSelectCustomer={handleSelectCustomer}
                   onCustomerUpdated={handleCustomerRecordUpdated}
                 />
-                <div className="border-t border-border pt-4">
-                  <CarTab
-                    jobCardId={effectiveJobId}
-                    warrantyRefreshKey={attachmentLogTick}
-                    customerId={selectedCustomer?.id ?? null}
-                    allVehicles={vehicles}
-                    selectedVehicle={selectedVehicle}
-                    onSelectVehicle={handleSelectVehicle}
-                    onVehicleUpdated={handleVehicleRecordUpdated}
-                    onOpenInvoiceWizard={
-                      onOpenInvoiceWizard && effectiveJobId
-                        ? () => onOpenInvoiceWizard(effectiveJobId)
-                        : undefined
-                    }
-                    onGenerateInvoice={() => void generateInvoice()}
-                    invoiceLoading={invoiceLoading}
-                    canGenerateInvoice={canGenerateInvoice}
-                    showInvoiceActions={false}
-                    showLinkedInvoiceSummary={false}
-                    showWarranties={false}
-                    linkedJobInvoice={linkedJobInvoice}
-                    onViewInvoiceInList={num => {
-                      onClose()
-                      navigate(`/invoices?highlight=${encodeURIComponent(num)}`)
-                    }}
-                  />
-                </div>
               </div>
             )}
             {tab === 'job' && (
@@ -1086,21 +1057,6 @@ export default function AddJobModal({
                   onClose()
                   navigate(`/invoices?highlight=${encodeURIComponent(num)}`)
                 }}
-              />
-            )}
-            {tab === 'inspection' && (
-              <CarInspectionTab
-                showInspection={showInspection}
-                setShowInspection={setShowInspection}
-                inspectionMarkers={inspectionMarkers}
-                setInspectionMarkers={setInspectionMarkers}
-                inspectionNotes={inspectionNotes}
-                setInspectionNotes={setInspectionNotes}
-                selectedMarkerType={selectedMarkerType}
-                setSelectedMarkerType={setSelectedMarkerType}
-                showInspectionOnInvoice={showInspectionOnInvoice}
-                onShowInspectionOnInvoiceChange={handleInspectionOnInvoiceChange}
-                hasJobInvoice={Boolean(linkedJobInvoice)}
               />
             )}
             {tab === 'progress' && <ProgressTab jobCardId={effectiveJobId} />}

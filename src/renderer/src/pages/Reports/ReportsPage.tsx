@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, FileSpreadsheet, FileText, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Legend } from 'recharts'
-import { formatCurrency, formatDate } from '../../lib/utils'
+import { formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { FeatureGate } from '../../components/FeatureGate'
 import { toast } from '../../store/notificationStore'
@@ -2258,7 +2258,7 @@ function ReportsPageInner(): JSX.Element {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="idx" tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => Number(v).toFixed(2)} />
                   <Legend />
                   <Bar dataKey="revenue1" name={compareData.p1.label} fill="#2563eb" radius={[2, 2, 0, 0]} />
                   <Bar dataKey="revenue2" name={compareData.p2.label} fill="#d97706" radius={[2, 2, 0, 0]} />
@@ -2296,7 +2296,7 @@ function ReportsPageInner(): JSX.Element {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="idx" tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => Number(v).toFixed(2)} />
                   <Legend />
                   <Line type="monotone" dataKey="revenue1" name={`${compareData.p1.label} revenue`} stroke="#2563eb" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="revenue2" name={`${compareData.p2.label} revenue`} stroke="#d97706" strokeWidth={2} dot={false} />
@@ -2311,7 +2311,7 @@ function ReportsPageInner(): JSX.Element {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => Number(v).toFixed(2)} />
                   <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} name="Revenue" />
                   <Line type="monotone" dataKey="gross_profit" stroke="#22c55e" strokeWidth={2} name="Profit" />
                   <Line type="monotone" dataKey="cogs" stroke="#ef4444" strokeWidth={2} strokeDasharray="4 2" name="COGS" />
@@ -2327,7 +2327,7 @@ function ReportsPageInner(): JSX.Element {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
                   <YAxis dataKey="category_name" type="category" tick={{ fontSize: 10 }} width={90} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => Number(v).toFixed(2)} />
                   <Bar dataKey="total" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -2340,7 +2340,7 @@ function ReportsPageInner(): JSX.Element {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: number) => Number(v).toFixed(2)} />
                   <Bar dataKey="total" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

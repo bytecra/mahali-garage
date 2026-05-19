@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDebounce } from '../../hooks/useDebounce'
 import Modal from '../shared/Modal'
 import AddCustomerModal from './sub-modals/AddCustomerModal'
-import AddCarModal from './sub-modals/AddCarModal'
+import AddCarModal from './sub-modals/AddDeviceModal'
 import { toast } from '../../store/notificationStore'
 import type { VehicleOption } from './job-tabs/vehicleOption'
 
@@ -86,21 +86,17 @@ export default function QuickCreateJobModal(props: {
     if (selectedVehicle.owner_id !== selectedCustomer.id) setSelectedVehicle(null)
   }, [selectedCustomer, selectedVehicle])
 
-  const canSave = !!selectedCustomer && !!selectedVehicle
+  const canSave = !!selectedCustomer
 
   const handleSave = async (): Promise<void> => {
-    if (!selectedCustomer || !selectedVehicle) {
-      toast.error('Select a customer and a vehicle')
-      return
-    }
-    if (selectedVehicle.owner_id !== selectedCustomer.id) {
-      toast.error('Vehicle does not belong to this customer')
+    if (!selectedCustomer) {
+      toast.error('Select a customer')
       return
     }
     setSaving(true)
     try {
       const res = await window.electronAPI.jobCards.create({
-        vehicle_id: selectedVehicle.id,
+        vehicle_id: selectedVehicle?.id ?? null,
         owner_id: selectedCustomer.id,
         job_type: jobType || 'General Service',
         department,
@@ -134,7 +130,7 @@ export default function QuickCreateJobModal(props: {
     <>
       <Modal
         open={open}
-        title="Quick create job"
+        title="Quick Create Work Order"
         onClose={onClose}
         size="lg"
         footer={
@@ -218,7 +214,7 @@ export default function QuickCreateJobModal(props: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Vehicle *</label>
+            <label className="block text-sm font-medium mb-1">Device *</label>
             {!selectedCustomer ? (
               <p className="text-xs text-muted-foreground border border-dashed rounded-md p-4 text-center">Select a customer first</p>
             ) : (
@@ -269,30 +265,6 @@ export default function QuickCreateJobModal(props: {
             </select>
           </div>
 
-          <div>
-            <span className="block text-sm font-medium mb-2">Department (required)</span>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ['tech', 'Tech'],
-                  ['both', 'Both'],
-                ] as const
-              ).map(([val, label]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setDepartment(val)}
-                  className={`px-3 py-1.5 rounded-md text-sm border ${
-                    department === val
-                      ? 'border-primary bg-primary/10 text-primary font-medium'
-                      : 'border-border hover:bg-muted'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </Modal>
 

@@ -103,6 +103,81 @@ interface StoreDocumentRow {
   created_at: string
 }
 
+const ZOOM_STEPS = [0.75, 0.85, 1.0, 1.15, 1.25, 1.5, 1.75, 2.0]
+const ZOOM_LABELS: Record<number, string> = {
+  0.75: '75%', 0.85: '85%', 1.0: '100%', 1.15: '115%',
+  1.25: '125%', 1.5: '150%', 1.75: '175%', 2.0: '200%',
+}
+
+function AppearanceTab({ labelCls }: { labelCls: string }): JSX.Element {
+  const { t } = useTranslation()
+  const { theme, setTheme } = useThemeStore()
+  const { lang, setLang } = useLangStore()
+  const [zoom, setZoomState] = useState<number>(1.0)
+
+  useEffect(() => {
+    window.electronAPI.app.getZoom().then(f => {
+      const factor = typeof f === 'number' && Number.isFinite(f) ? f : 1.0
+      const closest = ZOOM_STEPS.reduce((a, b) => Math.abs(b - factor) < Math.abs(a - factor) ? b : a)
+      setZoomState(closest)
+    }).catch(() => {})
+  }, [])
+
+  function applyZoom(factor: number) {
+    setZoomState(factor)
+    window.electronAPI.app.setZoom(factor)
+    window.electronAPI.settings.set('app.zoom_factor', String(factor)).catch(() => {})
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-muted-foreground">{t('settings.userPreferencesHint')}</p>
+      <div>
+        <label className={labelCls}>{t('settings.theme')}</label>
+        <div className="flex gap-3 mt-1">
+          {(['light','dark','system'] as const).map(th => (
+            <button key={th} onClick={() => setTheme(th)}
+              className={`px-4 py-2 text-sm rounded-md border-2 capitalize font-medium transition-colors ${theme === th ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-muted-foreground'}`}>
+              {th}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className={labelCls}>{t('settings.language')}</label>
+        <div className="flex gap-3 mt-1">
+          {([['en', 'English'], ['ar', 'العربية']] as const).map(([code, label]) => (
+            <button key={code} onClick={() => setLang(code)}
+              className={`px-4 py-2 text-sm rounded-md border-2 font-medium transition-colors ${lang === code ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-muted-foreground'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className={labelCls}>Interface Size</label>
+        <p className="text-xs text-muted-foreground mb-3">Adjust the size of text and icons across the app.</p>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground w-6">A</span>
+          <div className="flex gap-2 flex-1 flex-wrap">
+            {ZOOM_STEPS.map(step => (
+              <button
+                key={step}
+                onClick={() => applyZoom(step)}
+                className={`px-3 py-1.5 text-sm rounded-md border-2 font-medium transition-colors ${zoom === step ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-muted-foreground'}`}
+              >
+                {ZOOM_LABELS[step]}
+              </button>
+            ))}
+          </div>
+          <span className="text-base text-muted-foreground w-6">A</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">Current: <strong>{ZOOM_LABELS[zoom] ?? `${Math.round(zoom * 100)}%`}</strong></p>
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsPage(): JSX.Element {
   const { t } = useTranslation()
   const { theme, setTheme } = useThemeStore()
@@ -501,7 +576,7 @@ export default function SettingsPage(): JSX.Element {
     { key: 'payment',    label: t('settings.paymentMethods'), guard: canSettings },
     { key: 'job-types',  label: t('settings.jobTypes', { defaultValue: 'Job Types' }), guard: canSettings },
     { key: 'warranty',  label: 'Warranties', guard: canSettings },
-    { key: 'car-brands', label: t('settings.carBrands', { defaultValue: 'Car Brands' }), guard: canSettings },
+
     { key: 'dashboard',  label: 'Dashboard', guard: canSettings },
     { key: 'tv-display', label: t('settings.tvDisplay', { defaultValue: 'TV Display' }), guard: canSettings },
     { key: 'payroll',    label: t('settings.payroll', { defaultValue: 'Payroll' }), guard: canSettings },
@@ -909,7 +984,7 @@ export default function SettingsPage(): JSX.Element {
         ))}
       </div>
 
-      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'car-brands' || tab === 'invoice' ? 'max-w-3xl' : tab === 'about' ? 'max-w-md' : 'max-w-2xl'}`}>
+      <div className={`bg-card border border-border rounded-xl p-6 ${tab === 'invoice' ? 'max-w-3xl' : tab === 'about' ? 'max-w-md' : 'max-w-2xl'}`}>
 
         {tab === 'store' && (
           <div className="space-y-4">
@@ -1474,31 +1549,7 @@ export default function SettingsPage(): JSX.Element {
         )}
 
         {tab === 'appearance' && (
-          <div className="space-y-5">
-            <p className="text-sm text-muted-foreground">{t('settings.userPreferencesHint')}</p>
-            <div>
-              <label className={labelCls}>{t('settings.theme')}</label>
-              <div className="flex gap-3 mt-1">
-                {(['light','dark','system'] as const).map(th => (
-                  <button key={th} onClick={() => setTheme(th)}
-                    className={`px-4 py-2 text-sm rounded-md border-2 capitalize font-medium transition-colors ${theme === th ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-muted-foreground'}`}>
-                    {th}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className={labelCls}>{t('settings.language')}</label>
-              <div className="flex gap-3 mt-1">
-                {([['en', 'English'], ['ar', 'العربية']] as const).map(([code, label]) => (
-                  <button key={code} onClick={() => setLang(code)}
-                    className={`px-4 py-2 text-sm rounded-md border-2 font-medium transition-colors ${lang === code ? 'border-primary text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-muted-foreground'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <AppearanceTab labelCls={labelCls} />
         )}
 
         {tab === 'payment' && (
@@ -2012,11 +2063,6 @@ export default function SettingsPage(): JSX.Element {
           </Suspense>
         )}
 
-        {tab === 'car-brands' && (
-          <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>}>
-            <CarBrandsSettings />
-          </Suspense>
-        )}
 
         {tab === 'license' && (
           <div className="space-y-6">

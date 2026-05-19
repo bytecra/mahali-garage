@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus, Search, Cpu, ChevronRight, X, Check, Ban, TrendingUp, TrendingDown, Package } from 'lucide-react'
+import { Plus, Search, Cpu, X, Check, Ban, TrendingUp, TrendingDown, Package } from 'lucide-react'
 import type { BuildRow, BuildCreateInput } from '../../types/electron'
 import { toast } from '../../store/notificationStore'
-import { useCurrencyStore } from '../../store/currencyStore'
 import { useDebounce } from '../../hooks/useDebounce'
+import CurrencyText from '../../components/shared/CurrencyText'
+import { DIRHAM_PATH } from '../../lib/dirhamSvg'
 
-function fmtMoney(symbol: string, amount: number): string {
-  return `${symbol}${amount.toFixed(2)}`
+// ── Inline Dirham icon for use in labels ─────────────────────────────────────
+function DirhamIcon({ className = '' }: { className?: string }): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 85.41 74.28"
+      aria-hidden="true"
+      className={className}
+      style={{ height: '0.85em', width: 'auto', display: 'inline-block', verticalAlign: '-0.05em' }}
+    >
+      <path fill="currentColor" d={DIRHAM_PATH} />
+    </svg>
+  )
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -48,12 +59,10 @@ interface LineItem {
 
 function ProductSearchRow({
   item,
-  symbol,
   onChange,
   onRemove,
 }: {
   item: LineItem
-  symbol: string
   onChange: (patch: Partial<LineItem>) => void
   onRemove: () => void
 }): JSX.Element {
@@ -63,7 +72,6 @@ function ProductSearchRow({
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handler(e: MouseEvent): void {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
@@ -72,7 +80,6 @@ function ProductSearchRow({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Search products
   useEffect(() => {
     if (!dQuery.trim() || item.product_id !== null) { setHits([]); return }
     void window.electronAPI.products.search(dQuery).then(res => {
@@ -132,8 +139,8 @@ function ProductSearchRow({
                       {p.sku && <p className="text-xs text-muted-foreground">{p.sku}</p>}
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-xs font-mono text-muted-foreground">{fmtMoney('', p.cost_price)}</p>
-                      <p className={`text-xs ${p.stock_quantity === 0 ? 'text-red-400' : 'text-green-400'}`}>
+                      <CurrencyText amount={p.cost_price} className="text-xs text-muted-foreground" />
+                      <p className={`text-xs mt-0.5 ${p.stock_quantity === 0 ? 'text-red-400' : 'text-green-400'}`}>
                         {p.stock_quantity} in stock
                       </p>
                     </div>
@@ -192,8 +199,8 @@ function ProductSearchRow({
       </div>
 
       {/* Line total */}
-      <div className="col-span-2 py-1.5 text-right text-sm font-mono text-muted-foreground">
-        {fmtMoney('', lineTotal)}
+      <div className="col-span-2 py-1.5 flex justify-end">
+        <CurrencyText amount={lineTotal} className="text-sm text-muted-foreground" />
       </div>
 
       {/* Remove */}
@@ -209,16 +216,12 @@ function ProductSearchRow({
 // ── New build modal ───────────────────────────────────────────────────────────
 
 function NewBuildModal({
-  symbol,
   onClose,
   onCreated,
 }: {
-  symbol: string
   onClose: () => void
   onCreated: () => void
 }): JSX.Element {
-  const fmt = (n: number): string => fmtMoney(symbol, n)
-
   const [name, setName] = useState('')
   const [sellPrice, setSellPrice] = useState<string>('')
   const [notes, setNotes] = useState('')
@@ -308,7 +311,9 @@ function NewBuildModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Sell Price ({symbol})</label>
+              <label className="block text-xs font-medium mb-1 flex items-center gap-1">
+                Sell Price <DirhamIcon />
+              </label>
               <input
                 type="number"
                 value={sellPrice}
@@ -323,10 +328,11 @@ function NewBuildModal({
 
           {/* Components table */}
           <div>
-            {/* Column headers */}
             <div className="grid grid-cols-12 gap-2 mb-1.5 px-0.5">
               <span className="col-span-5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Product</span>
-              <span className="col-span-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Unit Cost</span>
+              <span className="col-span-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">
+                Unit Cost <DirhamIcon />
+              </span>
               <span className="col-span-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Qty</span>
               <span className="col-span-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-right">Total</span>
               <span className="col-span-1" />
@@ -337,7 +343,6 @@ function NewBuildModal({
                 <ProductSearchRow
                   key={i}
                   item={item}
-                  symbol={symbol}
                   onChange={patch => patchRow(i, patch)}
                   onRemove={() => removeRow(i)}
                 />
@@ -365,50 +370,53 @@ function NewBuildModal({
           </div>
         </div>
 
-        {/* Profit summary bar */}
+        {/* Live profit summary */}
         <div className="border-t border-border bg-muted/30 px-5 py-3">
           <div className="grid grid-cols-4 gap-4 text-center">
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Parts Cost</p>
-              <p className="font-mono font-semibold text-sm">{fmt(totalCost)}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Parts Cost</p>
+              <CurrencyText amount={totalCost} className="font-semibold text-sm" />
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Sell Price</p>
-              <p className="font-mono font-semibold text-sm">{sellNum > 0 ? fmt(sellNum) : '—'}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Sell Price</p>
+              {sellNum > 0
+                ? <CurrencyText amount={sellNum} className="font-semibold text-sm" />
+                : <span className="text-sm text-muted-foreground">—</span>
+              }
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Profit</p>
-              <p className={`font-mono font-semibold text-sm flex items-center justify-center gap-1 ${
-                sellNum === 0 ? 'text-muted-foreground' : profitPositive ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {sellNum > 0 ? (
-                  <>
-                    {profitPositive
-                      ? <TrendingUp className="w-3.5 h-3.5" />
-                      : <TrendingDown className="w-3.5 h-3.5" />
-                    }
-                    {fmt(profit)}
-                  </>
-                ) : '—'}
-              </p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Profit</p>
+              {sellNum > 0 ? (
+                <span className={`inline-flex items-center gap-1 font-semibold text-sm ${
+                  profitPositive ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {profitPositive
+                    ? <TrendingUp className="w-3.5 h-3.5" />
+                    : <TrendingDown className="w-3.5 h-3.5" />
+                  }
+                  <CurrencyText amount={profit} className="text-inherit" />
+                </span>
+              ) : <span className="text-sm text-muted-foreground">—</span>}
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Margin</p>
-              <p className={`font-mono font-semibold text-sm ${
-                sellNum === 0 ? 'text-muted-foreground' : profitPositive ? 'text-green-400' : 'text-red-400'
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Margin</p>
+              <span className={`font-semibold text-sm ${
+                sellNum === 0
+                  ? 'text-muted-foreground'
+                  : profitPositive ? 'text-green-400' : 'text-red-400'
               }`}>
                 {sellNum > 0 ? `${margin.toFixed(1)}%` : '—'}
-              </p>
+              </span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-border">
-          {hasOverStock && (
-            <p className="text-xs text-red-400">⚠ Some items exceed available stock</p>
-          )}
-          {!hasOverStock && <span />}
+          {hasOverStock
+            ? <p className="text-xs text-red-400">⚠ Some items exceed available stock</p>
+            : <span />
+          }
           <div className="flex gap-2">
             <button
               type="button"
@@ -435,9 +443,6 @@ function NewBuildModal({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function BuildsPage(): JSX.Element {
-  const { symbol } = useCurrencyStore()
-  const fmt = (n: number): string => fmtMoney(symbol, n)
-
   const [builds, setBuilds] = useState<BuildRow[]>([])
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
@@ -507,9 +512,15 @@ export default function BuildsPage(): JSX.Element {
             <tr>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Build</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Customer</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Parts Cost</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sell Price</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Profit</th>
+              <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                Parts Cost <DirhamIcon />
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                Sell Price <DirhamIcon />
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                Profit <DirhamIcon />
+              </th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
               <th className="px-4 py-3" />
@@ -541,14 +552,23 @@ export default function BuildsPage(): JSX.Element {
                     </p>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{b.customer_name ?? '—'}</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm">{fmt(cost)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm">{sell > 0 ? fmt(sell) : '—'}</td>
-                  <td className="px-4 py-3 text-right font-mono text-sm">
-                    {bProfit !== null ? (
-                      <span className={bProfit >= 0 ? 'text-green-400' : 'text-red-400'}>
-                        {fmt(bProfit)}
-                      </span>
-                    ) : '—'}
+                  <td className="px-4 py-3 text-right">
+                    <CurrencyText amount={cost} className="text-sm" />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {sell > 0
+                      ? <CurrencyText amount={sell} className="text-sm" />
+                      : <span className="text-muted-foreground">—</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {bProfit !== null
+                      ? <CurrencyText
+                          amount={bProfit}
+                          className={`text-sm ${bProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                        />
+                      : <span className="text-muted-foreground">—</span>
+                    }
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[b.status] ?? ''}`}>
@@ -563,7 +583,7 @@ export default function BuildsPage(): JSX.Element {
                           type="button"
                           title="Reserve stock for this build"
                           onClick={() => void handleAction(b.id, 'reserve')}
-                          className="p-1.5 rounded hover:bg-yellow-500/20 text-yellow-400 text-xs font-medium"
+                          className="px-2 py-1 rounded hover:bg-yellow-500/20 text-yellow-400 text-xs font-medium"
                         >
                           Reserve
                         </button>
@@ -603,7 +623,6 @@ export default function BuildsPage(): JSX.Element {
 
       {showNew && (
         <NewBuildModal
-          symbol={symbol}
           onClose={() => setShowNew(false)}
           onCreated={() => void load()}
         />

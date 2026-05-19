@@ -730,6 +730,7 @@ declare global {
         markSold:           (id: number, resalePrice: number) => Promise<IpcResponse<boolean>>
         promoteToInventory: (id: number, productData: { name: string; sell_price: number; cost_price: number; category_id?: number | null }) => Promise<IpcResponse<number>>
         delete:             (id: number) => Promise<IpcResponse<boolean>>
+        listByCustomer:     (customerId: number) => Promise<IpcResponse<{ boughtFrom: BuybackRow[]; soldTo: BuybackRow[] }>>
       }
     }
   }
@@ -798,6 +799,8 @@ export interface BuildCreateInput {
 export interface BuybackRow {
   id: number
   customer_id: number | null
+  sold_to_customer_id: number | null
+  sold_to_customer_name?: string
   device_type: string
   brand: string | null
   model: string | null

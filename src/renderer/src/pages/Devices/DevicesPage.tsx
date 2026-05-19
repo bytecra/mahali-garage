@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Monitor, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Monitor, Pencil, Trash2, PlusCircle, X } from 'lucide-react'
 import SearchInput from '../../components/shared/SearchInput'
 import Pagination from '../../components/shared/Pagination'
 import EmptyState from '../../components/shared/EmptyState'
@@ -18,6 +18,32 @@ interface Vehicle {
   mileage: number; owner_name: string | null; owner_id: number | null
   engine_type: string | null; transmission: string | null
   insurance_company: string | null; insurance_expiry: string | null
+  specs_json: string | null
+}
+
+const DEVICE_SPEC_FIELDS: Record<string, string[]> = {
+  'Desktop PC': ['CPU', 'GPU', 'RAM', 'Storage (SSD)', 'Storage (HDD)', 'Motherboard', 'PSU', 'Case', 'Operating System'],
+  'Laptop':     ['CPU', 'GPU', 'RAM', 'Storage', 'Screen Size', 'Battery Health', 'Operating System'],
+  'Console':    ['Storage', 'Firmware Version', 'Controller Count'],
+  'Handheld':   ['Storage', 'Battery Health', 'Firmware Version'],
+  'Monitor':    ['Screen Size', 'Resolution', 'Refresh Rate', 'Panel Type'],
+  'Peripheral': ['Connection Type', 'Compatibility'],
+  'Other':      [],
+}
+
+// Fields that support multiple entries (e.g. 2× RAM sticks, 3× drives)
+const MULTI_SPEC_FIELDS = new Set(['RAM', 'Storage (SSD)', 'Storage (HDD)', 'Storage'])
+
+// Specs stored as: single fields → string, multi fields → string[]
+type SpecsState = Record<string, string | string[]>
+
+function getSpecString(specs: SpecsState, field: string): string {
+  const v = specs[field]
+  return typeof v === 'string' ? v : ''
+}
+function getSpecArray(specs: SpecsState, field: string): string[] {
+  const v = specs[field]
+  return Array.isArray(v) ? v : (v ? [v as string] : [''])
 }
 
 interface VehicleFormData {
@@ -50,6 +76,7 @@ function VehiclesInner(): JSX.Element {
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null)
   const [owners, setOwners] = useState<{ id: number; name: string }[]>([])
+  const [specs, setSpecs] = useState<SpecsState>({})
 
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -64,7 +91,7 @@ function VehiclesInner(): JSX.Element {
   }, [dSearch, page])
 
   const openCreate = useCallback(async () => {
-    setEditId(null); setForm(emptyForm)
+    setEditId(null); setForm(emptyForm); setSpecs({})
     const res = await window.electronAPI.customers.list({ pageSize: 200 })
     if (res.success) setOwners((res.data as { items: { id: number; name: string }[] }).items)
     setFormOpen(true)
@@ -93,6 +120,7 @@ function VehiclesInner(): JSX.Element {
       insurance_company: (d.insurance_company as string) ?? '', insurance_policy: (d.insurance_policy as string) ?? '',
       insurance_expiry: (d.insurance_expiry as string) ?? '', notes: (d.notes as string) ?? '',
     })
+    setSpecs(JSON.parse((d.specs_json as string) || '{}'))
     const ownerRes = await window.electronAPI.customers.list({ pageSize: 200 })
     if (ownerRes.success) setOwners((ownerRes.data as { items: { id: number; name: string }[] }).items)
     setFormOpen(true)
@@ -105,6 +133,7 @@ function VehiclesInner(): JSX.Element {
       ...form,
       year: form.year ? Number(form.year) : null,
       mileage: Number(form.mileage) || 0,
+      specs_json: JSON.stringify(specs),
     }
     const res = editId
       ? await window.electronAPI.vehicles.update(editId, payload)
@@ -199,7 +228,7 @@ function VehiclesInner(): JSX.Element {
             </select>
           </div>
           <div><label className="block text-sm font-medium mb-1">Device Type</label>
-            <select value={form.engine_type} onChange={e => setForm(f => ({ ...f, engine_type: e.target.value }))} className={inputCls}>
+            <select value={form.engine_type} onChange={e => { setForm(f => ({ ...f, engine_type: e.target.value })); setSpecs({}) }} className={inputCls}>
               <option value="">—</option>
               <option value="Desktop PC">Desktop PC</option>
               <option value="Laptop">Laptop</option>
@@ -210,6 +239,72 @@ function VehiclesInner(): JSX.Element {
               <option value="Other">Other</option>
             </select>
           </div>
+          {form.engine_type && DEVICE_SPEC_FIELDS[form.engine_type] && DEVICE_SPEC_FIELDS[form.engine_type].length > 0 && (
+            <div className="col-span-2 border-t border-border pt-4 mt-1">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Device Specifications</p>
+              <div className="grid grid-cols-2 gap-4">
+                {DEVICE_SPEC_FIELDS[form.engine_type].map(field => {
+                  if (MULTI_SPEC_FIELDS.has(field)) {
+                    const entries = getSpecArray(specs, field)
+                    return (
+                      <div key={field} className="col-span-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-sm font-medium">{field}</label>
+                          <button
+                            type="button"
+                            onClick={() => setSpecs(s => ({ ...s, [field]: [...getSpecArray(s, field), ''] }))}
+                            className="flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            <PlusCircle className="w-3.5 h-3.5" /> Add {field}
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {entries.map((val, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground w-5 shrink-0">#{idx + 1}</span>
+                              <input
+                                value={val}
+                                onChange={e => {
+                                  const arr = getSpecArray(specs, field).slice()
+                                  arr[idx] = e.target.value
+                                  setSpecs(s => ({ ...s, [field]: arr }))
+                                }}
+                                className={inputCls + ' flex-1'}
+                                placeholder={`e.g. ${field === 'RAM' ? '16GB DDR5 3200MHz' : '1TB NVMe SSD'}`}
+                              />
+                              {entries.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const arr = getSpecArray(specs, field).filter((_, i) => i !== idx)
+                                    setSpecs(s => ({ ...s, [field]: arr.length ? arr : [''] }))
+                                  }}
+                                  className="text-destructive hover:text-destructive/80 shrink-0"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={field}>
+                      <label className="block text-sm font-medium mb-1">{field}</label>
+                      <input
+                        value={getSpecString(specs, field)}
+                        onChange={e => setSpecs(s => ({ ...s, [field]: e.target.value }))}
+                        className={inputCls}
+                        placeholder={field}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           <div><label className="block text-sm font-medium mb-1">Condition</label>
             <select value={form.transmission} onChange={e => setForm(f => ({ ...f, transmission: e.target.value }))} className={inputCls}>
               <option value="">—</option>

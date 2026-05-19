@@ -11,7 +11,7 @@ import { usePermission } from '../../hooks/usePermission'
 import { toast } from '../../store/notificationStore'
 import { formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
-import RepairCard, { RepairRow, jobCardToastHint } from './RepairCard'
+import RepairCard, { RepairRow, jobCardToastHint } from './WorkOrderCard'
 import AddJobModal from '../../components/modals/AddJobModal'
 import JobCreationChooserModal from '../../components/modals/JobCreationChooserModal'
 import QuickCreateJobModal from '../../components/modals/QuickCreateJobModal'
@@ -409,12 +409,7 @@ function RepairsPageInner(): JSX.Element {
             ))}
           </select>
         )}
-        <select value={deptFilter} onChange={e => setDeptFilter(e.target.value as '' | 'tech' | 'both')}
-          className="px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-          <option value="">All Departments</option>
-          <option value="tech">Tech</option>
-          <option value="both">Both only</option>
-        </select>
+
         <select value={techFilter} onChange={e => setTechFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="">All Technicians</option>

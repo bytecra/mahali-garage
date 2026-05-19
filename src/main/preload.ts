@@ -648,6 +648,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     markSold:           (id: number, resalePrice: number)                                                   => invoke('buybacks:markSold', id, resalePrice),
     promoteToInventory: (id: number, productData: { name: string; sell_price: number; cost_price: number; category_id?: number | null }) => invoke('buybacks:promoteToInventory', id, productData),
     delete:             (id: number)                                                                        => invoke('buybacks:delete', id),
+    listByCustomer:     (customerId: number)                                                                => invoke('buybacks:listByCustomer', customerId),
   },
 })
 

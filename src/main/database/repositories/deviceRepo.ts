@@ -17,6 +17,7 @@ export interface VehicleRow {
   insurance_expiry: string | null
   notes: string | null
   photo_url: string | null
+  specs_json: string | null
   created_at: string
   updated_at: string
   owner_name?: string
@@ -42,6 +43,7 @@ function normalizeVehicleStrings(data: Partial<VehicleRow>): Partial<VehicleRow>
     'insurance_expiry',
     'notes',
     'photo_url',
+    'specs_json',
   ]
   const out: Partial<VehicleRow> = { ...data }
   for (const k of keys) {
@@ -102,14 +104,14 @@ export const vehicleRepo = {
     const d = normalizeVehicleStrings(data)
     const result = db.prepare(`
       INSERT INTO vehicles (owner_id, make, model, year, vin, license_plate, color, mileage,
-        engine_type, transmission, insurance_company, insurance_policy, insurance_expiry, notes, photo_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        engine_type, transmission, insurance_company, insurance_policy, insurance_expiry, notes, photo_url, specs_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       d.owner_id ?? null, d.make ?? '', d.model ?? '', d.year ?? null,
       d.vin ?? null, d.license_plate ?? null, d.color ?? null, d.mileage ?? 0,
       d.engine_type ?? null, d.transmission ?? null,
       d.insurance_company ?? null, d.insurance_policy ?? null, d.insurance_expiry ?? null,
-      d.notes ?? null, d.photo_url ?? null,
+      d.notes ?? null, d.photo_url ?? null, d.specs_json ?? null,
     )
     return result.lastInsertRowid as number
   },

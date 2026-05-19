@@ -1,6 +1,6 @@
 {
   "name": "power-key",
-  "version": "0.10.0",
+  "version": "0.1.0",
   "description": "Professional gaming store management system",
   "main": "./out/main/index.js",
   "author": "",
@@ -134,7 +134,7 @@
         }
       ],
       "icon": "resources/icon.ico",
-      "executableName": "mahali-garage"
+      "executableName": "power-key"
     },
     "nsis": {
       "oneClick": false,
@@ -144,8 +144,8 @@
       "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Mahali Garage",
-      "menuCategory": "Mahali Garage",
+      "shortcutName": "Power Key",
+      "menuCategory": "Power Key",
       "installerIcon": "resources/icon.ico",
       "uninstallerIcon": "resources/icon.ico",
       "include": "installer.nsh",

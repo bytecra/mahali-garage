@@ -63,6 +63,8 @@ import { migration060 } from './060_device_specs'
 import { migration061 } from './061_stock_reservations'
 import { migration062 } from './062_builds'
 import { migration063 } from './063_buybacks'
+import { migration064 } from './064_buyback_specs'
+import { migration065 } from './065_buyback_sold_to_customer'
 
 interface Migration {
   version: number
@@ -136,6 +138,8 @@ const migrations: Migration[] = [
   { version: 61, name: '061_stock_reservations',           up: migration061 },
   { version: 62, name: '062_builds',                       up: migration062 },
   { version: 63, name: '063_buybacks',                     up: migration063 },
+  { version: 64, name: '064_buyback_specs',                up: migration064 },
+  { version: 65, name: '065_buyback_sold_to_customer',    up: migration065 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

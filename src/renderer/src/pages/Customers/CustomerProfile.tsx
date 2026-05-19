@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Phone, Pencil, ChevronRight, Car, Plus, Eye, AlertCircle, Wrench } from 'lucide-react'
+import { ArrowLeft, Phone, Pencil, ChevronRight, Car, Plus, Eye, AlertCircle, Wrench, CheckCircle2, Clock, CircleDashed } from 'lucide-react'
 import { formatDate } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
 import { usePermission } from '../../hooks/usePermission'
@@ -668,6 +668,27 @@ export default function CustomerProfile(): JSX.Element {
             {selectedVehicle.license_plate ? ` · ${selectedVehicle.license_plate}` : ''}
           </h2>
 
+          {/* Outstanding summary banner */}
+          {(() => {
+            const unpaidJobs = vehicleJobs.filter(j => (j.balance_due ?? 0) > 0)
+            if (unpaidJobs.length === 0) return null
+            const totalDue = unpaidJobs.reduce((s, j) => s + (j.balance_due ?? 0), 0)
+            return (
+              <div className="flex items-center justify-between gap-3 mb-3 px-4 py-3 bg-destructive/8 border border-destructive/25 rounded-lg">
+                <div className="flex items-center gap-2 text-sm">
+                  <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
+                  <span className="text-destructive font-medium">
+                    {unpaidJobs.length} unpaid {unpaidJobs.length === 1 ? 'invoice' : 'invoices'} for this vehicle
+                  </span>
+                </div>
+                <span className="text-sm font-bold text-destructive tabular-nums shrink-0">
+                  <CurrencyText amount={totalDue} className="font-bold text-destructive" />
+                  {' '}due
+                </span>
+              </div>
+            )
+          })()}
+
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             {loadingJobs ? (
               <div className="flex justify-center py-10">
@@ -683,47 +704,88 @@ export default function CustomerProfile(): JSX.Element {
                   <tr>
                     <th className="text-start px-4 py-3 font-medium">Service</th>
                     <th className="text-start px-4 py-3 font-medium">Date</th>
-                    <th className="text-end px-4 py-3 font-medium">Price</th>
+                    <th className="text-end px-4 py-3 font-medium">Total</th>
+                    <th className="text-center px-4 py-3 font-medium">Payment</th>
                     <th className="text-center px-4 py-3 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {vehicleJobs.map(j => (
-                    <tr key={j.id} className="hover:bg-muted/30">
-                      <td className="px-4 py-3 max-w-xs">
-                        <p className="text-foreground truncate">{servicesLine(j)}</p>
-                        <p className="text-xs text-muted-foreground font-mono mt-0.5">{j.job_number}</p>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        {formatDate(j.date_in || j.created_at)}
-                      </td>
-                      <td className="px-4 py-3 text-end font-medium tabular-nums">
-                        <CurrencyText amount={j.total} />
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
-                          {canEditJobCards && isActiveJobCardRow(j) && (
+                  {vehicleJobs.map(j => {
+                    const due = j.balance_due ?? 0
+                    const total = j.total ?? 0
+                    const isPaid = total === 0 || due <= 0
+                    const isPartial = !isPaid && due < total
+                    const isUnpaid = !isPaid && due >= total
+
+                    return (
+                      <tr
+                        key={j.id}
+                        className={
+                          isUnpaid ? 'bg-destructive/5 hover:bg-destructive/10' :
+                          isPartial ? 'bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30' :
+                          'hover:bg-muted/30'
+                        }
+                      >
+                        <td className="px-4 py-3 max-w-xs">
+                          <p className="text-foreground truncate">{servicesLine(j)}</p>
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5">{j.job_number}</p>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          {formatDate(j.date_in || j.created_at)}
+                        </td>
+                        <td className="px-4 py-3 text-end font-medium tabular-nums">
+                          <CurrencyText amount={total} />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {isPaid ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400">
+                              <CheckCircle2 className="w-3 h-3" />Paid
+                            </span>
+                          ) : isPartial ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                                <Clock className="w-3 h-3" />Partial
+                              </span>
+                              <span className="text-xs text-amber-600 dark:text-amber-400 tabular-nums font-medium">
+                                <CurrencyText amount={due} className="text-amber-600 dark:text-amber-400" /> due
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400">
+                                <CircleDashed className="w-3 h-3" />Unpaid
+                              </span>
+                              <span className="text-xs text-destructive tabular-nums font-medium">
+                                <CurrencyText amount={due} className="text-destructive" /> due
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
+                            {canEditJobCards && isActiveJobCardRow(j) && (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/job-cards?openJob=${j.id}`)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-primary/40 bg-primary/5 text-primary rounded-md hover:bg-primary/10 transition-colors"
+                                title={t('customers.openInJobCardsTitle', { defaultValue: 'Open in Job Cards' })}
+                              >
+                                <Wrench className="w-3.5 h-3.5 shrink-0" />
+                                {t('customers.openInJobCards', { defaultValue: 'Open job' })}
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => navigate(`/job-cards?openJob=${j.id}`)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-primary/40 bg-primary/5 text-primary rounded-md hover:bg-primary/10 transition-colors"
-                              title={t('customers.openInJobCardsTitle', { defaultValue: 'Open in Job Cards' })}
+                              onClick={() => navigate(`/owners/${customer.id}/vehicles/${selectedVehicleId}`)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-border rounded-md hover:bg-muted transition-colors"
                             >
-                              <Wrench className="w-3.5 h-3.5 shrink-0" />
-                              {t('customers.openInJobCards', { defaultValue: 'Open job' })}
+                              <Eye className="w-3.5 h-3.5" />View
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/owners/${customer.id}/vehicles/${selectedVehicleId}`)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-border rounded-md hover:bg-muted transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5" />View
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             )}

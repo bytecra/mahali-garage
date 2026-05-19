@@ -55,12 +55,17 @@ export const NAV_COLOR_PRESETS: Record<NavColorPreset, NavColorConfig> = {
 export function applyNavColor(preset: NavColorPreset): void {
   const { bg, accent, primary } = NAV_COLOR_PRESETS[preset]
   const root = document.documentElement
+  // Sidebar variables
   root.style.setProperty('--sidebar-background', bg)
   root.style.setProperty('--sidebar-accent', accent)
   root.style.setProperty('--sidebar-accent-foreground', '210 40% 98%')
   root.style.setProperty('--sidebar-border', accent)
   root.style.setProperty('--sidebar-primary', primary)
   root.style.setProperty('--sidebar-ring', primary)
+  // App-wide accent — buttons, active states, rings, links
+  root.style.setProperty('--primary', primary)
+  root.style.setProperty('--ring', primary)
+  root.style.setProperty('--accent', accent)
 }
 
 interface NavColorState {

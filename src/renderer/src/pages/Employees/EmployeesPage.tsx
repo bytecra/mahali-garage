@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from '../../store/authStore'
 import { toast } from '../../store/notificationStore'
 import { buildIdCardHtml } from '../../utils/idCardTemplate'
+import CurrencyText from '../../components/shared/CurrencyText'
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -239,13 +240,13 @@ function PayrollSection({
                     {t(`employees.salaryType_${row.salary_type}`, { defaultValue: row.salary_type })}
                     {' · '}
                     <span className="text-foreground font-medium">
-                      {t('employees.amountAed', { defaultValue: 'د.إ' })} {row.amount.toLocaleString()}
+                      <CurrencyText amount={row.amount} />
                     </span>
                     {row.month_status !== 'paid' && row.carryover_amount > 0 && (
                       <span className="ml-2 text-amber-700 dark:text-amber-400">
-                        {t('employees.carryoverLabel', { defaultValue: 'Carryover' })}: د.إ {row.carryover_amount.toLocaleString()}
+                        {t('employees.carryoverLabel', { defaultValue: 'Carryover' })}: <CurrencyText amount={row.carryover_amount} />
                         {' → '}
-                        <span className="font-semibold">{t('employees.totalDue', { defaultValue: 'Total' })}: د.إ {row.total_due.toLocaleString()}</span>
+                        <span className="font-semibold">{t('employees.totalDue', { defaultValue: 'Total' })}: <CurrencyText amount={row.total_due} /></span>
                       </span>
                     )}
                   </div>
@@ -303,12 +304,11 @@ function PayrollSection({
                       {parseFloat(getExtras(row.employee_id).overtime_hours) > 0 && (
                         <div className="flex items-end pb-1">
                           <p className="text-xs text-green-600 dark:text-green-400">
-                            +د.إ{' '}
-                            {(
+                            <CurrencyText amount={
                               parseFloat(getExtras(row.employee_id).overtime_hours) *
                               parseFloat(getExtras(row.employee_id).overtime_rate) *
                               (row.amount / (26 * 8))
-                            ).toFixed(2)}
+                            } />
                           </p>
                         </div>
                       )}
@@ -362,10 +362,7 @@ function PayrollSection({
                       {parseInt(getExtras(row.employee_id).absence_days, 10) > 0 && (
                         <div className="flex items-end pb-1">
                           <p className="text-xs text-red-600 dark:text-red-400">
-                            -د.إ{' '}
-                            {(
-                              parseInt(getExtras(row.employee_id).absence_days, 10) * (row.amount / 26)
-                            ).toFixed(2)}
+                            <CurrencyText amount={-(parseInt(getExtras(row.employee_id).absence_days, 10) * (row.amount / 26))} />
                           </p>
                         </div>
                       )}
@@ -383,15 +380,14 @@ function PayrollSection({
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Estimated Net:</span>
                           <span className="font-bold text-primary">
-                            د.إ{' '}
-                            {(
+                            <CurrencyText amount={
                               row.amount +
                               (parseFloat(getExtras(row.employee_id).overtime_hours) || 0) *
                                 (parseFloat(getExtras(row.employee_id).overtime_rate) || 1.25) *
                                 (row.amount / (26 * 8)) +
                               (parseFloat(getExtras(row.employee_id).bonus_amount) || 0) -
                               (parseInt(getExtras(row.employee_id).absence_days, 10) || 0) * (row.amount / 26)
-                            ).toFixed(2)}
+                            } />
                           </span>
                         </div>
                       </div>
@@ -1276,7 +1272,7 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
                 </select>
               </div>
               <div>
-                <label className={labelCls}>{t('employees.salaryAmount', { defaultValue: 'Amount (د.إ)' })}</label>
+                <label className={labelCls}>{t('employees.salaryAmount', { defaultValue: 'Amount' })}</label>
                 <input
                   type="number"
                   min={0}
@@ -2169,7 +2165,7 @@ function SalaryViewTab({
         <p>{t('employees.noSalaryConfig', { defaultValue: 'No salary configuration yet. Edit the employee and use the Salary tab to add payroll details.' })}</p>
         {employee.salary != null && (
           <p>
-            {t('employees.legacySalaryHint', { defaultValue: 'Legacy amount on file' })}: د.إ {Number(employee.salary).toLocaleString()}
+            {t('employees.legacySalaryHint', { defaultValue: 'Legacy amount on file' })}: <CurrencyText amount={Number(employee.salary)} />
           </p>
         )}
       </div>
@@ -2184,8 +2180,8 @@ function SalaryViewTab({
         </div>
       </div>
       <div>
-        <div className="text-xs text-muted-foreground">{t('employees.salaryAmount', { defaultValue: 'Amount (د.إ)' })}</div>
-        <div className="text-sm font-medium text-foreground">د.إ {salary.amount.toLocaleString()}</div>
+        <div className="text-xs text-muted-foreground">{t('employees.salaryAmount', { defaultValue: 'Amount' })}</div>
+        <div className="text-sm font-medium text-foreground"><CurrencyText amount={salary.amount} /></div>
       </div>
       {(salary.salary_type === 'monthly' || salary.salary_type === 'custom') && (
         <div>

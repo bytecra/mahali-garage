@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ShoppingCart, Wrench, Package, TrendingUp, AlertCircle, DollarSign, CheckSquare, Clock, Truck, TriangleAlert, Car, CheckCircle, Database as DatabaseIcon, Banknote, Landmark, Sigma, ScrollText, PlusCircle, Building2, PackageCheck, Users } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts'
-import { formatCurrency, cn } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import CurrencyText from '../../components/shared/CurrencyText'
-import { getCurrencySymbol, getCurrencyCode } from '../../store/currencyStore'
+import { getCurrencyCode } from '../../store/currencyStore'
 import { useAuthStore } from '../../store/authStore'
 import { usePermission } from '../../hooks/usePermission'
 import { parseDashboardWidgets } from '../../lib/dashboardWidgets'
@@ -297,25 +297,25 @@ function CashInHandWidget(): JSX.Element {
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('dashboard.cashInHandDrawerSub', { defaultValue: 'Drawer balance (all recorded cash ledger)' })}
           </p>
-          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight"><CurrencyText amount={drawerAllTime} symbol=" د.إ" /></p>
+          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight"><CurrencyText amount={drawerAllTime} /></p>
           {period && preset !== 'all_time' && (
             <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
               <span className="font-medium text-foreground/80">{periodLabel}</span>
               {': '}
-              {t('dashboard.cashDrawerInShort', { defaultValue: 'In' })} <CurrencyText amount={period.total_in} symbol=" د.إ" />
+              {t('dashboard.cashDrawerInShort', { defaultValue: 'In' })} <CurrencyText amount={period.total_in} />
               {' · '}
-              {t('dashboard.cashDrawerOutShort', { defaultValue: 'Out' })} <CurrencyText amount={period.total_out} symbol=" د.إ" />
+              {t('dashboard.cashDrawerOutShort', { defaultValue: 'Out' })} <CurrencyText amount={period.total_out} />
               {' · '}
-              {t('dashboard.cashDrawerNetShort', { defaultValue: 'Net' })} <CurrencyText amount={period.drawer_balance} symbol=" د.إ" />
+              {t('dashboard.cashDrawerNetShort', { defaultValue: 'Net' })} <CurrencyText amount={period.drawer_balance} />
             </p>
           )}
           {period && preset === 'today' && (
             <p className="text-[11px] text-foreground/90 mt-1 font-medium">
               {t('dashboard.cashDrawerTodayRegister', { defaultValue: "Today's register" })}
               {': '}
-              {t('dashboard.cashDrawerOpeningShort', { defaultValue: 'Opening' })} <CurrencyText amount={period.opening_total} symbol=" د.إ" />
+              {t('dashboard.cashDrawerOpeningShort', { defaultValue: 'Opening' })} <CurrencyText amount={period.opening_total} />
               {' · '}
-              {t('dashboard.cashDrawerRunningShort', { defaultValue: 'Running total' })} <CurrencyText amount={period.drawer_balance} symbol=" د.إ" />
+              {t('dashboard.cashDrawerRunningShort', { defaultValue: 'Running total' })} <CurrencyText amount={period.drawer_balance} />
             </p>
           )}
         </div>
@@ -503,7 +503,7 @@ function CashInHandWidget(): JSX.Element {
                           </span>
                         ) : null}
                       </td>
-                      <td className="py-1.5 text-right tabular-nums"><CurrencyText amount={row.amount} symbol=" د.إ" /></td>
+                      <td className="py-1.5 text-right tabular-nums"><CurrencyText amount={row.amount} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -574,8 +574,8 @@ function CashFlowWidget({
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-foreground leading-tight">{title}</h3>
           {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
-          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight"><CurrencyText amount={value} symbol=" د.إ" /></p>
-          <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wide">AED · {from === to ? from : `${from} → ${to}`}</p>
+          <p className="text-xl font-bold text-foreground mt-2 tabular-nums tracking-tight"><CurrencyText amount={value} /></p>
+          <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wide">{from === to ? from : `${from} → ${to}`}</p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-1.5">
@@ -1062,8 +1062,8 @@ export default function DashboardPage(): JSX.Element {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" tick={{ fontSize: 11 }} tickFormatter={d => d.slice(5)} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${getCurrencySymbol()}${v}`} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => v.toLocaleString()} />
+                <Tooltip formatter={(v: number) => (v as number).toFixed(2)} />
                 <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="url(#revenueGrad)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>

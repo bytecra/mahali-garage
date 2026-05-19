@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAnyPermission } from '../../../hooks/usePermission'
 import CurrencyText from '../../shared/CurrencyText'
-import AddCarModal from '../sub-modals/AddCarModal'
+import AddCarModal from '../sub-modals/AddDeviceModal'
 import type { VehicleOption } from './vehicleOption'
 
 export type { VehicleOption } from './vehicleOption'

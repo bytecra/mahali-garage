@@ -63,7 +63,7 @@ export function registerPrintHandlers(): void {
       // Block any popup windows opened by the print window (prevents about: URL dialogs on Windows)
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-      const htmlPath = path.join(app.getPath('temp'), `mahali-receipt-${Date.now()}.html`)
+      const htmlPath = path.join(app.getPath('temp'), `power-key-receipt-${Date.now()}.html`)
       await writeFile(htmlPath, html, 'utf-8')
 
       const result = await new Promise<boolean>((resolve) => {
@@ -169,7 +169,7 @@ export function registerPrintHandlers(): void {
       const win = createIdCardWindow(parent)
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-      const htmlPath = path.join(app.getPath('temp'), `mahali-idcard-${Date.now()}.html`)
+      const htmlPath = path.join(app.getPath('temp'), `power-key-idcard-${Date.now()}.html`)
       await writeFile(htmlPath, html, 'utf-8')
 
       const result = await new Promise<Buffer | null>((resolve) => {
@@ -326,7 +326,7 @@ export function registerPrintHandlers(): void {
       const win = createPrintWindow(parent)
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-      const htmlPath = path.join(app.getPath('temp'), `mahali-thermal-${Date.now()}.html`)
+      const htmlPath = path.join(app.getPath('temp'), `power-key-thermal-${Date.now()}.html`)
       await writeFile(htmlPath, html, 'utf-8')
 
       const result = await new Promise<boolean>((resolve) => {
