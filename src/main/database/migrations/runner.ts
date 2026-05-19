@@ -58,6 +58,11 @@ import { migration055 } from './055_job_invoice_inspection_display'
 import { migration056 } from './056_user_preferences'
 import { migration057 } from './057_warranty_system'
 import { migration058 } from './058_product_invoice_auto_warranty'
+import { migration059 } from './059_gaming_job_types'
+import { migration060 } from './060_device_specs'
+import { migration061 } from './061_stock_reservations'
+import { migration062 } from './062_builds'
+import { migration063 } from './063_buybacks'
 
 interface Migration {
   version: number
@@ -126,6 +131,11 @@ const migrations: Migration[] = [
   { version: 56, name: '056_user_preferences', up: migration056 },
   { version: 57, name: '057_warranty_system', up: migration057 },
   { version: 58, name: '058_product_invoice_auto_warranty', up: migration058 },
+  { version: 59, name: '059_gaming_job_types',             up: migration059 },
+  { version: 60, name: '060_device_specs',                 up: migration060 },
+  { version: 61, name: '061_stock_reservations',           up: migration061 },
+  { version: 62, name: '062_builds',                       up: migration062 },
+  { version: 63, name: '063_buybacks',                     up: migration063 },
 ]
 
 export async function runMigrations(db: Database.Database): Promise<void> {

@@ -1,6 +1,7 @@
 import { ipcMain, dialog, shell, app } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import fsPromises from 'fs/promises'
 import { employeeRepo } from '../database/repositories/employeeRepo'
 import { salaryRepo, type MarkPaidExtras, type SalaryType } from '../database/repositories/salaryRepo'
 import { authService } from '../services/authService'
@@ -13,9 +14,6 @@ const DOCUMENTS_BASE = path.join(
   'Employee Documents',
 )
 
-function ensureDir(dir: string): void {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-}
 
 export function registerEmployeeHandlers(): void {
   /* ── Employees CRUD ────────────────────────────────────────────────────── */
@@ -164,7 +162,7 @@ export function registerEmployeeHandlers(): void {
     }
   })
 
-  ipcMain.handle('employees:uploadDocument', (event, data) => {
+  ipcMain.handle('employees:uploadDocument', async (event, data) => {
     try {
       const session = authService.getSession(event.sender.id)
       if (!session || session.role !== 'owner')
@@ -176,7 +174,7 @@ export function registerEmployeeHandlers(): void {
       if (!emp) return err('Employee not found', 'ERR_NOT_FOUND')
 
       const empFolder = path.join(DOCUMENTS_BASE, emp.employee_id)
-      ensureDir(empFolder)
+      await fsPromises.mkdir(empFolder, { recursive: true })
 
       const timestamp = new Date().toISOString().split('T')[0]
       const ext = path.extname(fileName || 'file.jpg') || '.jpg'
@@ -184,15 +182,15 @@ export function registerEmployeeHandlers(): void {
       const finalName = `${sanitized}_${timestamp}_${Date.now()}${ext}`
       const filePath = path.join(empFolder, finalName)
 
-      fs.writeFileSync(filePath, Buffer.from(fileBuffer))
-      const stats = fs.statSync(filePath)
+      const buf = Buffer.from(fileBuffer)
+      await fsPromises.writeFile(filePath, buf)
 
       const result = employeeRepo.addDocument({
         employee_id: employeeId,
         document_type: documentType,
         document_name: documentName || fileName,
         file_path: filePath,
-        file_size: stats.size,
+        file_size: buf.length,
         mime_type: mimeType,
         issue_date: metadata?.issueDate ?? null,
         expiry_date: metadata?.expiryDate ?? null,
@@ -201,7 +199,7 @@ export function registerEmployeeHandlers(): void {
         uploaded_by: session.userId,
       })
 
-      return ok({ ...result, filePath, fileSize: stats.size })
+      return ok({ ...result, filePath, fileSize: buf.length })
     } catch (e) {
       log.error('employees:uploadDocument', e)
       return err('Failed to upload document')
@@ -226,15 +224,15 @@ export function registerEmployeeHandlers(): void {
     }
   })
 
-  ipcMain.handle('employees:deleteDocument', (event, docId: number) => {
+  ipcMain.handle('employees:deleteDocument', async (event, docId: number) => {
     try {
       const session = authService.getSession(event.sender.id)
       if (!session || session.role !== 'owner')
         return err('Forbidden', 'ERR_FORBIDDEN')
 
       const doc = employeeRepo.getDocument(docId) as { file_path: string } | undefined
-      if (doc && fs.existsSync(doc.file_path)) {
-        fs.unlinkSync(doc.file_path)
+      if (doc) {
+        try { await fsPromises.unlink(doc.file_path) } catch { /* file already gone */ }
       }
       employeeRepo.deleteDocument(docId)
       return ok(true)
@@ -316,7 +314,7 @@ export function registerEmployeeHandlers(): void {
       })
       if (result.canceled || !result.filePaths.length) return ok(null)
       const filePath = result.filePaths[0]
-      const buffer = fs.readFileSync(filePath)
+      const buffer = await fsPromises.readFile(filePath)
       const fileName = path.basename(filePath)
       const ext = path.extname(filePath).toLowerCase()
       const mimeMap: Record<string, string> = {

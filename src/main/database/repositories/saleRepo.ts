@@ -274,12 +274,15 @@ export const saleRepo = {
 
       removeLedgerForSaleInTx(db, id)
 
-      // Restore stock
-      const items = db.prepare(`SELECT * FROM sale_items WHERE sale_id = ?`).all(id) as Array<{ product_id: number | null; quantity: number }>
+      // Restore stock — single JOIN avoids N+1 queries
+      const items = db.prepare(`
+        SELECT si.product_id, si.quantity, p.stock_quantity
+        FROM sale_items si
+        JOIN products p ON p.id = si.product_id
+        WHERE si.sale_id = ? AND si.product_id IS NOT NULL
+      `).all(id) as Array<{ product_id: number; quantity: number; stock_quantity: number }>
       for (const item of items) {
-        if (!item.product_id) continue
-        const prod = db.prepare(`SELECT stock_quantity FROM products WHERE id = ?`).get(item.product_id) as { stock_quantity: number }
-        const qty_before = prod.stock_quantity
+        const qty_before = item.stock_quantity
         const qty_after = qty_before + item.quantity
         db.prepare(`UPDATE products SET stock_quantity = ?, updated_at = datetime('now') WHERE id = ?`).run(qty_after, item.product_id)
         db.prepare(`

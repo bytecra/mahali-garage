@@ -558,6 +558,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('app:downloadProgress', handler)
       }
     },
+    setZoom: (factor: number) => invoke<void>('app:setZoom', factor),
+    getZoom: () => invoke<number>('app:getZoom'),
   },
 
   shell: {
@@ -612,6 +614,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getUnreadCount: ()               => invoke('notifications:getUnreadCount'),
     markRead:       (id: number)     => invoke('notifications:markRead', id),
     markAllRead:    ()               => invoke('notifications:markAllRead'),
+  },
+
+  // ── Stock Reservations ────────────────────────────────────────────────────
+  reservations: {
+    listByJob:         (jobCardId: number)                                           => invoke('reservations:listByJob', jobCardId),
+    listByProduct:     (productId: number)                                           => invoke('reservations:listByProduct', productId),
+    reservedQuantity:  (productId: number)                                           => invoke('reservations:reservedQuantity', productId),
+    create:            (data: { job_card_id: number; product_id: number; quantity: number; notes?: string | null }) => invoke('reservations:create', data),
+    consume:           (id: number)                                                  => invoke('reservations:consume', id),
+    release:           (id: number)                                                  => invoke('reservations:release', id),
+    releaseAllForJob:  (jobCardId: number)                                           => invoke('reservations:releaseAllForJob', jobCardId),
+  },
+
+  // ── Builds (Prebuilt PC) ──────────────────────────────────────────────────
+  builds: {
+    list:             (filters?: { search?: string; status?: string; page?: number; pageSize?: number }) => invoke('builds:list', filters),
+    getById:          (id: number)                                                                        => invoke('builds:getById', id),
+    create:           (data: unknown)                                                                     => invoke('builds:create', data),
+    update:           (id: number, data: unknown)                                                         => invoke('builds:update', id, data),
+    reserve:          (buildId: number)                                                                   => invoke('builds:reserve', buildId),
+    completeAssembly: (buildId: number)                                                                   => invoke('builds:completeAssembly', buildId),
+    cancel:           (buildId: number)                                                                   => invoke('builds:cancel', buildId),
+    delete:           (id: number)                                                                        => invoke('builds:delete', id),
+  },
+
+  // ── Buybacks ──────────────────────────────────────────────────────────────
+  buybacks: {
+    list:               (filters?: { search?: string; status?: string; page?: number; pageSize?: number }) => invoke('buybacks:list', filters),
+    getById:            (id: number)                                                                        => invoke('buybacks:getById', id),
+    create:             (data: unknown)                                                                     => invoke('buybacks:create', data),
+    update:             (id: number, data: unknown)                                                         => invoke('buybacks:update', id, data),
+    markSold:           (id: number, resalePrice: number)                                                   => invoke('buybacks:markSold', id, resalePrice),
+    promoteToInventory: (id: number, productData: { name: string; sell_price: number; cost_price: number; category_id?: number | null }) => invoke('buybacks:promoteToInventory', id, productData),
+    delete:             (id: number)                                                                        => invoke('buybacks:delete', id),
   },
 })
 

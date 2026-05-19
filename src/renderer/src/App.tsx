@@ -16,7 +16,7 @@ import { lazy, Suspense } from 'react'
 const POSPage         = lazy(() => import('./pages/POS/POSPage'))
 const InventoryPage   = lazy(() => import('./pages/Inventory/InventoryPage'))
 const CustomersPage   = lazy(() => import('./pages/Customers/CustomersPage'))
-const RepairsPage     = lazy(() => import('./pages/Repairs/RepairsPage'))
+const RepairsPage     = lazy(() => import('./pages/WorkOrders/WorkOrdersPage'))
 const ReportsPage     = lazy(() => import('./pages/Reports/ReportsPage'))
 const UsersPage       = lazy(() => import('./pages/Users/UsersPage'))
 const SettingsPage    = lazy(() => import('./pages/Settings/SettingsPage'))
@@ -24,12 +24,15 @@ const ExpensesPage    = lazy(() => import('./pages/Expenses/ExpensesPage'))
 const TasksPage       = lazy(() => import('./pages/Tasks/TasksPage'))
 const CalendarPage    = lazy(() => import('./pages/Calendar/CalendarPage'))
 const InvoicesPage    = lazy(() => import('./pages/Invoices/InvoicesPage'))
-const VehiclesPage    = lazy(() => import('./pages/Vehicles/VehiclesPage'))
+const VehiclesPage    = lazy(() => import('./pages/Devices/DevicesPage'))
 const ServiceCatalogPage = lazy(() => import('./pages/ServiceCatalog/ServiceCatalogPage'))
 const EmployeesPage     = lazy(() => import('./pages/Employees/EmployeesPage'))
 const AssetsPage        = lazy(() => import('./pages/Assets/AssetsPage'))
 const AiAssistantPage   = lazy(() => import('./pages/AiAssistant/AiAssistantPage'))
 const TvDisplayPage     = lazy(() => import('./pages/TV/TvDisplayPage'))
+const ReservationsPage  = lazy(() => import('./pages/Reservations/ReservationsPage'))
+const BuildsPage        = lazy(() => import('./pages/Builds/BuildsPage'))
+const BuybacksPage      = lazy(() => import('./pages/Buybacks/BuybacksPage'))
 
 function LoadingFallback(): JSX.Element {
   return (
@@ -152,9 +155,10 @@ export default function App(): JSX.Element {
               <Suspense fallback={<LoadingFallback />}><RepairsPage /></Suspense>
             } />
             <Route path="/repairs/*" element={<Navigate to="/job-cards" replace />} />
-            <Route path="/vehicles/*" element={
+            <Route path="/devices/*" element={
               <Suspense fallback={<LoadingFallback />}><VehiclesPage /></Suspense>
             } />
+            <Route path="/vehicles/*" element={<Navigate to="/devices" replace />} />
             <Route path="/service-catalog" element={
               <Suspense fallback={<LoadingFallback />}><ServiceCatalogPage /></Suspense>
             } />
@@ -197,6 +201,15 @@ export default function App(): JSX.Element {
             } />
             <Route path="/ai-assistant" element={
               <Suspense fallback={<LoadingFallback />}><AiAssistantPage /></Suspense>
+            } />
+            <Route path="/reservations" element={
+              <Suspense fallback={<LoadingFallback />}><ReservationsPage /></Suspense>
+            } />
+            <Route path="/builds" element={
+              <Suspense fallback={<LoadingFallback />}><BuildsPage /></Suspense>
+            } />
+            <Route path="/buybacks" element={
+              <Suspense fallback={<LoadingFallback />}><BuybacksPage /></Suspense>
             } />
           </Route>
         </Route>

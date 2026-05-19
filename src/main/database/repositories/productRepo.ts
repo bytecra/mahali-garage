@@ -145,10 +145,17 @@ export const productRepo = {
   },
 
   update(id: number, data: Partial<Omit<ProductRow, 'id' | 'created_at' | 'category_name' | 'brand_name' | 'supplier_name'>>): void {
-    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ')
+    const ALLOWED = new Set([
+      'name', 'sku', 'barcode', 'description', 'category_id', 'brand_id', 'supplier_id',
+      'cost_price', 'sell_price', 'stock_quantity', 'low_stock_threshold', 'unit',
+      'is_active', 'image_path', 'warranty_title', 'warranty_duration_months', 'warranty_notes', 'updated_at',
+    ])
+    const entries = Object.entries(data).filter(([k]) => ALLOWED.has(k))
+    if (entries.length === 0) return
+    const fields = entries.map(([k]) => `${k} = ?`).join(', ')
     getDb().prepare(`
       UPDATE products SET ${fields}, updated_at = datetime('now') WHERE id = ?
-    `).run(...Object.values(data), id)
+    `).run(...entries.map(([, v]) => v), id)
   },
 
   delete(id: number): void {
@@ -177,7 +184,9 @@ export const productRepo = {
       } else {
         // out, damage
         qtyAfter = qtyBefore - adjustment.quantity
-        if (qtyAfter < 0) qtyAfter = 0
+        if (qtyAfter < 0) throw new Error(
+          `Insufficient stock for product ${productId}: have ${qtyBefore}, need ${adjustment.quantity}`
+        )
       }
 
       db.prepare(`UPDATE products SET stock_quantity = ?, updated_at = datetime('now') WHERE id = ?`).run(qtyAfter, productId)

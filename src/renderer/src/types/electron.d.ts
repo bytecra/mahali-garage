@@ -404,6 +404,8 @@ declare global {
             totalBytes: number
           }) => void
         ) => () => void
+        setZoom: (factor: number) => Promise<void>
+        getZoom: () => Promise<number>
       }
       shell: {
         openExternal: (url: string) => Promise<void>
@@ -701,6 +703,134 @@ declare global {
           >
         >
       }
+      reservations: {
+        listByJob:        (jobCardId: number) => Promise<IpcResponse<ReservationRow[]>>
+        listByProduct:    (productId: number) => Promise<IpcResponse<ReservationRow[]>>
+        reservedQuantity: (productId: number) => Promise<IpcResponse<number>>
+        create:           (data: { job_card_id: number; product_id: number; quantity: number; notes?: string | null }) => Promise<IpcResponse<number>>
+        consume:          (id: number) => Promise<IpcResponse<boolean>>
+        release:          (id: number) => Promise<IpcResponse<boolean>>
+        releaseAllForJob: (jobCardId: number) => Promise<IpcResponse<boolean>>
+      }
+      builds: {
+        list:             (filters?: BuildFilters) => Promise<IpcResponse<{ items: BuildRow[]; total: number }>>
+        getById:          (id: number) => Promise<IpcResponse<BuildRow & { items: BuildItemRow[] }>>
+        create:           (data: BuildCreateInput) => Promise<IpcResponse<number>>
+        update:           (id: number, data: Partial<BuildRow>) => Promise<IpcResponse<boolean>>
+        reserve:          (buildId: number) => Promise<IpcResponse<boolean>>
+        completeAssembly: (buildId: number) => Promise<IpcResponse<boolean>>
+        cancel:           (buildId: number) => Promise<IpcResponse<boolean>>
+        delete:           (id: number) => Promise<IpcResponse<boolean>>
+      }
+      buybacks: {
+        list:               (filters?: BuybackFilters) => Promise<IpcResponse<{ items: BuybackRow[]; total: number }>>
+        getById:            (id: number) => Promise<IpcResponse<BuybackRow>>
+        create:             (data: BuybackCreateInput) => Promise<IpcResponse<number>>
+        update:             (id: number, data: Partial<BuybackRow>) => Promise<IpcResponse<boolean>>
+        markSold:           (id: number, resalePrice: number) => Promise<IpcResponse<boolean>>
+        promoteToInventory: (id: number, productData: { name: string; sell_price: number; cost_price: number; category_id?: number | null }) => Promise<IpcResponse<number>>
+        delete:             (id: number) => Promise<IpcResponse<boolean>>
+      }
     }
   }
+}
+
+export interface ReservationRow {
+  id: number
+  job_card_id: number
+  product_id: number
+  quantity: number
+  status: 'active' | 'consumed' | 'released'
+  reserved_by: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  product_name?: string
+  product_sku?: string | null
+  job_number?: string | null
+  reserver_name?: string | null
+}
+
+export interface BuildRow {
+  id: number
+  name: string
+  status: 'draft' | 'reserved' | 'assembling' | 'complete' | 'sold' | 'cancelled'
+  customer_id: number | null
+  sale_id: number | null
+  sell_price: number
+  notes: string | null
+  created_by: number | null
+  created_at: string
+  updated_at: string
+  customer_name?: string | null
+  creator_name?: string | null
+  total_cost?: number
+  item_count?: number
+}
+
+export interface BuildItemRow {
+  id: number
+  build_id: number
+  product_id: number
+  product_name: string
+  quantity: number
+  unit_cost: number
+  created_at: string
+  product_sku?: string | null
+  stock_quantity?: number
+}
+
+export interface BuildFilters {
+  search?: string
+  status?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface BuildCreateInput {
+  name: string
+  customer_id?: number | null
+  sell_price?: number
+  notes?: string | null
+  items: Array<{ product_id: number; product_name: string; quantity: number; unit_cost: number }>
+}
+
+export interface BuybackRow {
+  id: number
+  customer_id: number | null
+  device_type: string
+  brand: string | null
+  model: string | null
+  serial_number: string | null
+  condition_grade: 'A' | 'B' | 'C' | 'D' | 'broken'
+  buyback_price: number
+  status: 'received' | 'inspecting' | 'refurbishing' | 'ready' | 'sold' | 'scrapped'
+  job_card_id: number | null
+  product_id: number | null
+  resale_price: number | null
+  sold_at: string | null
+  notes: string | null
+  received_by: number | null
+  created_at: string
+  updated_at: string
+  customer_name?: string | null
+  receiver_name?: string | null
+}
+
+export interface BuybackFilters {
+  search?: string
+  status?: 'received' | 'inspecting' | 'refurbishing' | 'ready' | 'sold' | 'scrapped'
+  page?: number
+  pageSize?: number
+}
+
+export interface BuybackCreateInput {
+  customer_id?: number | null
+  device_type: string
+  brand?: string | null
+  model?: string | null
+  serial_number?: string | null
+  condition_grade?: 'A' | 'B' | 'C' | 'D' | 'broken'
+  buyback_price?: number
+  notes?: string | null
 }

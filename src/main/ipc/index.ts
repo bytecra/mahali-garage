@@ -17,8 +17,8 @@ import { registerActivityHandlers } from './activityHandlers'
 import { registerExpenseHandlers }      from './expenseHandlers'
 import { registerTaskHandlers }          from './taskHandlers'
 import { registerNotificationHandlers }  from './notificationHandlers'
-import { registerVehicleHandlers }       from './vehicleHandlers'
-import { registerJobCardHandlers }       from './jobCardHandlers'
+import { registerDeviceHandlers }        from './deviceHandlers'
+import { registerWorkOrderHandlers }     from './workOrderHandlers'
 import { registerServiceHandlers }       from './serviceHandlers'
 import { registerJobTypeHandlers }       from './jobTypeHandlers'
 import { registerCustomReceiptHandlers } from './customReceiptHandlers'
@@ -33,6 +33,9 @@ import { registerPrintHandlers } from './printHandlers'
 import { registerTvHandlers } from './tvHandlers'
 import { registerLoyaltyHandlers } from './loyaltyHandlers'
 import { registerAppHandlers } from './appHandlers'
+import { registerReservationHandlers } from './reservationHandlers'
+import { registerBuildHandlers } from './buildHandlers'
+import { registerBuybackHandlers } from './buybackHandlers'
 
 export function registerAllHandlers(): void {
   registerAppHandlers()
@@ -55,8 +58,8 @@ export function registerAllHandlers(): void {
   registerExpenseHandlers()
   registerTaskHandlers()
   registerNotificationHandlers()
-  registerVehicleHandlers()
-  registerJobCardHandlers()
+  registerDeviceHandlers()
+  registerWorkOrderHandlers()
   registerServiceHandlers()
   registerJobTypeHandlers()
   registerCustomReceiptHandlers()
@@ -70,4 +73,7 @@ export function registerAllHandlers(): void {
   registerPrintHandlers()
   registerTvHandlers()
   registerLoyaltyHandlers()
+  registerReservationHandlers()
+  registerBuildHandlers()
+  registerBuybackHandlers()
 }
