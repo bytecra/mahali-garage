@@ -415,7 +415,9 @@ export default function POSPage(): JSX.Element {
                       <input type="number" min="1" max={item.stock_quantity} value={item.quantity}
                         onChange={e => cart.updateQty(item.product_id, parseInt(e.target.value) || 1)}
                         className="w-12 text-center text-sm border border-input rounded bg-background px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
+                      
+                    onFocus={e => e.target.select()}
+                  />
                       <button onClick={() => cart.updateQty(item.product_id, item.quantity + 1)}
                         className="w-6 h-6 flex items-center justify-center rounded border border-border hover:bg-muted">
                         <Plus className="w-3 h-3" />

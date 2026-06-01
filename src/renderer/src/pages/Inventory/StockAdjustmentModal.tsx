@@ -93,6 +93,7 @@ export default function StockAdjustmentModal({ product, onClose, onSaved }: Prop
             min="0"
             value={qty}
             onChange={e => setQty(e.target.value)}
+            onFocus={e => e.target.select()}
             className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
             autoFocus
           />

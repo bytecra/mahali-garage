@@ -76,6 +76,7 @@ export default function ReservationsPage(): JSX.Element {
           placeholder="Filter by product ID…"
           value={productId}
           onChange={e => setProductId(e.target.value)}
+          onFocus={e => e.target.select()}
           className="w-44 px-3 py-2 text-sm border border-input rounded-md bg-background"
         />
       </div>

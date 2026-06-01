@@ -578,6 +578,7 @@ export default function CustomerProfile(): JSX.Element {
                   placeholder="Points (+/-)"
                   value={adjustPoints}
                   onChange={e => setAdjustPoints(e.target.value)}
+                  onFocus={e => e.target.select()}
                   className="border border-border rounded-md px-2 py-1.5 text-sm bg-background"
                 />
                 <input
@@ -585,6 +586,7 @@ export default function CustomerProfile(): JSX.Element {
                   placeholder="Stamps (+/-)"
                   value={adjustStamps}
                   onChange={e => setAdjustStamps(e.target.value)}
+                  onFocus={e => e.target.select()}
                   className="border border-border rounded-md px-2 py-1.5 text-sm bg-background"
                 />
               </div>
@@ -825,6 +827,7 @@ export default function CustomerProfile(): JSX.Element {
                 max={2099}
                 value={vehicleForm.year}
                 onChange={e => setVehicleForm(f => ({ ...f, year: e.target.value }))}
+                onFocus={e => e.target.select()}
                 placeholder="e.g. 2022"
                 className={inputCls}
               />

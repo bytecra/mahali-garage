@@ -790,6 +790,7 @@ export default function JobInvoiceWizardModal(props: {
                                 onChange={e =>
                                   updateDraft(l.lineKey, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) })
                                 }
+                                onFocus={e => e.target.select()}
                               />
                             </td>
                             <td className="px-2 py-2 text-end align-top">
@@ -802,6 +803,7 @@ export default function JobInvoiceWizardModal(props: {
                                 onChange={e =>
                                   updateDraft(l.lineKey, { unit_price: Math.max(0.01, parseFloat(e.target.value) || 0) })
                                 }
+                                onFocus={e => e.target.select()}
                               />
                             </td>
                             <td className="px-2 py-2 text-end tabular-nums align-top">
@@ -840,6 +842,7 @@ export default function JobInvoiceWizardModal(props: {
                     className="w-full max-w-xs border border-input rounded-md px-2 py-1.5 bg-background"
                     value={taxRate}
                     onChange={e => setTaxRate(parseFloat(e.target.value) || 0)}
+                    onFocus={e => e.target.select()}
                   />
                   <div className="grid sm:grid-cols-2 gap-2">
                     <div>
@@ -867,6 +870,7 @@ export default function JobInvoiceWizardModal(props: {
                         className="w-full border border-input rounded-md px-2 py-1.5 bg-background"
                         value={discountValue}
                         onChange={e => setDiscountValue(parseFloat(e.target.value) || 0)}
+                        onFocus={e => e.target.select()}
                       />
                     </div>
                   </div>

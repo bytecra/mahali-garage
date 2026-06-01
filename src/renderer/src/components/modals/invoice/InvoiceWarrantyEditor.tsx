@@ -294,6 +294,7 @@ export default function InvoiceWarrantyEditor(props: {
                     value={row.duration_months}
                     disabled={Boolean(row.isFromProduct)}
                     onChange={e => updateRow(row.key, { duration_months: e.target.value })}
+                    onFocus={e => e.target.select()}
                     placeholder="12"
                   />
                 </div>

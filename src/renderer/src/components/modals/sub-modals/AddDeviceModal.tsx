@@ -209,6 +209,7 @@ export default function AddCarModal(props: {
               type="number"
               value={year}
               onChange={e => setYear(e.target.value)}
+              onFocus={e => e.target.select()}
               placeholder="2024"
             />
           </div>
@@ -230,6 +231,7 @@ export default function AddCarModal(props: {
               min={0}
               value={mileage}
               onChange={e => setMileage(e.target.value)}
+              onFocus={e => e.target.select()}
             />
           </div>
         </div>

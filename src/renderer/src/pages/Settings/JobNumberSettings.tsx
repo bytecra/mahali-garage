@@ -114,6 +114,7 @@ export default function JobNumberSettings(): JSX.Element {
             className="w-full border border-input rounded-md px-2 py-1.5 bg-background text-sm"
             value={padding}
             onChange={e => setPadding(parseInt(e.target.value, 10) || 4)}
+            onFocus={e => e.target.select()}
           />
         </div>
         <div>
@@ -124,6 +125,7 @@ export default function JobNumberSettings(): JSX.Element {
             className="w-full border border-input rounded-md px-2 py-1.5 bg-background text-sm"
             value={nextNumber}
             onChange={e => setNextNumber(e.target.value)}
+            onFocus={e => e.target.select()}
           />
           <p className="text-[11px] text-muted-foreground mt-1">Used for the next new job you create.</p>
         </div>

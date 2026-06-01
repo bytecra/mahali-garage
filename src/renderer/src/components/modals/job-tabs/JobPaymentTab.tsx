@@ -86,6 +86,7 @@ export default function JobPaymentTab(props: {
             step={0.5}
             value={form.labor_hours}
             onChange={e => setField('labor_hours', e.target.value)}
+            onFocus={e => e.target.select()}
             className={inputCls}
           />
         </div>
@@ -97,6 +98,7 @@ export default function JobPaymentTab(props: {
             step={0.01}
             value={form.labor_rate}
             onChange={e => setField('labor_rate', e.target.value)}
+            onFocus={e => e.target.select()}
             className={inputCls}
           />
         </div>
@@ -156,6 +158,7 @@ export default function JobPaymentTab(props: {
             step={0.01}
             value={form.tax_rate}
             onChange={e => setField('tax_rate', e.target.value)}
+            onFocus={e => e.target.select()}
             className={inputCls}
           />
         </div>
@@ -167,6 +170,7 @@ export default function JobPaymentTab(props: {
             step={0.01}
             value={form.deposit}
             onChange={e => setField('deposit', e.target.value)}
+            onFocus={e => e.target.select()}
             className={inputCls}
           />
         </div>
@@ -245,6 +249,7 @@ export default function JobPaymentTab(props: {
                   max={form.invoice_discount_type === 'percentage' ? 100 : undefined}
                   value={form.invoice_discount_value}
                   onChange={e => setField('invoice_discount_value', e.target.value)}
+                  onFocus={e => e.target.select()}
                   className={`${inputCls} w-[100px]`}
                   placeholder={form.invoice_discount_type === 'percentage' ? '%' : 'AED'}
                 />

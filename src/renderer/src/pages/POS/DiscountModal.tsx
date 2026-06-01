@@ -48,7 +48,7 @@ export default function DiscountModal({ onClose }: Props): JSX.Element {
         </div>
         <input
           type="number" min="0" max={type === 'percent' ? 100 : undefined}
-          value={value} onChange={e => setValue(e.target.value)} autoFocus
+          value={value} onChange={e => setValue(e.target.value)} autoFocus onFocus={e => e.target.select()}
           className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           placeholder={type === 'percent' ? '0–100' : '0.00'}
         />

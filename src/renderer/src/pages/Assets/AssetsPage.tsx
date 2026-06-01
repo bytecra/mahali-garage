@@ -383,6 +383,7 @@ function AssetsPageInner(): JSX.Element {
                 className={inputCls}
                 value={form.purchase_price}
                 onChange={e => setForm(f => ({ ...f, purchase_price: e.target.value }))}
+                onFocus={e => e.target.select()}
               />
             </div>
           </div>
@@ -395,6 +396,7 @@ function AssetsPageInner(): JSX.Element {
               className={inputCls}
               value={form.current_value}
               onChange={e => setForm(f => ({ ...f, current_value: e.target.value }))}
+              onFocus={e => e.target.select()}
               placeholder={t('assets.optional', { defaultValue: 'Optional' })}
             />
           </div>

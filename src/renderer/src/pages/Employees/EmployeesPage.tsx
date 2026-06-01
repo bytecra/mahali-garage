@@ -285,6 +285,7 @@ function PayrollSection({
                           placeholder="0"
                           value={getExtras(row.employee_id).overtime_hours}
                           onChange={e => setExtra(row.employee_id, 'overtime_hours', e.target.value)}
+                          onFocus={e => e.target.select()}
                           className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
                         />
                       </div>
@@ -321,6 +322,7 @@ function PayrollSection({
                           placeholder="0"
                           value={getExtras(row.employee_id).bonus_amount}
                           onChange={e => setExtra(row.employee_id, 'bonus_amount', e.target.value)}
+                          onFocus={e => e.target.select()}
                           className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
                         />
                       </div>
@@ -356,6 +358,7 @@ function PayrollSection({
                           placeholder="0"
                           value={getExtras(row.employee_id).absence_days}
                           onChange={e => setExtra(row.employee_id, 'absence_days', e.target.value)}
+                          onFocus={e => e.target.select()}
                           className="w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background"
                         />
                       </div>
@@ -1280,6 +1283,7 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
                   className={inputCls}
                   value={salaryForm.amount}
                   onChange={e => setSalaryForm(s => ({ ...s, amount: e.target.value }))}
+                  onFocus={e => e.target.select()}
                 />
               </div>
               {(salaryForm.salary_type === 'monthly' || salaryForm.salary_type === 'custom') && (
@@ -1292,6 +1296,7 @@ function EmployeeFormModal({ employee, onClose }: { employee: Employee | null; o
                     className={inputCls}
                     value={salaryForm.payment_day}
                     onChange={e => setSalaryForm(s => ({ ...s, payment_day: Math.min(31, Math.max(1, Number(e.target.value) || 1)) }))}
+                    onFocus={e => e.target.select()}
                   />
                 </div>
               )}

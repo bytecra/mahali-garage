@@ -175,6 +175,7 @@ function ProductSearchRow({
           min="0"
           step="0.01"
           onChange={e => onChange({ unit_cost: Number(e.target.value) })}
+          onFocus={e => e.target.select()}
           className="w-full px-2 py-1.5 text-sm border border-input rounded-md bg-background text-right font-mono"
         />
       </div>
@@ -187,6 +188,7 @@ function ProductSearchRow({
           min="1"
           max={item.stock_available > 0 ? item.stock_available : undefined}
           onChange={e => onChange({ quantity: Math.max(1, Number(e.target.value)) })}
+          onFocus={e => e.target.select()}
           className={`w-full px-2 py-1.5 text-sm border rounded-md bg-background text-right font-mono ${
             overStock ? 'border-red-500 text-red-400' : 'border-input'
           }`}
@@ -318,6 +320,7 @@ function NewBuildModal({
                 type="number"
                 value={sellPrice}
                 onChange={e => setSellPrice(e.target.value)}
+                onFocus={e => e.target.select()}
                 min="0"
                 step="0.01"
                 placeholder="0.00"

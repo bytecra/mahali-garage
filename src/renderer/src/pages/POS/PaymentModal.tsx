@@ -160,6 +160,7 @@ export default function PaymentModal({ total, onConfirm, onClose }: Props): JSX.
                     </label>
                     <input type="number" min="0" step="0.01" value={p.amount || ''}
                       onChange={e => updateAmount(i, e.target.value)}
+                      onFocus={e => e.target.select()}
                       className="w-full px-2 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                       placeholder="0.00"
                     />
@@ -171,6 +172,7 @@ export default function PaymentModal({ total, onConfirm, onClose }: Props): JSX.
                       </label>
                       <input type="number" min="0" step="0.01" value={recv || ''}
                         onChange={e => updateCashReceived(i, e.target.value)}
+                        onFocus={e => e.target.select()}
                         className={`w-full px-2 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring ${
                           rowInvalid ? 'border-destructive' : 'border-input'
                         }`}

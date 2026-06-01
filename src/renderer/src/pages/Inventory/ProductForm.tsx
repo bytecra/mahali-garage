@@ -10,8 +10,17 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
   return <label className="block text-sm font-medium mb-1.5">{children}{required && ' *'}</label>
 }
 
-function FieldInput({ value, onChange, type = 'text' }: { value: string; onChange: (v: string) => void; type?: string }) {
-  return <input type={type} value={value} onChange={e => onChange(e.target.value)} className={inputCls} />
+function FieldInput({ value, onChange, type = 'text', min }: { value: string; onChange: (v: string) => void; type?: string; min?: number }) {
+  return (
+    <input
+      type={type}
+      min={min}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      onFocus={type === 'number' ? e => e.target.select() : undefined}
+      className={inputCls}
+    />
+  )
 }
 
 function FieldSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { id: number; name: string }[] }) {

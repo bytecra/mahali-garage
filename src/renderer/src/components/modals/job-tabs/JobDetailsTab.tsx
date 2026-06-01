@@ -3,6 +3,7 @@ import { Package, Plus, Trash2 } from 'lucide-react'
 import { cn, formatCurrency } from '../../../lib/utils'
 import CurrencyText from '../../shared/CurrencyText'
 import { useDebounce } from '../../../hooks/useDebounce'
+import NumericInput from '../../shared/NumericInput'
 
 /** Per-line shop department. */
 export type LineDepartment = 'tech'
@@ -500,29 +501,26 @@ function JobDetailsTabInner(props: {
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
-                  <input
-                    type="number"
+                  <NumericInput
                     min={1}
                     value={row.quantity}
-                    onChange={e => updateLine(row.key, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                    onChange={v => updateLine(row.key, { quantity: Math.max(1, v) })}
                     className="w-full px-1 py-1 text-sm border border-input rounded text-center tabular-nums"
                     aria-label="Quantity"
                   />
-                  <input
-                    type="number"
+                  <NumericInput
                     min={0}
                     step={0.01}
                     value={row.cost}
-                    onChange={e => updateLine(row.key, { cost: Math.max(0, parseFloat(e.target.value) || 0) })}
+                    onChange={v => updateLine(row.key, { cost: v })}
                     className="w-full px-1 py-1 text-sm border border-input rounded text-end tabular-nums"
                     aria-label="Cost price AED"
                   />
-                  <input
-                    type="number"
+                  <NumericInput
                     min={0}
                     step={0.01}
                     value={row.sell}
-                    onChange={e => updateLine(row.key, { sell: Math.max(0, parseFloat(e.target.value) || 0) })}
+                    onChange={v => updateLine(row.key, { sell: v })}
                     className="w-full px-1 py-1 text-sm border border-input rounded text-end tabular-nums"
                     aria-label="Sell price AED"
                   />

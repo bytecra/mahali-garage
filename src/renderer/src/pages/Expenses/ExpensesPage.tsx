@@ -377,7 +377,7 @@ function ExpensesPageInner(): JSX.Element {
           </div>
           <div>
             <label className={labelCls}>{t('expenses.amount')} *</label>
-            <input type="number" min="0" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className={inputCls} />
+            <input type="number" min="0" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} onFocus={e => e.target.select()} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t('reports.department', { defaultValue: 'Department' })}</label>

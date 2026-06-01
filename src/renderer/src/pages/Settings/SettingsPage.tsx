@@ -1176,6 +1176,7 @@ export default function SettingsPage(): JSX.Element {
                 min={1}
                 value={settings['invoice_starting_number'] ?? '1'}
                 onChange={e => set('invoice_starting_number', e.target.value)}
+                onFocus={e => e.target.select()}
                 className={inputCls}
               />
               <p className="text-xs text-muted-foreground mt-1">Used when the period changes and reset is Yearly or Monthly.</p>
@@ -1199,6 +1200,7 @@ export default function SettingsPage(): JSX.Element {
                 min={1}
                 value={settings['invoice.next_number'] ?? '1'}
                 onChange={e => set('invoice.next_number', e.target.value)}
+                onFocus={e => e.target.select()}
                 className={inputCls}
               />
             </div>
@@ -1543,7 +1545,7 @@ export default function SettingsPage(): JSX.Element {
           <div className="space-y-4">
             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={settings['tax.enabled'] === 'true'} onChange={e => set('tax.enabled', String(e.target.checked))} className="w-4 h-4" /><span className="text-sm font-medium">Enable Tax</span></label>
             <div><label className={labelCls}>Tax Name</label><input value={settings['tax.name'] ?? 'Tax'} onChange={e => set('tax.name', e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Tax Rate (%)</label><input type="number" min="0" max="100" step="0.01" value={settings['tax.rate'] ?? '0'} onChange={e => set('tax.rate', e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Tax Rate (%)</label><input type="number" min="0" max="100" step="0.01" value={settings['tax.rate'] ?? '0'} onChange={e => set('tax.rate', e.target.value)} onFocus={e => e.target.select()} className={inputCls} /></div>
             <button onClick={() => save(['tax.enabled','tax.name','tax.rate'])} disabled={saving} className={saveBtnCls}>{saving ? t('common.loading') : t('common.save')}</button>
           </div>
         )}
@@ -1601,6 +1603,7 @@ export default function SettingsPage(): JSX.Element {
                 className={inputCls}
                 value={settings['payroll.reminder_days_before'] ?? '2'}
                 onChange={e => set('payroll.reminder_days_before', e.target.value)}
+                onFocus={e => e.target.select()}
               />
             </div>
             <button
@@ -1769,6 +1772,7 @@ export default function SettingsPage(): JSX.Element {
                         value={loyaltyConfig.pointsPerAed}
                         onChange={e => setLC('pointsPerAed',
                           parseFloat(e.target.value) || 1)}
+                        onFocus={e => e.target.select()}
                         className="w-full border border-border
                   rounded-md px-3 py-1.5 text-sm
                   bg-background"
@@ -1810,6 +1814,7 @@ export default function SettingsPage(): JSX.Element {
                         value={loyaltyConfig.stampsPerVisit}
                         onChange={e => setLC('stampsPerVisit',
                           parseInt(e.target.value, 10) || 1)}
+                        onFocus={e => e.target.select()}
                         className="w-full border border-border
                   rounded-md px-3 py-1.5 text-sm
                   bg-background"
@@ -1824,6 +1829,7 @@ export default function SettingsPage(): JSX.Element {
                         value={loyaltyConfig.stampsForReward}
                         onChange={e => setLC('stampsForReward',
                           parseInt(e.target.value, 10) || 10)}
+                        onFocus={e => e.target.select()}
                         className="w-full border border-border
                   rounded-md px-3 py-1.5 text-sm
                   bg-background"
@@ -1872,6 +1878,7 @@ export default function SettingsPage(): JSX.Element {
                         value={loyaltyConfig[vKey]}
                         onChange={e => setLC(vKey,
                           parseInt(e.target.value, 10) || 1)}
+                        onFocus={e => e.target.select()}
                         className="w-16 border border-border
                   rounded-md px-2 py-1 text-sm
                   bg-background text-center"
@@ -1883,6 +1890,7 @@ export default function SettingsPage(): JSX.Element {
                         value={loyaltyConfig[dKey]}
                         onChange={e => setLC(dKey,
                           parseInt(e.target.value, 10) || 1)}
+                        onFocus={e => e.target.select()}
                         className="w-16 border border-border
                   rounded-md px-2 py-1 text-sm
                   bg-background text-center"

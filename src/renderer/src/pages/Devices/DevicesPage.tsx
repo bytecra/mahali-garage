@@ -217,7 +217,7 @@ function VehiclesInner(): JSX.Element {
         <div className="grid grid-cols-2 gap-4">
           <div><label className="block text-sm font-medium mb-1">Brand *</label><input value={form.make} onChange={e => setForm(f => ({ ...f, make: e.target.value }))} className={inputCls} placeholder="e.g. ASUS, MSI, Sony" /></div>
           <div><label className="block text-sm font-medium mb-1">Model *</label><input value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} className={inputCls} placeholder="e.g. ROG Strix, PS5" /></div>
-          <div><label className="block text-sm font-medium mb-1">Year</label><input type="number" value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} className={inputCls} placeholder="2024" /></div>
+          <div><label className="block text-sm font-medium mb-1">Year</label><input type="number" value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} onFocus={e => e.target.select()} className={inputCls} placeholder="2024" /></div>
           <div><label className="block text-sm font-medium mb-1">Serial Number</label><input value={form.license_plate} onChange={e => setForm(f => ({ ...f, license_plate: e.target.value }))} className={inputCls} placeholder="e.g. SN123456789" /></div>
           <div><label className="block text-sm font-medium mb-1">Part Number / Device ID</label><input value={form.vin} onChange={e => setForm(f => ({ ...f, vin: e.target.value }))} className={inputCls} placeholder="e.g. PN-ABCXYZ" /></div>
           <div><label className="block text-sm font-medium mb-1">Color</label><input value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} className={inputCls} placeholder="e.g. Black, White" /></div>

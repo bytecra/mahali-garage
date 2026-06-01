@@ -147,6 +147,7 @@ function SellModal({ row, onClose, onDone }: { row: BuybackRow; onClose: () => v
               step="0.01"
               value={resalePrice}
               onChange={e => setResalePrice(Number(e.target.value))}
+              onFocus={e => e.target.select()}
               className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background"
             />
           </div>
@@ -272,6 +273,7 @@ function NewBuybackModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 <input type="number" min="0" max="100"
                   value={form.battery_health ?? ''}
                   onChange={e => set('battery_health', e.target.value ? Number(e.target.value) : null)}
+                  onFocus={e => e.target.select()}
                   placeholder="85"
                   className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background" />
               </div>
@@ -303,6 +305,7 @@ function NewBuybackModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 <label className="block text-xs font-medium mb-1">Buyback Price</label>
                 <input type="number" value={form.buyback_price ?? 0} min="0"
                   onChange={e => set('buyback_price', Number(e.target.value))}
+                  onFocus={e => e.target.select()}
                   className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background" />
               </div>
             </div>

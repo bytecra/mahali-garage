@@ -549,6 +549,7 @@ function AppointmentFormModal({
                 step={5}
                 value={durationMinutesCustom}
                 onChange={(e) => setDurationMinutesCustom(Number(e.target.value) || 60)}
+                onFocus={e => e.target.select()}
                 className="px-3 py-2 text-sm border border-border rounded-lg bg-background sm:col-span-2"
               />
             )}

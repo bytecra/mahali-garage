@@ -395,11 +395,11 @@ export default function ServiceCatalogPage(): JSX.Element {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Default price (AED) *</label>
-              <input type="number" min={0} step="0.01" value={fPrice} onChange={e => setFPrice(e.target.value)} className={inputCls} />
+              <input type="number" min={0} step="0.01" value={fPrice} onChange={e => setFPrice(e.target.value)} onFocus={e => e.target.select()} className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>{t('serviceCatalog.estMinutes', { defaultValue: 'Est. minutes' })}</label>
-              <input type="number" min={0} value={fEstMin} onChange={e => setFEstMin(e.target.value)} className={inputCls} placeholder="—" />
+              <input type="number" min={0} value={fEstMin} onChange={e => setFEstMin(e.target.value)} onFocus={e => e.target.select()} className={inputCls} placeholder="—" />
             </div>
           </div>
           <label className="flex items-center gap-2 cursor-pointer text-sm">

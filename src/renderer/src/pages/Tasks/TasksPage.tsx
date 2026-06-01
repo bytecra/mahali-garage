@@ -600,6 +600,7 @@ function TasksPageInner(): JSX.Element {
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">{t('tasks.recurrenceInterval')}</label>
                   <input type="number" min={1} max={365} {...form.register('recurrence_interval', { valueAsNumber: true })}
+                    onFocus={e => e.target.select()}
                     className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm" />
                 </div>
                 <div>

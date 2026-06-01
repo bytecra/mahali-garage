@@ -235,7 +235,7 @@ export default function WarrantyTemplatesSettings(): JSX.Element {
           </div>
           <div>
             <label className="block text-xs font-medium mb-1">Duration (months)</label>
-            <input type="number" min={0} className={inputCls} value={durationMonths} onChange={e => setDurationMonths(e.target.value)} placeholder="12" />
+            <input type="number" min={0} className={inputCls} value={durationMonths} onChange={e => setDurationMonths(e.target.value)} onFocus={e => e.target.select()} placeholder="12" />
           </div>
           {scope === 'service' ? (
             <div>
@@ -250,7 +250,7 @@ export default function WarrantyTemplatesSettings(): JSX.Element {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium mb-1">Sort order</label>
-              <input type="number" className={inputCls} value={sortOrder} onChange={e => setSortOrder(e.target.value)} />
+              <input type="number" className={inputCls} value={sortOrder} onChange={e => setSortOrder(e.target.value)} onFocus={e => e.target.select()} />
             </div>
             <div className="flex items-end">
               <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
