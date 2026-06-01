@@ -112,7 +112,7 @@ export type JobFormState = {
 export function isValidJobLineItem(l: JobLineItem): boolean {
   const d = l.description.trim()
   const descOk = d.length >= 3 || (l.productId != null && d.length >= 1)
-  return descOk && l.quantity >= 1 && l.cost > 0 && l.sell > 0
+  return descOk && l.quantity >= 1 && l.cost >= 0 && l.sell > 0
 }
 
 /** Derive job board department from line items (replaces manual job-level department). */

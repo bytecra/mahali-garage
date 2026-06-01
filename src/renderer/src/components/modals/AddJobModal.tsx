@@ -801,7 +801,7 @@ export default function AddJobModal({
     !!effectiveJobId &&
     !!selectedCustomer &&
     !!selectedVehicle &&
-    lineItems.some(l => l.description.trim().length >= 3 && l.cost > 0 && l.sell > 0)
+    lineItems.some(l => l.description.trim().length >= 3 && l.cost >= 0 && l.sell > 0)
 
   const canUseInvoiceAction = onOpenInvoiceWizard
     ? canGenerateInvoice && (!linkedJobInvoice || linkedJobInvoice.status === 'draft')
