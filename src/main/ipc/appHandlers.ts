@@ -259,4 +259,14 @@ export function registerAppHandlers(): void {
     await shell.openExternal(trimmed)
   })
 
+  ipcMain.handle('app:setZoom', (event, factor: unknown) => {
+    const f = Number(factor)
+    if (!Number.isFinite(f) || f < 0.5 || f > 2.0) return
+    event.sender.setZoomFactor(f)
+  })
+
+  ipcMain.handle('app:getZoom', (event) => {
+    return event.sender.getZoomFactor()
+  })
+
 }

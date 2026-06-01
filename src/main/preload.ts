@@ -558,6 +558,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeListener('app:downloadProgress', handler)
       }
     },
+    setZoom: (factor: number) => invoke<void>('app:setZoom', factor),
+    getZoom: () => invoke<number>('app:getZoom'),
   },
 
   shell: {

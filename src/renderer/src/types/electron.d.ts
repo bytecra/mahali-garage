@@ -406,6 +406,8 @@ declare global {
             totalBytes: number
           }) => void
         ) => () => void
+        setZoom: (factor: number) => Promise<void>
+        getZoom: () => Promise<number>
       }
       shell: {
         openExternal: (url: string) => Promise<void>
